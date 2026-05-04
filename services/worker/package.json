@@ -1,0 +1,8 @@
+{
+  "name": "@platform/worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'Worker placeholder - initialize BullMQ workers here next.'"
+  }
+}

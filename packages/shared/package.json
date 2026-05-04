@@ -1,0 +1,8 @@
+{
+  "name": "@platform/shared",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./message": "./src/message.js"
+  }
+}

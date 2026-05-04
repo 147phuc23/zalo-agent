@@ -1,0 +1,8 @@
+{
+  "name": "@platform/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'API service placeholder - initialize NestJS or Fastify here next.'"
+  }
+}

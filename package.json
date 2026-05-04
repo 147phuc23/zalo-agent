@@ -1,0 +1,14 @@
+{
+  "name": "zalo-twenty-platform",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.11.0",
+  "scripts": {
+    "zalo:listen": "node services/zalo-connector/src/index.js",
+    "twenty:up": "docker compose up -d",
+    "twenty:down": "docker compose down"
+  },
+  "dependencies": {
+    "zca-js": "^2.1.2"
+  }
+}

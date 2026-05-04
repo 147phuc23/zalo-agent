@@ -1,0 +1,8 @@
+{
+  "name": "@platform/admin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'Admin app placeholder - initialize Next.js here next.'"
+  }
+}

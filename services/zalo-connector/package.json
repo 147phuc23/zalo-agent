@@ -1,0 +1,8 @@
+{
+  "name": "@platform/zalo-connector",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node src/index.js"
+  }
+}
