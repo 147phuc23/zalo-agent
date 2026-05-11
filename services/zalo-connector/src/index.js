@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { ThreadType, Zalo } from "zca-js";
-import { createInboundMessageEvent } from "../../../packages/shared/src/message.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,10 +12,17 @@ const CREDENTIALS_FILE = path.join(DATA_DIR, "credentials.json");
 const INBOUND_LOG_FILE = path.join(DATA_DIR, "inbound.ndjson");
 const LEGACY_CREDENTIALS_FILE = path.resolve(__dirname, "../../../credentials.json");
 
+const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:3010";
+const INTERNAL_INGEST_TOKEN = process.env.INTERNAL_INGEST_TOKEN ?? "";
+const TENANT_ID =
+  process.env.TENANT_ID ?? "11111111-1111-1111-1111-111111111111"; // sales-demo
+
 ensureDataDir();
 
 const zalo = new Zalo();
 const api = await login();
+
+await postToApi(createConnectorHealthEvent("ok", api.getOwnId?.()));
 
 api.listener.on("message", async (message) => {
   const normalizedEvent = normalizeInboundMessage(message);
@@ -25,6 +32,7 @@ api.listener.on("message", async (message) => {
   }
 
   appendInboundEvent(normalizedEvent);
+  await postToApi(normalizedEvent);
 
   console.log(
     `[zalo-connector] inbound ${normalizedEvent.threadId}: ${normalizedEvent.text}`,
@@ -73,16 +81,26 @@ function normalizeInboundMessage(message) {
     return null;
   }
 
-  return createInboundMessageEvent({
+  const threadId = String(message.threadId);
+  const senderExternalId = String(message.data.uidFrom ?? message.data.fromId ?? "unknown");
+  const receivedAt = new Date().toISOString();
+
+  return {
+    kind: "message.received",
+    tenantId: TENANT_ID,
     channel: "zalo",
-    threadId: String(message.threadId),
-    senderId: String(message.data.uidFrom ?? message.data.fromId ?? "unknown"),
+    threadId,
+    externalMessageId: String(message.data?.msgId ?? ""),
+    senderExternalId,
+    messageType: "text",
     text,
-    raw: {
+    receivedAt,
+    idempotencyKey: buildIdempotencyKey({ threadId, senderExternalId, text }),
+    rawPayload: {
       type: message.type,
       data: message.data,
     },
-  });
+  };
 }
 
 function readTextContent(message) {
@@ -97,6 +115,21 @@ function appendInboundEvent(event) {
   fs.appendFileSync(INBOUND_LOG_FILE, `${JSON.stringify(event)}\n`);
 }
 
+function createConnectorHealthEvent(status, externalAccountId) {
+  return {
+    kind: "connector.health",
+    tenantId: TENANT_ID,
+    channel: "zalo",
+    status,
+    externalAccountId: externalAccountId ? String(externalAccountId) : undefined,
+    receivedAt: new Date().toISOString(),
+    rawPayload: {
+      source: "zalo-connector",
+      credentialsFile: CREDENTIALS_FILE,
+    },
+  };
+}
+
 function ensureDataDir() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
@@ -108,4 +141,33 @@ function migrateLegacyCredentials() {
 
   fs.copyFileSync(LEGACY_CREDENTIALS_FILE, CREDENTIALS_FILE);
   console.log("[zalo-connector] migrated legacy credentials into service data");
+}
+
+function buildIdempotencyKey({ threadId, senderExternalId, text }) {
+  const base = `zalo:${TENANT_ID}:${threadId}:${senderExternalId}:${text}`;
+  return crypto.createHash("sha256").update(base).digest("hex");
+}
+
+async function postToApi(event) {
+  if (!INTERNAL_INGEST_TOKEN) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/internal/events`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${INTERNAL_INGEST_TOKEN}`,
+      },
+      body: JSON.stringify({ events: [event] }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.warn("[zalo-connector] api ingest failed", res.status, text);
+    }
+  } catch (err) {
+    console.warn("[zalo-connector] api ingest error", err?.message ?? err);
+  }
 }

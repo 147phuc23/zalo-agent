@@ -1,0 +1,169 @@
+import { generateText } from "ai";
+import type { LanguageModel, ProviderMetadata } from "ai";
+import { createOpenRouterChatModel } from "@platform/ai-client";
+import { CustomerProfileCache } from "../cache/customer-profile-cache.js";
+import { buildProviderCacheSettings, readProviderCacheDiagnostics } from "../cache/provider-cache.js";
+import { loadDefaultSkills } from "../cache/skill-cache.js";
+import { getHistory, getIntent } from "../mock/store.js";
+import { buildPromptCacheContext } from "../prompt/prompt-cache-context.js";
+import {
+  getMockCandidateProfile,
+  getMockCandidateProfileRevision,
+} from "../skills/crm-get-candidate-profile/mock-data.js";
+import { createAgentTools } from "../skills/registry.js";
+import type { HrAgentRunOptions, HrAgentRunResult, HrAgentState } from "../types.js";
+
+const customerProfileCache = new CustomerProfileCache();
+
+export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<HrAgentRunResult> {
+  const skillCache = await loadDefaultSkills({ useCache: options.useLocalCache });
+  const profileCache = await customerProfileCache.get({
+    tenantId: options.scenario.tenantId,
+    channel: options.scenario.channel,
+    externalUserId: options.scenario.externalUserId,
+    forceReload: options.forceProfileReload || Boolean(options.scenario.forceProfileReload),
+    useCache: options.useLocalCache,
+    cacheVersion: getMockCandidateProfileRevision(),
+    loader: (input) => getMockCandidateProfile(input),
+  });
+
+  const state = buildInitialState(options);
+  const promptContext = buildPromptCacheContext({
+    skillCache,
+    loadedSkills: [],
+    customerProfile: profileCache.profile,
+    state,
+    latestMessages: options.scenario.messages,
+  });
+
+  if (options.mockLlm) {
+    return buildMockResult({
+      options,
+      state,
+      skillCache,
+      profileCacheStatus: profileCache.status,
+      promptHash: skillCache.hash,
+      promptDiagnostics: promptContext.diagnostics,
+    });
+  }
+
+  if (!process.env.OPENROUTER_API_KEY) {
+    throw new Error("OPENROUTER_API_KEY is required unless --mock-llm is passed");
+  }
+
+  const providerCache = buildProviderCacheSettings({
+    model: options.model,
+    enabled: true,
+  });
+
+  const result = await generateText({
+    model: createOpenRouterChatModel({
+      model: options.model,
+      enablePromptCaching: providerCache.enableProviderPromptCaching,
+    }) as unknown as LanguageModel,
+    system: promptContext.system,
+    prompt: promptContext.prompt,
+    tools: createAgentTools(skillCache.skills),
+    maxSteps: 8,
+    temperature: 0.2,
+    providerOptions: providerCache.providerOptions as ProviderMetadata,
+  });
+
+  const savedIntent = getIntent({
+    tenantId: options.scenario.tenantId,
+    threadId: options.scenario.threadId,
+  });
+
+  const history = getHistory({
+    tenantId: options.scenario.tenantId,
+    threadId: options.scenario.threadId,
+  });
+
+  state.intent = savedIntent?.intent ?? state.intent;
+  state.requirement = savedIntent?.requirement ?? state.requirement;
+  state.history = history.length > 0 ? history : state.history;
+
+  return {
+    scenarioId: options.scenario.id,
+    assistantText: result.text,
+    state,
+    cache: {
+      skillCache: skillCache.status,
+      skillPromptHash: skillCache.hash,
+      profileCache: profileCache.status,
+      provider: readProviderCacheDiagnostics(result),
+      prompt: promptContext.diagnostics,
+    },
+    steps: (result.steps ?? []).map((step: AgentStepResult) => ({
+      text: step.text,
+      toolCalls: step.toolCalls,
+      toolResults: step.toolResults,
+    })),
+  };
+}
+
+export function clearHrAgentProfileCache() {
+  customerProfileCache.clear();
+}
+
+function buildInitialState(options: HrAgentRunOptions): HrAgentState {
+  const now = new Date().toISOString();
+
+  return {
+    tenantId: options.scenario.tenantId,
+    channel: options.scenario.channel,
+    threadId: options.scenario.threadId,
+    externalUserId: options.scenario.externalUserId,
+    version: 1,
+    requirement: {},
+    loadedSkills: [],
+    history: options.scenario.messages.map((message) => ({
+      role: "user",
+      content: message.text,
+      createdAt: message.receivedAt || now,
+      metadata: {
+        id: message.id,
+        raw: message.raw,
+      },
+    })),
+  };
+}
+
+function buildMockResult(input: {
+  options: HrAgentRunOptions;
+  state: HrAgentState;
+  skillCache: Awaited<ReturnType<typeof loadDefaultSkills>>;
+  profileCacheStatus: "hit" | "miss" | "bypass";
+  promptHash: string;
+  promptDiagnostics: HrAgentRunResult["cache"]["prompt"];
+}): HrAgentRunResult {
+  const latestText = input.options.scenario.messages.map((message) => message.text).join(" ");
+
+  return {
+    scenarioId: input.options.scenario.id,
+    assistantText: `MOCK LLM: Mình đã nhận thông tin "${latestText}". Bạn cho mình thêm vai trò mong muốn và mức lương kỳ vọng nhé.`,
+    state: input.state,
+    cache: {
+      skillCache: input.skillCache.status,
+      skillPromptHash: input.promptHash,
+      profileCache: input.profileCacheStatus,
+      prompt: input.promptDiagnostics,
+      provider: {
+        mode: "mock",
+      },
+    },
+    steps: [
+      {
+        text: "Mock run skipped provider call.",
+        toolCalls: [],
+        toolResults: [],
+      },
+    ],
+  };
+}
+
+type AgentStepResult = {
+  text?: string;
+  toolCalls?: unknown[];
+  toolResults?: unknown[];
+};

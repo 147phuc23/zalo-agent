@@ -1,0 +1,40 @@
+import type { JobPosting } from "../../types.js";
+
+export const mockJobs: JobPosting[] = [
+  {
+    id: "job-fe-001",
+    title: "Frontend Engineer",
+    company: "Atlas Product Studio",
+    location: "Ho Chi Minh City",
+    workMode: "hybrid",
+    salaryMinVnd: 35_000_000,
+    salaryMaxVnd: 55_000_000,
+    seniority: "mid",
+    requiredSkills: ["React", "TypeScript", "Next.js"],
+    description: "Build customer-facing SaaS workflows with a product engineering team.",
+  },
+  {
+    id: "job-be-001",
+    title: "Backend Engineer",
+    company: "Northstar HR Cloud",
+    location: "Ha Noi",
+    workMode: "onsite",
+    salaryMinVnd: 45_000_000,
+    salaryMaxVnd: 70_000_000,
+    seniority: "senior",
+    requiredSkills: ["Node.js", "NestJS", "PostgreSQL"],
+    description: "Own APIs, queue workers, and tenant data workflows.",
+  },
+  {
+    id: "job-ai-001",
+    title: "AI Engineer",
+    company: "Signal Recruit",
+    location: "Ho Chi Minh City",
+    workMode: "remote",
+    salaryMinVnd: 55_000_000,
+    salaryMaxVnd: 85_000_000,
+    seniority: "mid-senior",
+    requiredSkills: ["Python", "LLM", "SQL"],
+    description: "Prototype AI recruiter workflows and evaluation pipelines.",
+  },
+];
