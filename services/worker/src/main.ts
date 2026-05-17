@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import { Worker } from "bullmq";
+import { Queue, Worker } from "bullmq";
 import { loadWorkerEnv } from "@platform/config";
 import { createDatabaseClient, createRepositorySet } from "@platform/database";
 import { z } from "zod";
@@ -18,6 +18,9 @@ const env = loadWorkerEnv();
 const db = createDatabaseClient(env);
 const repos = createRepositorySet(db);
 const ai = new OpenRouterAiClient();
+const messageSendQueue = new Queue("message.send", {
+  connection: { url: env.REDIS_URL },
+});
 
 const worker = new Worker(
   "message.received",
@@ -30,8 +33,9 @@ const worker = new Worker(
         const draft = await generateDraftReply(payload.tenantId, payload.conversationId);
         await appendAudit(payload.tenantId, payload.conversationId, "ai.generateDraft", {
           model: draft.model,
+          responseCount: draft.responses.length,
         });
-        return { ok: true, action: "auto->draft-stored" };
+        return { ok: true, action: "auto->drafts-enqueued", responseCount: draft.responses.length };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         await appendAuditError(payload.tenantId, payload.conversationId, "ai.generateDraft", {
@@ -113,6 +117,10 @@ async function createHumanTask(
 
 async function generateDraftReply(tenantId: string, conversationId: string) {
   const messages = await repos.messages.listByConversation({ conversationId, limit: 30 });
+  const conversation = await repos.conversations.findById(conversationId);
+  if (!conversation) {
+    throw new Error(`Conversation not found: ${conversationId}`);
+  }
 
   const transcript = messages
     .map((m) => `${m.direction === "inbound" ? "Customer" : "Agent"}: ${m.text ?? ""}`)
@@ -123,24 +131,118 @@ async function generateDraftReply(tenantId: string, conversationId: string) {
   const result = await ai.generate({
     model,
     system:
-      "You are a helpful sales/support assistant. Reply concisely in Vietnamese. If unclear, ask one clarifying question.",
-    prompt: `Conversation so far:\n${transcript}\n\nWrite the next reply.`,
+      [
+        "You are a helpful sales/support assistant.",
+        "Reply concisely in Vietnamese as a natural chat conversation.",
+        "Return only JSON in this shape: {\"responses\":[\"message 1\",\"message 2\"]}.",
+        "Each response is one Zalo chat bubble. Use 1-4 short responses.",
+        "Do not put newline characters inside any response.",
+        "If unclear, ask one clarifying question.",
+      ].join(" "),
+    prompt: `Conversation so far:\n${transcript}\n\nWrite the next chat responses.`,
     temperature: 0.3,
   });
 
-  const idempotencyKey = `draft:${tenantId}:${conversationId}:${Date.now()}`;
-  await repos.messages.createOutbound({
-    tenantId,
-    conversationId,
-    messageType: "text",
-    text: result.text,
-    externalMessageId: null,
-    idempotencyKey,
-    rawPayload: { kind: "draft", model: result.model },
-  });
+  const responses = parseDraftResponses(result.text);
+  const batchId = `draft:${tenantId}:${conversationId}:${Date.now()}`;
 
-  return result;
+  for (const [index, response] of responses.entries()) {
+    const idempotencyKey = `${batchId}:${index + 1}`;
+    await repos.messages.createOutbound({
+      tenantId,
+      conversationId,
+      messageType: "text",
+      text: response,
+      externalMessageId: null,
+      idempotencyKey,
+      rawPayload: {
+        kind: "draft",
+        model: result.model,
+        responseIndex: index + 1,
+        responseCount: responses.length,
+        originalText: result.text,
+      },
+    });
+    await enqueueZaloMessage({
+      tenantId,
+      threadId: conversation.external_thread_id,
+      text: response,
+      idempotencyKey,
+    });
+  }
+
+  return { ...result, responses };
 }
+
+function parseDraftResponses(text: string): string[] {
+  const parsed = DraftResponsesSchema.safeParse(parseJsonLike(text));
+  if (parsed.success) {
+    return normalizeResponses(Array.isArray(parsed.data) ? parsed.data : parsed.data.responses);
+  }
+
+  return normalizeResponses(
+    text
+      .split(/\n+/)
+      .map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/, "")),
+  );
+}
+
+function parseJsonLike(text: string): unknown {
+  const trimmed = text.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
+    if (fenced) {
+      try {
+        return JSON.parse(fenced[1]);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}
+
+function normalizeResponses(responses: string[]): string[] {
+  const cleaned = responses
+    .flatMap((response) => response.split(/\n+/))
+    .map((response) => response.trim())
+    .filter(Boolean);
+
+  if (cleaned.length === 0) {
+    throw new Error("OpenRouter response did not include any chat responses");
+  }
+
+  return cleaned;
+}
+
+async function enqueueZaloMessage(input: {
+  tenantId: string;
+  threadId: string;
+  text: string;
+  idempotencyKey: string;
+}) {
+  const jobId = input.idempotencyKey.replaceAll(":", "_");
+  await messageSendQueue.add(
+    "message.send",
+    {
+      tenantId: input.tenantId,
+      channel: "zalo",
+      threadId: input.threadId,
+      text: input.text,
+      idempotencyKey: input.idempotencyKey,
+    },
+    { jobId },
+  );
+}
+
+const DraftResponsesSchema = z.union([
+  z.object({
+    responses: z.array(z.string().trim().min(1)).min(1),
+  }),
+  z.array(z.string().trim().min(1)).min(1),
+]);
 
 async function resolveDefaultModel(tenantId: string): Promise<string | null> {
   const workflow = await repos.workflows.findLatestByTenant(tenantId);

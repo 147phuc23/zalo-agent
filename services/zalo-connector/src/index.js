@@ -2,10 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { Worker } from "bullmq";
+import dotenv from "dotenv";
 import { ThreadType, Zalo } from "zca-js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const REPO_ROOT = path.resolve(__dirname, "../../..");
+
+dotenv.config({ path: path.join(REPO_ROOT, ".env.local") });
 
 const DATA_DIR = path.resolve(__dirname, "../data");
 const CREDENTIALS_FILE = path.join(DATA_DIR, "credentials.json");
@@ -14,6 +19,7 @@ const LEGACY_CREDENTIALS_FILE = path.resolve(__dirname, "../../../credentials.js
 
 const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:3010";
 const INTERNAL_INGEST_TOKEN = process.env.INTERNAL_INGEST_TOKEN ?? "";
+const REDIS_URL = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
 const TENANT_ID =
   process.env.TENANT_ID ?? "11111111-1111-1111-1111-111111111111"; // sales-demo
 
@@ -41,6 +47,31 @@ api.listener.on("message", async (message) => {
 
 api.listener.start();
 console.log("[zalo-connector] listener started");
+
+const sendWorker = new Worker(
+  "message.send",
+  async (job) => {
+    const outbound = normalizeOutboundMessage(job.data);
+
+    if (outbound.tenantId !== TENANT_ID) {
+      console.log(
+        `[zalo-connector] skipped outbound for tenant ${outbound.tenantId}`,
+      );
+      return { skipped: true, reason: "tenant-mismatch" };
+    }
+
+    await api.sendMessage(outbound.text, outbound.threadId, ThreadType.User);
+    console.log(`[zalo-connector] outbound ${outbound.threadId}: ${outbound.text}`);
+    return { ok: true };
+  },
+  { connection: { url: REDIS_URL } },
+);
+
+sendWorker.on("failed", (job, err) => {
+  console.warn("[zalo-connector] outbound failed", job?.id, err?.message ?? err);
+});
+
+console.log("[zalo-connector] outbound sender started");
 
 async function login() {
   migrateLegacyCredentials();
@@ -109,6 +140,31 @@ function readTextContent(message) {
   }
 
   return "";
+}
+
+function normalizeOutboundMessage(value) {
+  if (!value || typeof value !== "object") {
+    throw new Error("Invalid outbound message: expected object");
+  }
+
+  const tenantId = readRequiredString(value, "tenantId");
+  const channel = readRequiredString(value, "channel");
+  const threadId = readRequiredString(value, "threadId");
+  const text = readRequiredString(value, "text");
+
+  if (channel !== "zalo") {
+    throw new Error(`Unsupported outbound channel: ${channel}`);
+  }
+
+  return { tenantId, channel, threadId, text };
+}
+
+function readRequiredString(value, key) {
+  const field = value[key];
+  if (typeof field !== "string" || !field.trim()) {
+    throw new Error(`Invalid outbound message: missing ${key}`);
+  }
+  return field.trim();
 }
 
 function appendInboundEvent(event) {

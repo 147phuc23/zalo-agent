@@ -3,6 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node src/index.js"
+    "dev": "echo 'Zalo connector must be started separately: pnpm zalo:listen'",
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "bullmq": "^5.76.5",
+    "dotenv": "^16.6.1",
+    "zca-js": "^2.1.2"
   }
 }
