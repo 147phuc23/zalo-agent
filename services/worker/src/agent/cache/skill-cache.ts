@@ -4,28 +4,55 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SkillCacheResult, SkillDefinition } from "../types.js";
 
-let memoized: SkillCacheResult | null = null;
+const memoizedByRoot = new Map<string, SkillCacheResult>();
 
 export async function loadDefaultSkills(input: { useCache: boolean }): Promise<SkillCacheResult> {
-  if (input.useCache && memoized) {
-    return { ...memoized, status: "hit" };
+  return loadSkillsFromDirectory({
+    skillsRoot: getDefaultSkillsRoot(),
+    useCache: input.useCache,
+    promptTitle: "Default HR Agent Skills",
+  });
+}
+
+export async function loadTwentySkills(input: { useCache: boolean }): Promise<SkillCacheResult> {
+  return loadSkillsFromDirectory({
+    skillsRoot: getTwentySkillsRoot(),
+    useCache: input.useCache,
+    promptTitle: "Twenty-backed HR Agent Skills",
+  });
+}
+
+export async function loadSkillsFromDirectory(input: {
+  skillsRoot: string;
+  useCache: boolean;
+  promptTitle: string;
+}): Promise<SkillCacheResult> {
+  const resolvedRoot = path.resolve(input.skillsRoot);
+
+  if (input.useCache) {
+    const memoized = memoizedByRoot.get(resolvedRoot);
+    if (memoized) {
+      return { ...memoized, status: "hit" };
+    }
   }
 
-  const skillsRoot = getSkillsRoot();
-  const entries = await fs.readdir(skillsRoot, { withFileTypes: true });
+  const entries = await fs.readdir(resolvedRoot, { withFileTypes: true });
   const skills: SkillDefinition[] = [];
+
+  const SKIP_DIRS = new Set(["global", "twenty"]);
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
+    if (SKIP_DIRS.has(entry.name)) continue;
 
     const skillId = entry.name;
-    const filePath = path.join(skillsRoot, skillId, "SKILL.md");
+    const filePath = path.join(resolvedRoot, skillId, "SKILL.md");
     const content = await fs.readFile(filePath, "utf-8");
     skills.push(parseSkillMarkdown({ id: skillId, filePath, content }));
   }
 
   skills.sort((a, b) => a.id.localeCompare(b.id));
-  const defaultSkillsPromptBlock = buildDefaultSkillsPromptBlock(skills);
+  const defaultSkillsPromptBlock = buildSkillsPromptBlock(skills, input.promptTitle);
   const hash = crypto.createHash("sha256").update(defaultSkillsPromptBlock).digest("hex");
 
   const result: SkillCacheResult = {
@@ -36,20 +63,26 @@ export async function loadDefaultSkills(input: { useCache: boolean }): Promise<S
   };
 
   if (input.useCache) {
-    memoized = result;
+    memoizedByRoot.set(resolvedRoot, result);
   }
 
   return result;
 }
 
 export function clearSkillCache() {
-  memoized = null;
+  memoizedByRoot.clear();
 }
 
-function getSkillsRoot() {
+function getDefaultSkillsRoot() {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   return path.resolve(__dirname, "../skills");
+}
+
+function getTwentySkillsRoot() {
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  return path.resolve(__dirname, "../skills/twenty");
 }
 
 function parseSkillMarkdown(input: {
@@ -79,14 +112,13 @@ function firstParagraph(content: string) {
     .find((part) => part && !part.startsWith("#"));
 }
 
-function buildDefaultSkillsPromptBlock(skills: SkillDefinition[]) {
-  const sections = skills.map((skill) => [
-    `## ${skill.id}: ${skill.name}`,
-    `Description: ${skill.description}`,
-  ].join("\n"));
+function buildSkillsPromptBlock(skills: SkillDefinition[], promptTitle: string) {
+  const sections = skills.map((skill) =>
+    [`## ${skill.id}: ${skill.name}`, `Description: ${skill.description}`].join("\n"),
+  );
 
   return [
-    "# Default HR Agent Skills",
+    `# ${promptTitle}`,
     "This is a stable skill index, not full skill documentation.",
     "Use `skills_search` as the default first step when choosing a business skill.",
     "Load full skill instructions with `skills_load` only for the specific skill ids needed for the current turn.",

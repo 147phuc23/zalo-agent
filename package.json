@@ -15,7 +15,9 @@
     "api:dev": "pnpm --filter @platform/api dev",
     "worker:dev": "pnpm --filter @platform/worker dev",
     "twenty:up": "docker compose up -d",
-    "twenty:down": "docker compose down"
+    "twenty:down": "docker compose down",
+    "recruiting:schema": "pnpm --filter @platform/worker twenty:schema",
+    "recruiting:seed": "pnpm --filter @platform/worker twenty:seed"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

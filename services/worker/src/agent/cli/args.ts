@@ -1,3 +1,5 @@
+import type { HrSkillMode } from "../types.js";
+
 export type CliArgs = {
   scenario?: string;
   model: string;
@@ -8,6 +10,9 @@ export type CliArgs = {
   styledOutput: boolean;
   mockLlm: boolean;
   twice: boolean;
+  /** NDJSON on stdout; human logs on stderr — for subprocess / external agents. */
+  machine: boolean;
+  skillMode: HrSkillMode;
 };
 
 export function parseCliArgs(argv: string[]): CliArgs {
@@ -20,6 +25,8 @@ export function parseCliArgs(argv: string[]): CliArgs {
     styledOutput: true,
     mockLlm: false,
     twice: false,
+    machine: false,
+    skillMode: process.env.HR_SKILL_MODE === "twenty" ? "twenty" : "mock",
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -33,6 +40,11 @@ export function parseCliArgs(argv: string[]): CliArgs {
     else if (arg === "--no-style") args.styledOutput = false;
     else if (arg === "--mock-llm") args.mockLlm = true;
     else if (arg === "--twice") args.twice = true;
+    else if (arg === "--machine") args.machine = true;
+    else if (arg === "--skill-mode") {
+      const mode = argv[++index];
+      if (mode === "twenty" || mode === "mock") args.skillMode = mode;
+    }
   }
 
   return args;

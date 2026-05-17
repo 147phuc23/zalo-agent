@@ -1,5 +1,7 @@
 export type Channel = "zalo";
 
+export type HrSkillMode = "mock" | "twenty";
+
 export type MockZaloPayload = {
   id: string;
   tenantId: string;
@@ -112,6 +114,7 @@ export type HrAgentRunOptions = {
   forceProfileReload: boolean;
   printCache: boolean;
   mockLlm: boolean;
+  skillMode: HrSkillMode;
 };
 
 export type HrAgentRunResult = {

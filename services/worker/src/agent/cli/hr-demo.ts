@@ -3,8 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseCliArgs } from "./args.js";
 import { printScenarioResult } from "./print.js";
-import { runHrAgentScenario } from "../runtime/hr-agent.js";
-import { findScenario, hrScenarios } from "../scenarios/hr-scenarios.js";
+import { runHrAgentScenario } from "../core/runner.js";
+import { findScenario, hrScenarios } from "../verticals/hr/scenarios/hr-scenarios.js";
 
 loadRepoEnv();
 
@@ -33,6 +33,7 @@ for (const runNumber of runs) {
       forceProfileReload: args.forceProfileReload,
       printCache: args.printCache,
       mockLlm: args.mockLlm,
+      skillMode: args.skillMode,
     });
 
     printScenarioResult({

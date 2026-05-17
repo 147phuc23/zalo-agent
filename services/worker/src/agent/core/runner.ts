@@ -3,7 +3,7 @@ import type { LanguageModel, ProviderMetadata } from "ai";
 import { createOpenRouterChatModel } from "@platform/ai-client";
 import { CustomerProfileCache } from "../cache/customer-profile-cache.js";
 import { buildProviderCacheSettings, readProviderCacheDiagnostics } from "../cache/provider-cache.js";
-import { loadDefaultSkills } from "../cache/skill-cache.js";
+import { loadDefaultSkills, loadTwentySkills } from "../cache/skill-cache.js";
 import { getHistory, getIntent } from "../mock/store.js";
 import { buildPromptCacheContext } from "../prompt/prompt-cache-context.js";
 import {
@@ -11,20 +11,34 @@ import {
   getMockCandidateProfileRevision,
 } from "../skills/crm-get-candidate-profile/mock-data.js";
 import { createAgentTools } from "../skills/registry.js";
-import type { HrAgentRunOptions, HrAgentRunResult, HrAgentState } from "../types.js";
+import { createTwentyAgentTools } from "../skills/twenty/registry.js";
+import { createTwentyRecruitingClientFromEnv } from "../twenty/recruiting-client.js";
+import type { HrAgentRunOptions, HrAgentRunResult, HrAgentState, SkillCacheResult } from "../types.js";
 
 const customerProfileCache = new CustomerProfileCache();
 
 export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<HrAgentRunResult> {
-  const skillCache = await loadDefaultSkills({ useCache: options.useLocalCache });
+  const skillCache =
+    options.skillMode === "twenty"
+      ? await loadTwentySkills({ useCache: options.useLocalCache })
+      : await loadDefaultSkills({ useCache: options.useLocalCache });
+
   const profileCache = await customerProfileCache.get({
     tenantId: options.scenario.tenantId,
     channel: options.scenario.channel,
     externalUserId: options.scenario.externalUserId,
     forceReload: options.forceProfileReload || Boolean(options.scenario.forceProfileReload),
     useCache: options.useLocalCache,
-    cacheVersion: getMockCandidateProfileRevision(),
-    loader: (input) => getMockCandidateProfile(input),
+    cacheVersion:
+      options.skillMode === "twenty" ? "twenty-recruiting-v1" : getMockCandidateProfileRevision(),
+    loader: async (input) => {
+      if (options.skillMode === "twenty") {
+        const client = createTwentyRecruitingClientFromEnv();
+        return client.loadCandidateProfile({ externalUserId: input.externalUserId });
+      }
+
+      return getMockCandidateProfile(input);
+    },
   });
 
   const state = buildInitialState(options);
@@ -56,6 +70,11 @@ export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<Hr
     enabled: true,
   });
 
+  const tools =
+    options.skillMode === "twenty"
+      ? createTwentyAgentTools(skillCache.skills)
+      : createAgentTools(skillCache.skills);
+
   const result = await generateText({
     model: createOpenRouterChatModel({
       model: options.model,
@@ -63,7 +82,7 @@ export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<Hr
     }) as unknown as LanguageModel,
     system: promptContext.system,
     prompt: promptContext.prompt,
-    tools: createAgentTools(skillCache.skills),
+    tools,
     maxSteps: 8,
     temperature: 0.2,
     providerOptions: providerCache.providerOptions as ProviderMetadata,
@@ -132,7 +151,7 @@ function buildInitialState(options: HrAgentRunOptions): HrAgentState {
 function buildMockResult(input: {
   options: HrAgentRunOptions;
   state: HrAgentState;
-  skillCache: Awaited<ReturnType<typeof loadDefaultSkills>>;
+  skillCache: SkillCacheResult;
   profileCacheStatus: "hit" | "miss" | "bypass";
   promptHash: string;
   promptDiagnostics: HrAgentRunResult["cache"]["prompt"];

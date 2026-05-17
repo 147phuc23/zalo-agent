@@ -1,4 +1,4 @@
-import type { HrScenario, MockZaloPayload } from "../types.js";
+import type { HrScenario, MockZaloPayload } from "../../../types.js";
 
 const tenantId = "22222222-2222-2222-2222-222222222222";
 

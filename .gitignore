@@ -4,3 +4,4 @@ node_modules/
 services/zalo-connector/data/
 credentials.json
 qr.png
+logs/hr-chat/

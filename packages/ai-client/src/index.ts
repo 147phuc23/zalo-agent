@@ -5,21 +5,6 @@ const OpenRouterEnvSchema = z.object({
   OPENROUTER_BASE_URL: z.string().url().default("https://openrouter.ai/api/v1"),
 });
 
-function isOpenRouterDebugEnabled() {
-  const v = process.env.DEBUG_OPENROUTER ?? process.env.OPENROUTER_DEBUG;
-  return v === "1" || v === "true";
-}
-
-function maskSecret(value: string) {
-  if (value.length <= 8) return "***";
-  return `${value.slice(0, 4)}…${value.slice(-4)}`;
-}
-
-function logOpenRouterDebug(context: string, fields: Record<string, unknown>) {
-  if (!isOpenRouterDebugEnabled()) return;
-  console.log(`[openrouter:debug] ${context}`, fields);
-}
-
 export type GenerateInput = {
   model: string;
   system?: string;
@@ -41,15 +26,6 @@ export class OpenRouterAiClient {
   async generate(input: GenerateInput): Promise<GenerateOutput> {
     const env = OpenRouterEnvSchema.parse(process.env);
     const url = `${env.OPENROUTER_BASE_URL}/chat/completions`;
-    logOpenRouterDebug("OpenRouterAiClient.generate", {
-      requestUrl: url,
-      OPENROUTER_BASE_URL: env.OPENROUTER_BASE_URL,
-      OPENROUTER_BASE_URL_fromEnv: Boolean(process.env.OPENROUTER_BASE_URL),
-      OPENROUTER_API_KEY: maskSecret(env.OPENROUTER_API_KEY),
-      model: input.model,
-      temperature: input.temperature,
-    });
-
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -57,7 +33,7 @@ export class OpenRouterAiClient {
         "content-type": "application/json",
         accept: "application/json",
       },
-      body: JSON.stringify({
+      body:  JSON.stringify({
         model: input.model,
         messages: buildMessages(input),
         temperature: input.temperature,
@@ -115,20 +91,6 @@ export function createOpenRouterChatModel(input: OpenRouterChatModelOptions) {
         enablePromptCaching: input.enablePromptCaching ?? true,
       });
       const url = `${env.OPENROUTER_BASE_URL}/chat/completions`;
-      logOpenRouterDebug("createOpenRouterChatModel.doGenerate", {
-        requestUrl: url,
-        OPENROUTER_BASE_URL: env.OPENROUTER_BASE_URL,
-        OPENROUTER_BASE_URL_fromEnv: Boolean(process.env.OPENROUTER_BASE_URL),
-        OPENROUTER_API_KEY: maskSecret(env.OPENROUTER_API_KEY),
-        model: input.model,
-        enablePromptCaching: input.enablePromptCaching ?? true,
-        temperature: options.temperature,
-        maxTokens: options.maxTokens,
-        toolCount:
-          options.mode?.type === "regular"
-            ? options.mode.tools?.filter(isFunctionTool).length
-            : undefined,
-      });
 
       const response = await fetch(url, {
         method: "POST",

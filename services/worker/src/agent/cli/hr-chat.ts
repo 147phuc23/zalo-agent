@@ -1,19 +1,36 @@
-import readline from "node:readline/promises";
+import readline from "node:readline";
 import { stdin as input, stdout as output } from "node:process";
 import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseCliArgs } from "./args.js";
 import { printScenarioResult } from "./print.js";
-import { runHrAgentScenario } from "../runtime/hr-agent.js";
-import type { HrScenario, MockZaloPayload } from "../types.js";
+import {
+  createHrChatSessionLogger,
+  type HrChatSessionEndReason,
+} from "./session-log.js";
+import {
+  parseMachineStdinLine,
+  writeMachineEvent,
+} from "./machine-io.js";
+import { runHrAgentScenario } from "../core/runner.js";
+import type { HrAgentRunResult, HrScenario, MockZaloPayload } from "../types.js";
 
-const { envPath } = loadRepoEnv();
+const { envPath, repoRoot } = loadRepoEnv();
 
-const args = parseCliArgs(process.argv.slice(2));
+const argvSlice = process.argv.slice(2);
+const args = parseCliArgs(argvSlice);
 if (args.printDebugSteps) {
   process.env.DEBUG_OPENROUTER = "1";
 }
+
+const scenarioSlug = args.scenario ?? "interactive";
+const sessionLogger = createHrChatSessionLogger({
+  repoRoot,
+  scenarioSlug,
+  argv: argvSlice,
+  consoleStream: args.machine ? "stderr" : "stdout",
+});
 
 if (isOpenRouterDebugEnabled()) {
   console.log("[hr-chat:debug]", {
@@ -22,67 +39,156 @@ if (isOpenRouterDebugEnabled()) {
     OPENROUTER_API_KEY: maskSecret(process.env.OPENROUTER_API_KEY),
     HR_AGENT_MODEL: process.env.HR_AGENT_MODEL ?? "(unset)",
     resolvedCliModel: args.model,
-    argv: process.argv.slice(2),
+    argv: argvSlice,
   });
 }
 
-const rl = readline.createInterface({ input, output });
+console.log(`Session log: ${sessionLogger.logPath}`);
+if (!args.machine) {
+  console.log("HR agent interactive CLI. Type a message, or /exit.");
+}
 
-const tenantId = "22222222-2222-2222-2222-222222222222";
-const threadId = "interactive-zalo-thread";
-const externalUserId = "zalo-candidate-frontend";
-const messages: MockZaloPayload[] = [];
+const stdinIsTTY = Boolean(process.stdin.isTTY);
 
-console.log("HR agent interactive CLI. Type a message, or /exit.");
+const rl = readline.createInterface({
+  input,
+  output: args.machine ? process.stderr : output,
+  crlfDelay: Infinity,
+  terminal: stdinIsTTY,
+});
 
-while (true) {
-  const text = await rl.question("> ");
-  if (text.trim() === "/exit") break;
-  if (!text.trim()) continue;
+if (!args.machine && stdinIsTTY) {
+  rl.setPrompt("> ");
+  rl.prompt();
+}
 
-  messages.push({
-    id: `interactive-${messages.length + 1}`,
-    tenantId,
-    channel: "zalo",
-    threadId,
-    externalUserId,
-    text,
-    receivedAt: new Date().toISOString(),
-    raw: { source: "interactive-cli", content: text },
-  });
-
-  const scenario: HrScenario = {
-    id: "interactive",
-    name: "Interactive HR chat",
-    description: "Interactive mocked Zalo conversation.",
-    tenantId,
-    channel: "zalo",
-    threadId,
-    externalUserId,
-    messages: [...messages],
-  };
-
-  const result = await runHrAgentScenario({
-    scenario,
+if (args.machine) {
+  writeMachineEvent({
+    type: "session",
+    machine: true,
+    logPath: sessionLogger.logPath,
     model: args.model,
-    useLocalCache: args.useLocalCache,
-    forceProfileReload: args.forceProfileReload,
-    printCache: args.printCache,
-    mockLlm: args.mockLlm,
-  });
-
-  printScenarioResult({
-    scenario,
-    result,
-    printCache: args.printCache,
-    printDebugSteps: args.printDebugSteps,
-    styledOutput: args.styledOutput,
+    argv: argvSlice,
+    pid: process.pid,
   });
 }
 
-rl.close();
+let sessionEnd: HrChatSessionEndReason = "exit";
 
-function loadRepoEnv() {
+if (stdinIsTTY) {
+  rl.on("SIGINT", () => {
+    sessionEnd = "interrupt";
+    rl.close();
+  });
+} else {
+  process.once("SIGINT", () => {
+    sessionEnd = "interrupt";
+    rl.close();
+  });
+}
+
+process.once("SIGTERM", () => {
+  sessionEnd = "interrupt";
+  rl.close();
+});
+
+try {
+  const tenantId = "22222222-2222-2222-2222-222222222222";
+  const threadId = "interactive-zalo-thread";
+  const externalUserId = "zalo-candidate-frontend";
+  const messages: MockZaloPayload[] = [];
+
+  let explicitExit = false;
+
+  for await (const text of rl) {
+    sessionLogger.logUserInput(text);
+
+    const inbound = args.machine ? parseMachineStdinLine(text) : parseInteractiveLine(text);
+    if (inbound.kind === "exit") {
+      explicitExit = true;
+      break;
+    }
+    if (inbound.kind === "skip") continue;
+    const userText = inbound.text;
+
+    messages.push({
+      id: `interactive-${messages.length + 1}`,
+      tenantId,
+      channel: "zalo",
+      threadId,
+      externalUserId,
+      text: userText,
+      receivedAt: new Date().toISOString(),
+      raw: { source: "interactive-cli", content: userText },
+    });
+
+    const scenario: HrScenario = {
+      id: "interactive",
+      name: "Interactive HR chat",
+      description: "Interactive mocked Zalo conversation.",
+      tenantId,
+      channel: "zalo",
+      threadId,
+      externalUserId,
+      messages: [...messages],
+    };
+
+    const result = await runHrAgentScenario({
+      scenario,
+      model: args.model,
+      useLocalCache: args.useLocalCache,
+      forceProfileReload: args.forceProfileReload,
+      printCache: args.printCache,
+      mockLlm: args.mockLlm,
+      skillMode: args.skillMode,
+    });
+
+    if (args.machine) {
+      writeMachineEvent({
+        type: "turn",
+        scenario,
+        result: serializeMachineTurn(result),
+      });
+      sessionLogger.logMachineTurnSnapshot({
+        result,
+        printCache: args.printCache,
+        printDebugSteps: args.printDebugSteps,
+      });
+    } else {
+      printScenarioResult({
+        scenario,
+        result,
+        printCache: args.printCache,
+        printDebugSteps: args.printDebugSteps,
+        styledOutput: args.styledOutput,
+      });
+    }
+
+    if (!args.machine && stdinIsTTY) {
+      rl.prompt();
+    }
+  }
+
+  if (!explicitExit && sessionEnd === "exit") {
+    sessionEnd = "eof";
+  }
+} finally {
+  if (args.machine) {
+    try {
+      writeMachineEvent({ type: "ended", reason: sessionEnd });
+    } catch {
+      // stdout may be closed
+    }
+  }
+  sessionLogger.finalize(sessionEnd);
+  try {
+    rl.close();
+  } catch {
+    // readline may already be closed (e.g. Ctrl+C)
+  }
+}
+
+function loadRepoEnv(): { repoRoot: string; envPath: string } {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   const repoRoot = path.resolve(__dirname, "../../../../..");
@@ -100,4 +206,19 @@ function maskSecret(value: string | undefined) {
   if (!value) return "(unset)";
   if (value.length <= 8) return "***";
   return `${value.slice(0, 4)}…${value.slice(-4)}`;
+}
+
+function parseInteractiveLine(line: string):
+  | { kind: "message"; text: string }
+  | { kind: "exit" }
+  | { kind: "skip" } {
+  const trimmed = line.trim();
+  if (trimmed === "/exit") return { kind: "exit" };
+  if (!trimmed) return { kind: "skip" };
+  return { kind: "message", text: line };
+}
+
+/** JSON-safe snapshot for external agents (avoid passing non-serializable provider blobs). */
+function serializeMachineTurn(result: HrAgentRunResult) {
+  return JSON.parse(JSON.stringify(result)) as HrAgentRunResult;
 }
