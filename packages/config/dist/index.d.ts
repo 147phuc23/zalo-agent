@@ -1,24 +1,21 @@
 import { z } from "zod";
 declare const ApiSchema: z.ZodObject<{
     NODE_ENV: z.ZodOptional<z.ZodString>;
-    SUPABASE_URL: z.ZodString;
-    SUPABASE_SERVICE_ROLE_KEY: z.ZodString;
+    PLATFORM_DB_URL: z.ZodString;
     REDIS_URL: z.ZodDefault<z.ZodString>;
     OPENROUTER_API_KEY: z.ZodOptional<z.ZodString>;
 } & {
     APP_PORT: z.ZodDefault<z.ZodNumber>;
     INTERNAL_INGEST_TOKEN: z.ZodString;
 }, "strip", z.ZodTypeAny, {
-    SUPABASE_URL: string;
-    SUPABASE_SERVICE_ROLE_KEY: string;
+    PLATFORM_DB_URL: string;
     REDIS_URL: string;
     APP_PORT: number;
     INTERNAL_INGEST_TOKEN: string;
     NODE_ENV?: string | undefined;
     OPENROUTER_API_KEY?: string | undefined;
 }, {
-    SUPABASE_URL: string;
-    SUPABASE_SERVICE_ROLE_KEY: string;
+    PLATFORM_DB_URL: string;
     INTERNAL_INGEST_TOKEN: string;
     NODE_ENV?: string | undefined;
     REDIS_URL?: string | undefined;
@@ -27,19 +24,16 @@ declare const ApiSchema: z.ZodObject<{
 }>;
 declare const WorkerSchema: z.ZodObject<{
     NODE_ENV: z.ZodOptional<z.ZodString>;
-    SUPABASE_URL: z.ZodString;
-    SUPABASE_SERVICE_ROLE_KEY: z.ZodString;
+    PLATFORM_DB_URL: z.ZodString;
     REDIS_URL: z.ZodDefault<z.ZodString>;
     OPENROUTER_API_KEY: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    SUPABASE_URL: string;
-    SUPABASE_SERVICE_ROLE_KEY: string;
+    PLATFORM_DB_URL: string;
     REDIS_URL: string;
     NODE_ENV?: string | undefined;
     OPENROUTER_API_KEY?: string | undefined;
 }, {
-    SUPABASE_URL: string;
-    SUPABASE_SERVICE_ROLE_KEY: string;
+    PLATFORM_DB_URL: string;
     NODE_ENV?: string | undefined;
     REDIS_URL?: string | undefined;
     OPENROUTER_API_KEY?: string | undefined;

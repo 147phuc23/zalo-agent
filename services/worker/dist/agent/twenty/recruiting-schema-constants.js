@@ -13,6 +13,10 @@ export const RECRUITING_PERSON_FIELDS = {
     currentCompany: "currentCompany",
     noticePeriodDays: "noticePeriodDays",
     linkedinUrl: "linkedinUrl",
+    education: "education",
+    resumeUrl: "resumeUrl",
+    candidateSource: "candidateSource",
+    hiringRating: "hiringRating",
 };
 export const RECRUITING_OBJECTS = {
     jobPosting: {
@@ -36,6 +40,10 @@ export const RECRUITING_JOB_POSTING_FIELDS = {
     status: "status",
     department: "department",
     headcount: "headcount",
+    jobType: "jobType",
+    experienceRequiredYears: "experienceRequiredYears",
+    benefits: "benefits",
+    educationRequired: "educationRequired",
 };
 export const RECRUITING_JOB_APPLICATION_FIELDS = {
     pipelineStage: "pipelineStage",

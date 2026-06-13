@@ -1,6 +1,8 @@
-export type { Database } from "./generated/database.js";
-export { createAuditRepository, createContactRepository, createConversationRepository, createDeliveryRepository, createHumanTaskRepository, createMessageRepository, createRepositorySet, createTenantRepository, createWorkflowConfigRepository, type DatabaseClient, } from "./repositories.js";
+import pg from "pg";
+export { runMigrations } from "./migrator.js";
+export { createAuditRepository, createContactRepository, createConversationRepository, createDeliveryRepository, createHumanTaskRepository, createMessageRepository, createRepositorySet, createTenantRepository, createWorkflowConfigRepository, createPromptTemplateRepository, } from "./repositories.js";
+export type { TenantRow, UserRow, TenantUserRow, ChannelAccountRow, ContactRow, ConversationRow, MessageRow, MessageDeliveryRow, WorkflowConfigRow, ToolCallAuditRow, HumanTaskRow, PromptTemplateRow, } from "./repositories.js";
+export type DatabaseClient = pg.Pool;
 export declare function createDatabaseClient(input: {
-    SUPABASE_URL: string;
-    SUPABASE_SERVICE_ROLE_KEY: string;
-}): import("@supabase/supabase-js").SupabaseClient<any, "public", "public", any, any>;
+    PLATFORM_DB_URL: string;
+}): import("pg").Pool;

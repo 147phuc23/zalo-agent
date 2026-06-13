@@ -26,6 +26,10 @@ export type CandidateProfile = {
   salaryExpectationVnd?: number;
   availability?: string;
   notes?: string[];
+  education?: string;
+  resumeUrl?: string;
+  candidateSource?: string;
+  hiringRating?: number;
 };
 
 export type CandidateRequirement = {
@@ -52,6 +56,10 @@ export type JobPosting = {
   seniority: string;
   requiredSkills: string[];
   description: string;
+  jobType?: "FULL_TIME" | "PART_TIME" | "CONTRACT" | "INTERNSHIP";
+  experienceRequiredYears?: number;
+  benefits?: string;
+  educationRequired?: string;
 };
 
 export type AgentHistoryEntry = {
@@ -115,6 +123,7 @@ export type HrAgentRunOptions = {
   printCache: boolean;
   mockLlm: boolean;
   skillMode: HrSkillMode;
+  systemPromptOverride?: string;
 };
 
 export type HrAgentRunResult = {

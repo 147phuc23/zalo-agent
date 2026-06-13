@@ -80,7 +80,7 @@ export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<Hr
       model: options.model,
       enablePromptCaching: providerCache.enableProviderPromptCaching,
     }) as unknown as LanguageModel,
-    system: promptContext.system,
+    system: options.systemPromptOverride || promptContext.system,
     prompt: promptContext.prompt,
     tools,
     maxSteps: 8,

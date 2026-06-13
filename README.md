@@ -22,8 +22,6 @@ Twenty stays as a standalone CRM workspace for operator-facing records, while th
 ## First-run commands
 
 1. Copy your environment into `.env.local` and set at least:
-   - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_ROLE_KEY`
    - `INTERNAL_INGEST_TOKEN`
    - `REDIS_URL`
 
@@ -31,7 +29,7 @@ Twenty stays as a standalone CRM workspace for operator-facing records, while th
 cp .env.local.example .env.local
 ```
 
-2. Start Supabase, reset the app DB, start Twenty, API, and worker:
+2. Start Twenty, API, and worker:
 
 ```bash
 pnpm dev:up
@@ -40,20 +38,20 @@ pnpm dev:up
 3. In another terminal, start the Zalo connector once you have credentials:
 
 ```bash
-INTERNAL_INGEST_TOKEN=$INTERNAL_INGEST_TOKEN API_BASE_URL=http://localhost:${APP_PORT:-3010} TENANT_ID=11111111-1111-1111-1111-111111111111 pnpm zalo:listen
+INTERNAL_INGEST_TOKEN=$INTERNAL_INGEST_TOKEN API_BASE_URL=http://localhost:${APP_PORT:-7010} TENANT_ID=11111111-1111-1111-1111-111111111111 pnpm zalo:listen
 ```
 
 4. Verify the API:
 
 ```bash
-curl http://localhost:3010/health
-curl http://localhost:3010/ready
+curl http://localhost:7010/health
+curl http://localhost:7010/ready
 ```
 
 5. Smoke-test ingest and readback:
 
 ```bash
-curl -X POST http://localhost:3010/internal/events \
+curl -X POST http://localhost:7010/internal/events \
   -H "content-type: application/json" \
   -H "authorization: Bearer $INTERNAL_INGEST_TOKEN" \
   -d '{
@@ -73,16 +71,15 @@ curl -X POST http://localhost:3010/internal/events \
     ]
   }'
 
-curl "http://localhost:3010/internal/conversations?tenantId=11111111-1111-1111-1111-111111111111&limit=5" \
+curl "http://localhost:7010/internal/conversations?tenantId=11111111-1111-1111-1111-111111111111&limit=5" \
   -H "authorization: Bearer $INTERNAL_INGEST_TOKEN"
 ```
 
 ### Local services
 
-- Twenty is available at `http://localhost:4000`.
-- API is available at `http://localhost:3010`.
-- Supabase local runs through the `supabase` CLI.
-- `pnpm dev:down` stops Twenty and Supabase.
+- Twenty is available at `http://localhost:7300`.
+- API is available at `http://localhost:7010`.
+- `pnpm dev:down` stops Docker services.
 
 ## Demo data
 

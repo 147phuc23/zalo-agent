@@ -11,13 +11,13 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 import { Inject, Injectable } from "@nestjs/common";
-import { SupabaseService } from "./supabase.service.js";
+import { PostgresService } from "./postgres.service.js";
 import { QueueService } from "./queue.service.js";
 let IngestService = class IngestService {
-    supabase;
+    postgres;
     queue;
-    constructor(supabase, queue) {
-        this.supabase = supabase;
+    constructor(postgres, queue) {
+        this.postgres = postgres;
         this.queue = queue;
     }
     async ingestEvents(events) {
@@ -36,7 +36,6 @@ let IngestService = class IngestService {
         return results;
     }
     async ingestMessageReceived(event) {
-        const db = this.supabase.client;
         const tenant = await this.ensureTenant(event.tenantId);
         if (!tenant.ok)
             return tenant;
@@ -46,27 +45,25 @@ let IngestService = class IngestService {
         const conversation = await this.ensureConversation(event, contact.contactId);
         if (!conversation.ok)
             return conversation;
-        const messageInsert = await db.from("messages").insert({
-            tenant_id: event.tenantId,
-            conversation_id: conversation.conversationId,
-            direction: "inbound",
-            message_type: event.messageType,
-            text: event.text ?? null,
-            external_message_id: event.externalMessageId ?? null,
-            idempotency_key: event.idempotencyKey,
-            raw_payload: event.rawPayload,
-        });
-        if (messageInsert.error) {
-            // idempotency conflict is acceptable; treat as duplicate
-            if (String(messageInsert.error.code) === "23505") {
+        try {
+            await this.postgres.repos.messages.createInbound({
+                tenantId: event.tenantId,
+                conversationId: conversation.conversationId,
+                messageType: event.messageType,
+                text: event.text ?? null,
+                externalMessageId: event.externalMessageId ?? null,
+                idempotencyKey: event.idempotencyKey,
+                rawPayload: event.rawPayload,
+            });
+        }
+        catch (error) {
+            // Postgres unique violation code is 23505 (idempotency key constraint)
+            if (error.code === "23505") {
                 return { kind: event.kind, status: "duplicate" };
             }
-            return { kind: event.kind, status: "error", error: messageInsert.error.message };
+            return { kind: event.kind, status: "error", error: error.message };
         }
-        await db
-            .from("conversations")
-            .update({ last_activity_at: event.receivedAt })
-            .eq("id", conversation.conversationId);
+        await this.postgres.repos.conversations.updateLastActivity(conversation.conversationId, event.receivedAt);
         await this.queue.enqueueMessageReceived({
             tenantId: event.tenantId,
             conversationId: conversation.conversationId,
@@ -80,51 +77,47 @@ let IngestService = class IngestService {
         };
     }
     async ingestMessageDeliveryUpdated(event) {
-        const db = this.supabase.client;
-        const messageLookup = event.externalMessageId
-            ? await db
-                .from("messages")
-                .select("id")
-                .eq("tenant_id", event.tenantId)
-                .eq("external_message_id", event.externalMessageId)
-                .order("created_at", { ascending: false })
-                .limit(1)
-                .maybeSingle()
-            : null;
-        if (messageLookup?.error) {
-            return { kind: event.kind, status: "error", error: messageLookup.error.message };
+        let messageId = null;
+        if (event.externalMessageId) {
+            const msg = await this.postgres.repos.messages.findLatestByExternalMessageId({
+                tenantId: event.tenantId,
+                externalMessageId: event.externalMessageId,
+            });
+            if (msg) {
+                messageId = msg.id;
+            }
         }
-        if (!messageLookup?.data) {
+        if (!messageId) {
             return {
                 kind: event.kind,
                 status: "not_found",
                 externalMessageId: event.externalMessageId ?? null,
             };
         }
-        const insert = await db.from("message_deliveries").insert({
-            tenant_id: event.tenantId,
-            message_id: messageLookup.data.id,
-            attempt: 1,
-            status: event.deliveryStatus,
-            error_code: event.errorCode ?? null,
-            error_message: event.errorMessage ?? null,
-            provider_payload: event.rawPayload,
-        });
-        if (insert.error) {
-            return { kind: event.kind, status: "error", error: insert.error.message };
+        try {
+            await this.postgres.repos.deliveries.create({
+                tenantId: event.tenantId,
+                messageId,
+                status: event.deliveryStatus,
+                attempt: 1,
+                errorCode: event.errorCode ?? null,
+                errorMessage: event.errorMessage ?? null,
+                providerPayload: event.rawPayload,
+            });
+        }
+        catch (error) {
+            return { kind: event.kind, status: "error", error: error.message };
         }
         return {
             kind: event.kind,
             status: "stored",
-            messageId: messageLookup.data.id,
+            messageId,
         };
     }
     async ingestConnectorHealth(event) {
-        const db = this.supabase.client;
         const tenant = await this.ensureTenant(event.tenantId);
-        if (!tenant.ok) {
+        if (!tenant.ok)
             return tenant;
-        }
         if (!event.externalAccountId) {
             return {
                 kind: event.kind,
@@ -132,129 +125,93 @@ let IngestService = class IngestService {
                 reason: "missing_external_account_id",
             };
         }
-        const existing = await db
-            .from("channel_accounts")
-            .select("id")
-            .eq("tenant_id", event.tenantId)
-            .eq("channel", event.channel)
-            .eq("external_account_id", event.externalAccountId)
-            .maybeSingle();
-        if (existing.error) {
-            return { kind: event.kind, status: "error", error: existing.error.message };
-        }
-        if (existing.data) {
-            const update = await db
-                .from("channel_accounts")
-                .update({
-                status: event.status,
-                last_seen_at: event.receivedAt,
-            })
-                .eq("id", existing.data.id);
-            if (update.error) {
-                return { kind: event.kind, status: "error", error: update.error.message };
+        const client = this.postgres.client;
+        try {
+            const existing = await client.query(`SELECT id FROM channel_accounts 
+         WHERE tenant_id = $1 AND channel = $2 AND external_account_id = $3 
+         LIMIT 1`, [event.tenantId, event.channel, event.externalAccountId]);
+            if (existing.rows[0]) {
+                const id = existing.rows[0].id;
+                await client.query(`UPDATE channel_accounts 
+           SET status = $1, last_seen_at = $2 
+           WHERE id = $3`, [event.status, event.receivedAt, id]);
+                return { kind: event.kind, status: "stored", channelAccountId: id };
             }
-            return { kind: event.kind, status: "stored", channelAccountId: existing.data.id };
+            else {
+                const inserted = await client.query(`INSERT INTO channel_accounts (tenant_id, channel, external_account_id, status, last_seen_at)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id`, [event.tenantId, event.channel, event.externalAccountId, event.status, event.receivedAt]);
+                return { kind: event.kind, status: "stored", channelAccountId: inserted.rows[0].id };
+            }
         }
-        const insert = await db
-            .from("channel_accounts")
-            .insert({
-            tenant_id: event.tenantId,
-            channel: event.channel,
-            external_account_id: event.externalAccountId,
-            status: event.status,
-            encrypted_session_blob: null,
-            last_seen_at: event.receivedAt,
-        })
-            .select("id")
-            .single();
-        if (insert.error) {
-            return { kind: event.kind, status: "error", error: insert.error.message };
+        catch (error) {
+            return { kind: event.kind, status: "error", error: error.message };
         }
-        return { kind: event.kind, status: "stored", channelAccountId: insert.data.id };
     }
     async ensureTenant(tenantId) {
-        const db = this.supabase.client;
-        const existing = await db.from("tenants").select("id").eq("id", tenantId).maybeSingle();
-        if (existing.error)
-            return { ok: false, error: existing.error.message };
-        if (existing.data)
+        try {
+            await this.postgres.repos.tenants.ensureExists({
+                tenantId,
+                name: `tenant-${tenantId.slice(0, 8)}`,
+                timezone: "Asia/Ho_Chi_Minh",
+                locale: "vi-VN",
+            });
             return { ok: true };
-        const inserted = await db.from("tenants").insert({
-            id: tenantId,
-            name: `tenant-${tenantId.slice(0, 8)}`,
-            timezone: "Asia/Ho_Chi_Minh",
-            locale: "vi-VN",
-            status: "active",
-        });
-        if (inserted.error)
-            return { ok: false, error: inserted.error.message };
-        return { ok: true };
+        }
+        catch (error) {
+            return { ok: false, error: error.message };
+        }
     }
     async ensureContact(event) {
-        const db = this.supabase.client;
-        const existing = await db
-            .from("contacts")
-            .select("id")
-            .eq("tenant_id", event.tenantId)
-            .eq("channel", event.channel)
-            .eq("external_user_id", event.senderExternalId)
-            .maybeSingle();
-        if (existing.error)
-            return { ok: false, error: existing.error.message };
-        if (existing.data)
-            return { ok: true, contactId: existing.data.id };
-        const inserted = await db
-            .from("contacts")
-            .insert({
-            tenant_id: event.tenantId,
-            channel: event.channel,
-            external_user_id: event.senderExternalId,
-            display_name: null,
-            phone: null,
-            metadata: {},
-        })
-            .select("id")
-            .single();
-        if (inserted.error)
-            return { ok: false, error: inserted.error.message };
-        return { ok: true, contactId: inserted.data.id };
+        try {
+            const existing = await this.postgres.repos.contacts.findByExternalUser({
+                tenantId: event.tenantId,
+                channel: event.channel,
+                externalUserId: event.senderExternalId,
+            });
+            if (existing) {
+                return { ok: true, contactId: existing.id };
+            }
+            const created = await this.postgres.repos.contacts.createShadow({
+                tenantId: event.tenantId,
+                channel: event.channel,
+                externalUserId: event.senderExternalId,
+            });
+            return { ok: true, contactId: created.id };
+        }
+        catch (error) {
+            return { ok: false, error: error.message };
+        }
     }
     async ensureConversation(event, contactId) {
-        const db = this.supabase.client;
-        const existing = await db
-            .from("conversations")
-            .select("id")
-            .eq("tenant_id", event.tenantId)
-            .eq("channel", event.channel)
-            .eq("external_thread_id", event.threadId)
-            .maybeSingle();
-        if (existing.error)
-            return { ok: false, error: existing.error.message };
-        if (existing.data)
-            return { ok: true, conversationId: existing.data.id };
-        const inserted = await db
-            .from("conversations")
-            .insert({
-            tenant_id: event.tenantId,
-            channel: event.channel,
-            external_thread_id: event.threadId,
-            contact_id: contactId,
-            status: "open",
-            assignee_user_id: null,
-            last_activity_at: event.receivedAt,
-        })
-            .select("id")
-            .single();
-        if (inserted.error)
-            return { ok: false, error: inserted.error.message };
-        return { ok: true, conversationId: inserted.data.id };
+        try {
+            const existing = await this.postgres.repos.conversations.findByExternalThread({
+                tenantId: event.tenantId,
+                channel: event.channel,
+                externalThreadId: event.threadId,
+            });
+            if (existing) {
+                return { ok: true, conversationId: existing.id };
+            }
+            const created = await this.postgres.repos.conversations.create({
+                tenantId: event.tenantId,
+                channel: event.channel,
+                externalThreadId: event.threadId,
+                contactId,
+                lastActivityAt: event.receivedAt,
+            });
+            return { ok: true, conversationId: created.id };
+        }
+        catch (error) {
+            return { ok: false, error: error.message };
+        }
     }
 };
 IngestService = __decorate([
     Injectable(),
-    __param(0, Inject(SupabaseService)),
+    __param(0, Inject(PostgresService)),
     __param(1, Inject(QueueService)),
-    __metadata("design:paramtypes", [SupabaseService,
+    __metadata("design:paramtypes", [PostgresService,
         QueueService])
 ], IngestService);
 export { IngestService };

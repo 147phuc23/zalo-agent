@@ -1,9 +1,126 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database, Json } from "./generated/database.js";
-export type DatabaseClient = SupabaseClient<Database>;
-type MessageRow = Database["public"]["Tables"]["messages"]["Row"];
-type HumanTaskRow = Database["public"]["Tables"]["human_tasks"]["Row"];
-type ToolCallAuditRow = Database["public"]["Tables"]["tool_call_audits"]["Row"];
+import type pg from "pg";
+export type DatabaseClient = pg.Pool;
+export interface TenantRow {
+    id: string;
+    name: string;
+    timezone: string;
+    locale: string;
+    status: string;
+    created_at: string;
+}
+export interface UserRow {
+    id: string;
+    email: string | null;
+    display_name: string | null;
+    created_at: string;
+}
+export interface TenantUserRow {
+    id: string;
+    tenant_id: string;
+    user_id: string;
+    role: string;
+    created_at: string;
+}
+export interface ChannelAccountRow {
+    id: string;
+    tenant_id: string;
+    channel: string;
+    external_account_id: string | null;
+    status: string;
+    encrypted_session_blob: string | null;
+    last_seen_at: string | null;
+    created_at: string;
+}
+export interface ContactRow {
+    id: string;
+    tenant_id: string;
+    channel: string;
+    external_user_id: string;
+    display_name: string | null;
+    phone: string | null;
+    metadata: Record<string, unknown>;
+    created_at: string;
+}
+export interface ConversationRow {
+    id: string;
+    tenant_id: string;
+    channel: string;
+    external_thread_id: string;
+    contact_id: string;
+    status: string;
+    assignee_user_id: string | null;
+    override_model: string | null;
+    last_activity_at: string;
+    created_at: string;
+}
+export interface MessageRow {
+    id: string;
+    tenant_id: string;
+    conversation_id: string;
+    direction: "inbound" | "outbound";
+    message_type: string;
+    text: string | null;
+    external_message_id: string | null;
+    idempotency_key: string;
+    raw_payload: Record<string, unknown>;
+    is_read: boolean;
+    read_at: string | null;
+    created_at: string;
+}
+export interface MessageDeliveryRow {
+    id: string;
+    tenant_id: string;
+    message_id: string;
+    attempt: number;
+    status: string;
+    error_code: string | null;
+    error_message: string | null;
+    provider_payload: Record<string, unknown>;
+    created_at: string;
+}
+export interface WorkflowConfigRow {
+    id: string;
+    tenant_id: string;
+    mode: "auto" | "approval" | "manual" | "blocked";
+    default_model: string | null;
+    classifier_model: string | null;
+    embedding_model: string | null;
+    max_tool_turns: number;
+    temperature: number;
+    prompt_settings: Record<string, unknown>;
+    crm_mapping: Record<string, unknown>;
+    blocked_topics: unknown[];
+    created_at: string;
+}
+export interface ToolCallAuditRow {
+    id: string;
+    tenant_id: string;
+    conversation_id: string | null;
+    run_id: string | null;
+    tool_name: string;
+    input: Record<string, unknown>;
+    output: Record<string, unknown> | null;
+    status: "ok" | "error";
+    created_at: string;
+}
+export interface HumanTaskRow {
+    id: string;
+    tenant_id: string;
+    conversation_id: string | null;
+    type: "approval" | "handoff";
+    status: string;
+    payload: Record<string, unknown>;
+    created_at: string;
+}
+export interface PromptTemplateRow {
+    id: string;
+    tenant_id: string;
+    key: string;
+    content: string;
+    version: number;
+    is_active: boolean;
+    created_at: string;
+}
 export declare function createTenantRepository(client: DatabaseClient): {
     ensureExists(input: {
         tenantId: string;
@@ -17,28 +134,10 @@ export declare function createContactRepository(client: DatabaseClient): {
         tenantId: string;
         channel: string;
         externalUserId: string;
-    }): Promise<{
-        id: string;
-        tenant_id: string;
-        channel: string;
-        external_user_id: string;
-        display_name: string | null;
-        phone: string | null;
-        metadata: Json;
-        created_at: string;
-    } | null>;
+    }): Promise<ContactRow>;
     listByIds(input: {
         ids: string[];
-    }): Promise<{
-        id: string;
-        tenant_id: string;
-        channel: string;
-        external_user_id: string;
-        display_name: string | null;
-        phone: string | null;
-        metadata: Json;
-        created_at: string;
-    }[]>;
+    }): Promise<ContactRow[]>;
     createShadow(input: {
         tenantId: string;
         channel: string;
@@ -46,58 +145,19 @@ export declare function createContactRepository(client: DatabaseClient): {
         displayName?: string | null;
         phone?: string | null;
         metadata?: Record<string, unknown>;
-    }): Promise<{
-        id: string;
-        tenant_id: string;
-        channel: string;
-        external_user_id: string;
-        display_name: string | null;
-        phone: string | null;
-        metadata: Json;
-        created_at: string;
-    }>;
+    }): Promise<ContactRow>;
 };
 export declare function createConversationRepository(client: DatabaseClient): {
     findByExternalThread(input: {
         tenantId: string;
         channel: string;
         externalThreadId: string;
-    }): Promise<{
-        id: string;
-        tenant_id: string;
-        channel: string;
-        external_thread_id: string;
-        contact_id: string;
-        status: string;
-        assignee_user_id: string | null;
-        last_activity_at: string;
-        created_at: string;
-    } | null>;
-    findById(conversationId: string): Promise<{
-        id: string;
-        tenant_id: string;
-        channel: string;
-        external_thread_id: string;
-        contact_id: string;
-        status: string;
-        assignee_user_id: string | null;
-        last_activity_at: string;
-        created_at: string;
-    } | null>;
+    }): Promise<ConversationRow>;
+    findById(conversationId: string): Promise<ConversationRow>;
     listByTenant(input: {
         tenantId: string;
         limit: number;
-    }): Promise<{
-        id: string;
-        tenant_id: string;
-        channel: string;
-        external_thread_id: string;
-        contact_id: string;
-        status: string;
-        assignee_user_id: string | null;
-        last_activity_at: string;
-        created_at: string;
-    }[]>;
+    }): Promise<ConversationRow[]>;
     create(input: {
         tenantId: string;
         channel: string;
@@ -105,57 +165,27 @@ export declare function createConversationRepository(client: DatabaseClient): {
         contactId: string;
         status?: string;
         assigneeUserId?: string | null;
+        overrideModel?: string | null;
         lastActivityAt?: string;
-    }): Promise<{
-        id: string;
-        tenant_id: string;
-        channel: string;
-        external_thread_id: string;
-        contact_id: string;
-        status: string;
-        assignee_user_id: string | null;
-        last_activity_at: string;
-        created_at: string;
-    }>;
+    }): Promise<ConversationRow>;
     updateLastActivity(conversationId: string, lastActivityAt: string): Promise<void>;
     updateAssignee(conversationId: string, assigneeUserId: string | null): Promise<void>;
     updateStatus(conversationId: string, status: string): Promise<void>;
+    updateOverrideModel(conversationId: string, overrideModel: string | null): Promise<void>;
 };
 export declare function createMessageRepository(client: DatabaseClient): {
     listByConversation(input: {
         conversationId: string;
         limit: number;
-    }): Promise<{
-        id: string;
-        tenant_id: string;
-        conversation_id: string;
-        direction: "inbound" | "outbound";
-        message_type: "text" | "image" | "sticker" | "file" | "system" | string;
-        text: string | null;
-        external_message_id: string | null;
-        idempotency_key: string;
-        raw_payload: Json;
-        created_at: string;
-    }[]>;
+    }): Promise<MessageRow[]>;
     findLatestByExternalMessageId(input: {
         tenantId: string;
         externalMessageId: string;
-    }): Promise<{
-        id: string;
-        tenant_id: string;
-        conversation_id: string;
-        direction: "inbound" | "outbound";
-        message_type: "text" | "image" | "sticker" | "file" | "system" | string;
-        text: string | null;
-        external_message_id: string | null;
-        idempotency_key: string;
-        raw_payload: Json;
-        created_at: string;
-    } | null>;
+    }): Promise<MessageRow>;
     createInbound(input: {
         tenantId: string;
         conversationId: string;
-        messageType: MessageRow["message_type"];
+        messageType: string;
         text?: string | null;
         externalMessageId?: string | null;
         idempotencyKey: string;
@@ -164,12 +194,13 @@ export declare function createMessageRepository(client: DatabaseClient): {
     createOutbound(input: {
         tenantId: string;
         conversationId: string;
-        messageType: MessageRow["message_type"];
+        messageType: string;
         text: string;
         externalMessageId?: string | null;
         idempotencyKey: string;
         rawPayload: Record<string, unknown>;
     }): Promise<void>;
+    markAsRead(conversationId: string): Promise<void>;
 };
 export declare function createDeliveryRepository(client: DatabaseClient): {
     create(input: {
@@ -183,26 +214,13 @@ export declare function createDeliveryRepository(client: DatabaseClient): {
     }): Promise<void>;
 };
 export declare function createWorkflowConfigRepository(client: DatabaseClient): {
-    findLatestByTenant(tenantId: string): Promise<{
-        id: string;
-        tenant_id: string;
-        mode: "auto" | "approval" | "manual" | "blocked" | string;
-        default_model: string | null;
-        classifier_model: string | null;
-        embedding_model: string | null;
-        max_tool_turns: number;
-        temperature: number;
-        prompt_settings: Json;
-        crm_mapping: Json;
-        blocked_topics: Json;
-        created_at: string;
-    } | null>;
+    findLatestByTenant(tenantId: string): Promise<WorkflowConfigRow>;
 };
 export declare function createHumanTaskRepository(client: DatabaseClient): {
     create(input: {
         tenantId: string;
         conversationId?: string | null;
-        type: HumanTaskRow["type"];
+        type: "approval" | "handoff";
         status?: string;
         payload?: Record<string, unknown>;
     }): Promise<void>;
@@ -215,8 +233,25 @@ export declare function createAuditRepository(client: DatabaseClient): {
         toolName: string;
         inputPayload?: Record<string, unknown>;
         outputPayload?: Record<string, unknown> | null;
-        status?: ToolCallAuditRow["status"];
+        status?: "ok" | "error";
     }): Promise<void>;
+    listByConversation(conversationId: string): Promise<ToolCallAuditRow[]>;
+};
+export declare function createPromptTemplateRepository(client: DatabaseClient): {
+    findActive(input: {
+        tenantId: string;
+        key: string;
+    }): Promise<PromptTemplateRow>;
+    create(input: {
+        tenantId: string;
+        key: string;
+        content: string;
+        version: number;
+    }): Promise<PromptTemplateRow>;
+    listVersions(input: {
+        tenantId: string;
+        key: string;
+    }): Promise<PromptTemplateRow[]>;
 };
 export declare function createRepositorySet(client: DatabaseClient): {
     tenants: {
@@ -232,28 +267,10 @@ export declare function createRepositorySet(client: DatabaseClient): {
             tenantId: string;
             channel: string;
             externalUserId: string;
-        }): Promise<{
-            id: string;
-            tenant_id: string;
-            channel: string;
-            external_user_id: string;
-            display_name: string | null;
-            phone: string | null;
-            metadata: Json;
-            created_at: string;
-        } | null>;
+        }): Promise<ContactRow>;
         listByIds(input: {
             ids: string[];
-        }): Promise<{
-            id: string;
-            tenant_id: string;
-            channel: string;
-            external_user_id: string;
-            display_name: string | null;
-            phone: string | null;
-            metadata: Json;
-            created_at: string;
-        }[]>;
+        }): Promise<ContactRow[]>;
         createShadow(input: {
             tenantId: string;
             channel: string;
@@ -261,58 +278,19 @@ export declare function createRepositorySet(client: DatabaseClient): {
             displayName?: string | null;
             phone?: string | null;
             metadata?: Record<string, unknown>;
-        }): Promise<{
-            id: string;
-            tenant_id: string;
-            channel: string;
-            external_user_id: string;
-            display_name: string | null;
-            phone: string | null;
-            metadata: Json;
-            created_at: string;
-        }>;
+        }): Promise<ContactRow>;
     };
     conversations: {
         findByExternalThread(input: {
             tenantId: string;
             channel: string;
             externalThreadId: string;
-        }): Promise<{
-            id: string;
-            tenant_id: string;
-            channel: string;
-            external_thread_id: string;
-            contact_id: string;
-            status: string;
-            assignee_user_id: string | null;
-            last_activity_at: string;
-            created_at: string;
-        } | null>;
-        findById(conversationId: string): Promise<{
-            id: string;
-            tenant_id: string;
-            channel: string;
-            external_thread_id: string;
-            contact_id: string;
-            status: string;
-            assignee_user_id: string | null;
-            last_activity_at: string;
-            created_at: string;
-        } | null>;
+        }): Promise<ConversationRow>;
+        findById(conversationId: string): Promise<ConversationRow>;
         listByTenant(input: {
             tenantId: string;
             limit: number;
-        }): Promise<{
-            id: string;
-            tenant_id: string;
-            channel: string;
-            external_thread_id: string;
-            contact_id: string;
-            status: string;
-            assignee_user_id: string | null;
-            last_activity_at: string;
-            created_at: string;
-        }[]>;
+        }): Promise<ConversationRow[]>;
         create(input: {
             tenantId: string;
             channel: string;
@@ -320,57 +298,27 @@ export declare function createRepositorySet(client: DatabaseClient): {
             contactId: string;
             status?: string;
             assigneeUserId?: string | null;
+            overrideModel?: string | null;
             lastActivityAt?: string;
-        }): Promise<{
-            id: string;
-            tenant_id: string;
-            channel: string;
-            external_thread_id: string;
-            contact_id: string;
-            status: string;
-            assignee_user_id: string | null;
-            last_activity_at: string;
-            created_at: string;
-        }>;
+        }): Promise<ConversationRow>;
         updateLastActivity(conversationId: string, lastActivityAt: string): Promise<void>;
         updateAssignee(conversationId: string, assigneeUserId: string | null): Promise<void>;
         updateStatus(conversationId: string, status: string): Promise<void>;
+        updateOverrideModel(conversationId: string, overrideModel: string | null): Promise<void>;
     };
     messages: {
         listByConversation(input: {
             conversationId: string;
             limit: number;
-        }): Promise<{
-            id: string;
-            tenant_id: string;
-            conversation_id: string;
-            direction: "inbound" | "outbound";
-            message_type: "text" | "image" | "sticker" | "file" | "system" | string;
-            text: string | null;
-            external_message_id: string | null;
-            idempotency_key: string;
-            raw_payload: Json;
-            created_at: string;
-        }[]>;
+        }): Promise<MessageRow[]>;
         findLatestByExternalMessageId(input: {
             tenantId: string;
             externalMessageId: string;
-        }): Promise<{
-            id: string;
-            tenant_id: string;
-            conversation_id: string;
-            direction: "inbound" | "outbound";
-            message_type: "text" | "image" | "sticker" | "file" | "system" | string;
-            text: string | null;
-            external_message_id: string | null;
-            idempotency_key: string;
-            raw_payload: Json;
-            created_at: string;
-        } | null>;
+        }): Promise<MessageRow>;
         createInbound(input: {
             tenantId: string;
             conversationId: string;
-            messageType: MessageRow["message_type"];
+            messageType: string;
             text?: string | null;
             externalMessageId?: string | null;
             idempotencyKey: string;
@@ -379,12 +327,13 @@ export declare function createRepositorySet(client: DatabaseClient): {
         createOutbound(input: {
             tenantId: string;
             conversationId: string;
-            messageType: MessageRow["message_type"];
+            messageType: string;
             text: string;
             externalMessageId?: string | null;
             idempotencyKey: string;
             rawPayload: Record<string, unknown>;
         }): Promise<void>;
+        markAsRead(conversationId: string): Promise<void>;
     };
     deliveries: {
         create(input: {
@@ -398,26 +347,13 @@ export declare function createRepositorySet(client: DatabaseClient): {
         }): Promise<void>;
     };
     workflows: {
-        findLatestByTenant(tenantId: string): Promise<{
-            id: string;
-            tenant_id: string;
-            mode: "auto" | "approval" | "manual" | "blocked" | string;
-            default_model: string | null;
-            classifier_model: string | null;
-            embedding_model: string | null;
-            max_tool_turns: number;
-            temperature: number;
-            prompt_settings: Json;
-            crm_mapping: Json;
-            blocked_topics: Json;
-            created_at: string;
-        } | null>;
+        findLatestByTenant(tenantId: string): Promise<WorkflowConfigRow>;
     };
     tasks: {
         create(input: {
             tenantId: string;
             conversationId?: string | null;
-            type: HumanTaskRow["type"];
+            type: "approval" | "handoff";
             status?: string;
             payload?: Record<string, unknown>;
         }): Promise<void>;
@@ -430,8 +366,24 @@ export declare function createRepositorySet(client: DatabaseClient): {
             toolName: string;
             inputPayload?: Record<string, unknown>;
             outputPayload?: Record<string, unknown> | null;
-            status?: ToolCallAuditRow["status"];
+            status?: "ok" | "error";
         }): Promise<void>;
+        listByConversation(conversationId: string): Promise<ToolCallAuditRow[]>;
+    };
+    prompts: {
+        findActive(input: {
+            tenantId: string;
+            key: string;
+        }): Promise<PromptTemplateRow>;
+        create(input: {
+            tenantId: string;
+            key: string;
+            content: string;
+            version: number;
+        }): Promise<PromptTemplateRow>;
+        listVersions(input: {
+            tenantId: string;
+            key: string;
+        }): Promise<PromptTemplateRow[]>;
     };
 };
-export {};

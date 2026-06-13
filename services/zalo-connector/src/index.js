@@ -17,9 +17,9 @@ const CREDENTIALS_FILE = path.join(DATA_DIR, "credentials.json");
 const INBOUND_LOG_FILE = path.join(DATA_DIR, "inbound.ndjson");
 const LEGACY_CREDENTIALS_FILE = path.resolve(__dirname, "../../../credentials.json");
 
-const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:3010";
+const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:7010";
 const INTERNAL_INGEST_TOKEN = process.env.INTERNAL_INGEST_TOKEN ?? "";
-const REDIS_URL = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
+const REDIS_URL = process.env.REDIS_URL ?? "redis://127.0.0.1:7379";
 const TENANT_ID =
   process.env.TENANT_ID ?? "11111111-1111-1111-1111-111111111111"; // sales-demo
 

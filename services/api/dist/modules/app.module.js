@@ -9,17 +9,25 @@ import { HealthController } from "../routes/health.controller.js";
 import { InternalEventsController } from "../routes/internal-events.controller.js";
 import { InternalInboxController } from "../routes/internal-inbox.controller.js";
 import { InternalOutboundController } from "../routes/internal-outbound.controller.js";
-import { SupabaseModule } from "./supabase.module.js";
+import { InternalPromptsController } from "../routes/internal-prompts.controller.js";
+import { PostgresModule } from "./postgres.module.js";
 import { QueueModule } from "./queue.module.js";
 import { IngestService } from "../services/ingest.service.js";
 import { InboxQueryService } from "../services/inbox-query.service.js";
+import { PromptsService } from "../services/prompts.service.js";
 let AppModule = class AppModule {
 };
 AppModule = __decorate([
     Module({
-        imports: [SupabaseModule, QueueModule],
-        controllers: [HealthController, InternalEventsController, InternalInboxController, InternalOutboundController],
-        providers: [IngestService, InboxQueryService],
+        imports: [PostgresModule, QueueModule],
+        controllers: [
+            HealthController,
+            InternalEventsController,
+            InternalInboxController,
+            InternalOutboundController,
+            InternalPromptsController,
+        ],
+        providers: [IngestService, InboxQueryService, PromptsService],
     })
 ], AppModule);
 export { AppModule };

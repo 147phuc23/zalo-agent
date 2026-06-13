@@ -9,7 +9,4 @@ log() { echo "[dev-down] $*"; }
 log "Stopping Docker services (Twenty + Redis)..."
 docker compose down || true
 
-log "Stopping Supabase..."
-supabase stop || true
-
 log "Done."

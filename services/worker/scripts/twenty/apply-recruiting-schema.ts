@@ -41,13 +41,13 @@ export async function applyRecruitingSchema() {
     }),
   );
 
-  const fields = readMetadataRows(
-    await twentyHttpJson<unknown>({
-      baseUrl,
-      apiKey,
-      request: { path: "/rest/metadata/fields", method: "GET", query: { limit: "5000" } },
-    }),
-  );
+  const fields: MetadataRow[] = objects.flatMap((obj) => {
+    const rawFields = (obj.fields as unknown[]) || [];
+    return rawFields.map((f: any) => ({
+      ...f,
+      objectMetadataId: obj.id,
+    }));
+  });
 
   const personObject = findObjectBySingular(objects, "person");
   if (!personObject?.id) {
@@ -73,11 +73,11 @@ export async function applyRecruitingSchema() {
     label: "Recruiting pipeline stage",
     isNullable: true,
     options: [
-      { position: 0, label: "New", value: "new", color: "gray" },
-      { position: 1, label: "Screening", value: "screening", color: "sky" },
-      { position: 2, label: "Interviewing", value: "interviewing", color: "blue" },
-      { position: 3, label: "Placed", value: "placed", color: "green" },
-      { position: 4, label: "Paused", value: "paused", color: "orange" },
+      { position: 0, label: "New", value: "NEW", color: "gray" },
+      { position: 1, label: "Screening", value: "SCREENING", color: "sky" },
+      { position: 2, label: "Interviewing", value: "INTERVIEWING", color: "blue" },
+      { position: 3, label: "Placed", value: "PLACED", color: "green" },
+      { position: 4, label: "Paused", value: "PAUSED", color: "orange" },
     ],
   });
 
@@ -140,6 +140,38 @@ export async function applyRecruitingSchema() {
     isNullable: true,
   });
 
+  await ensureTextField(baseUrl, apiKey, fields, {
+    objectMetadataId: personObjectId,
+    name: RECRUITING_PERSON_FIELDS.education,
+    label: "Education",
+    description: "Educational background (University, degree, major)",
+    isNullable: true,
+  });
+
+  await ensureTextField(baseUrl, apiKey, fields, {
+    objectMetadataId: personObjectId,
+    name: RECRUITING_PERSON_FIELDS.resumeUrl,
+    label: "Resume URL",
+    description: "Link to candidate CV / resume file",
+    isNullable: true,
+  });
+
+  await ensureTextField(baseUrl, apiKey, fields, {
+    objectMetadataId: personObjectId,
+    name: RECRUITING_PERSON_FIELDS.candidateSource,
+    label: "Candidate source",
+    description: "Where candidate was sourced from (e.g. Zalo, LinkedIn)",
+    isNullable: true,
+  });
+
+  await ensureNumberField(baseUrl, apiKey, fields, {
+    objectMetadataId: personObjectId,
+    name: RECRUITING_PERSON_FIELDS.hiringRating,
+    label: "Hiring rating",
+    description: "Overall candidate rating (1-5)",
+    isNullable: true,
+  });
+
   console.log("[twenty:schema] Ensuring custom objects…");
 
   let jobPostingObject =
@@ -175,9 +207,9 @@ export async function applyRecruitingSchema() {
     label: "Work mode",
     isNullable: true,
     options: [
-      { position: 0, label: "Remote", value: "remote", color: "sky" },
-      { position: 1, label: "Hybrid", value: "hybrid", color: "blue" },
-      { position: 2, label: "Onsite", value: "onsite", color: "purple" },
+      { position: 0, label: "Remote", value: "REMOTE", color: "sky" },
+      { position: 1, label: "Hybrid", value: "HYBRID", color: "blue" },
+      { position: 2, label: "Onsite", value: "ONSITE", color: "purple" },
     ],
   });
 
@@ -223,9 +255,9 @@ export async function applyRecruitingSchema() {
     label: "Status",
     isNullable: true,
     options: [
-      { position: 0, label: "Open", value: "open", color: "green" },
-      { position: 1, label: "Paused", value: "paused", color: "orange" },
-      { position: 2, label: "Closed", value: "closed", color: "red" },
+      { position: 0, label: "Open", value: "OPEN", color: "green" },
+      { position: 1, label: "Paused", value: "PAUSED", color: "orange" },
+      { position: 2, label: "Closed", value: "CLOSED", color: "red" },
     ],
   });
 
@@ -241,6 +273,42 @@ export async function applyRecruitingSchema() {
     name: RECRUITING_JOB_POSTING_FIELDS.headcount,
     label: "Headcount",
     description: "Number of open seats",
+    isNullable: true,
+  });
+
+  await ensureSelectField(baseUrl, apiKey, fields, {
+    objectMetadataId: jobPostingObjectId,
+    name: RECRUITING_JOB_POSTING_FIELDS.jobType,
+    label: "Job type",
+    isNullable: true,
+    options: [
+      { position: 0, label: "Full-time", value: "FULL_TIME", color: "green" },
+      { position: 1, label: "Part-time", value: "PART_TIME", color: "blue" },
+      { position: 2, label: "Contract", value: "CONTRACT", color: "orange" },
+      { position: 3, label: "Internship", value: "INTERNSHIP", color: "turquoise" },
+    ],
+  });
+
+  await ensureNumberField(baseUrl, apiKey, fields, {
+    objectMetadataId: jobPostingObjectId,
+    name: RECRUITING_JOB_POSTING_FIELDS.experienceRequiredYears,
+    label: "Experience required (years)",
+    isNullable: true,
+  });
+
+  await ensureTextField(baseUrl, apiKey, fields, {
+    objectMetadataId: jobPostingObjectId,
+    name: RECRUITING_JOB_POSTING_FIELDS.benefits,
+    label: "Benefits",
+    description: "Company benefits and allowances",
+    isNullable: true,
+  });
+
+  await ensureTextField(baseUrl, apiKey, fields, {
+    objectMetadataId: jobPostingObjectId,
+    name: RECRUITING_JOB_POSTING_FIELDS.educationRequired,
+    label: "Education required",
+    description: "Required educational qualification",
     isNullable: true,
   });
 
@@ -279,12 +347,12 @@ export async function applyRecruitingSchema() {
     label: "Pipeline stage",
     isNullable: true,
     options: [
-      { position: 0, label: "Applied", value: "applied", color: "gray" },
-      { position: 1, label: "Screening", value: "screening", color: "sky" },
-      { position: 2, label: "Interview", value: "interview", color: "blue" },
-      { position: 3, label: "Offer", value: "offer", color: "green" },
-      { position: 4, label: "Rejected", value: "rejected", color: "red" },
-      { position: 5, label: "Withdrawn", value: "withdrawn", color: "orange" },
+      { position: 0, label: "Applied", value: "APPLIED", color: "gray" },
+      { position: 1, label: "Screening", value: "SCREENING", color: "sky" },
+      { position: 2, label: "Interview", value: "INTERVIEW", color: "blue" },
+      { position: 3, label: "Offer", value: "OFFER", color: "green" },
+      { position: 4, label: "Rejected", value: "REJECTED", color: "red" },
+      { position: 5, label: "Withdrawn", value: "WITHDRAWN", color: "orange" },
     ],
   });
 
@@ -337,6 +405,9 @@ async function createCustomObject(
     if (!row?.id) {
       throw new Error(`[twenty:schema] Unexpected create object response: ${JSON.stringify(created)}`);
     }
+    // Wait for Twenty metadata cache to update before adding fields
+    console.log("[twenty:schema] Waiting 3s for metadata cache...");
+    await new Promise((resolve) => setTimeout(resolve, 3000));
     return row;
   } catch (error) {
     if (error instanceof TwentyHttpError) {

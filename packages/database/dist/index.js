@@ -1,7 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
-export { createAuditRepository, createContactRepository, createConversationRepository, createDeliveryRepository, createHumanTaskRepository, createMessageRepository, createRepositorySet, createTenantRepository, createWorkflowConfigRepository, } from "./repositories.js";
+import pg from "pg";
+export { runMigrations } from "./migrator.js";
+export { createAuditRepository, createContactRepository, createConversationRepository, createDeliveryRepository, createHumanTaskRepository, createMessageRepository, createRepositorySet, createTenantRepository, createWorkflowConfigRepository, createPromptTemplateRepository, } from "./repositories.js";
 export function createDatabaseClient(input) {
-    return createClient(input.SUPABASE_URL, input.SUPABASE_SERVICE_ROLE_KEY, {
-        auth: { persistSession: false },
+    return new pg.Pool({
+        connectionString: input.PLATFORM_DB_URL,
     });
 }

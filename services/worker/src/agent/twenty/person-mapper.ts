@@ -1,4 +1,4 @@
-import type { CandidateProfile } from "../types.js";
+import type { CandidateProfile, JobPosting } from "../types.js";
 import {
   RECRUITING_JOB_APPLICATION_FIELDS,
   RECRUITING_JOB_POSTING_FIELDS,
@@ -38,21 +38,14 @@ export function mapTwentyPersonToCandidateProfile(input: {
     salaryExpectationVnd: readNumber(raw, RECRUITING_PERSON_FIELDS.salaryExpectationVnd),
     availability: readString(raw, "availability") ?? undefined,
     notes: buildNotes(raw),
+    education: readString(raw, RECRUITING_PERSON_FIELDS.education) ?? undefined,
+    resumeUrl: readString(raw, RECRUITING_PERSON_FIELDS.resumeUrl) ?? undefined,
+    candidateSource: readString(raw, RECRUITING_PERSON_FIELDS.candidateSource) ?? undefined,
+    hiringRating: readNumber(raw, RECRUITING_PERSON_FIELDS.hiringRating),
   };
 }
 
-export function mapTwentyJobPostingRecord(raw: Record<string, unknown>): {
-  id: string;
-  title: string;
-  company: string;
-  location: string;
-  workMode: "remote" | "hybrid" | "onsite";
-  salaryMinVnd: number;
-  salaryMaxVnd: number;
-  seniority: string;
-  requiredSkills: string[];
-  description: string;
-} {
+export function mapTwentyJobPostingRecord(raw: Record<string, unknown>): JobPosting {
   const title =
     (typeof raw.name === "string" && raw.name ? raw.name : null) ??
     (typeof raw.title === "string" ? raw.title : "Untitled role");
@@ -70,6 +63,10 @@ export function mapTwentyJobPostingRecord(raw: Record<string, unknown>): {
     seniority: readString(raw, RECRUITING_JOB_POSTING_FIELDS.seniority) ?? "",
     requiredSkills: splitCommaList(readString(raw, RECRUITING_JOB_POSTING_FIELDS.requiredSkills)),
     description: readString(raw, RECRUITING_JOB_POSTING_FIELDS.description) ?? "",
+    jobType: (readString(raw, RECRUITING_JOB_POSTING_FIELDS.jobType) as any) ?? undefined,
+    experienceRequiredYears: readNumber(raw, RECRUITING_JOB_POSTING_FIELDS.experienceRequiredYears),
+    benefits: readString(raw, RECRUITING_JOB_POSTING_FIELDS.benefits) ?? undefined,
+    educationRequired: readString(raw, RECRUITING_JOB_POSTING_FIELDS.educationRequired) ?? undefined,
   };
 }
 

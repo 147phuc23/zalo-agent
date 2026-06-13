@@ -29,25 +29,22 @@ set -a && source ".env.local" && set +a
 log "Starting Docker (Twenty + Redis)..."
 docker compose up -d
 
-log "Starting Supabase..."
-supabase start
-
 # ── wait for healthy ───────────────────────────────────────────────────────────
 wait_redis
-wait_http "Twenty" "${TWENTY_PUBLIC_URL:-http://localhost:3000}/healthz"
+wait_http "Twenty" "${TWENTY_PUBLIC_URL:-http://localhost:7300}/healthz"
 
 # ── app services ───────────────────────────────────────────────────────────────
-log "All services up. Starting API (port ${APP_PORT:-3011}) and Worker..."
+log "All services up. Starting API (port ${APP_PORT:-7011}) and Worker..."
 log "Zalo connector: run 'pnpm zalo:listen' in a separate terminal when needed."
 log "Press Ctrl+C to stop."
 echo ""
 
 _cleanup() {
   echo ""
-  log "Stopping API and Worker..."
-  kill "${API_PID:-}" "${WORKER_PID:-}" 2>/dev/null || true
-  wait "${API_PID:-}" "${WORKER_PID:-}" 2>/dev/null || true
-  log "Done. Run 'pnpm dev:down' to also stop Docker + Supabase."
+  log "Stopping API, Worker, and Admin..."
+  kill "${API_PID:-}" "${WORKER_PID:-}" "${ADMIN_PID:-}" 2>/dev/null || true
+  wait "${API_PID:-}" "${WORKER_PID:-}" "${ADMIN_PID:-}" 2>/dev/null || true
+  log "Done. Run 'pnpm dev:down' to also stop Docker."
 }
 trap _cleanup INT TERM
 
@@ -57,4 +54,7 @@ API_PID=$!
 pnpm --filter @platform/worker dev &
 WORKER_PID=$!
 
-wait "${API_PID}" "${WORKER_PID}"
+pnpm --filter @platform/admin dev &
+ADMIN_PID=$!
+
+wait "${API_PID}" "${WORKER_PID}" "${ADMIN_PID}"

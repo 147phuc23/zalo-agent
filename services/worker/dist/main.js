@@ -6,6 +6,7 @@ import { z } from "zod";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { OpenRouterAiClient } from "@platform/ai-client";
+import { runHrAgentScenario } from "./agent/core/runner.js";
 const JobPayloadSchema = z.object({
     tenantId: z.string().min(1),
     conversationId: z.string().min(1),
@@ -135,29 +136,76 @@ async function generateDraftReply(tenantId, conversationId) {
             lastUpdated: now,
         });
     }
-    const transcript = messages
-        .map((m) => `${m.direction === "inbound" ? "Customer" : "Agent"}: ${m.text ?? ""}`)
-        .join("\n");
-    const model = (await resolveDefaultModel(tenantId)) ?? "openai/gpt-4.1-mini";
-    const result = await ai.generate({
+    const contactList = await repos.contacts.listByIds({ ids: [conversation.contact_id] });
+    const contact = contactList[0];
+    const contactName = contact?.display_name ?? "Khách hàng";
+    const externalUserId = contact?.external_user_id ?? "unknown";
+    const overrideModel = conversation.override_model;
+    const defaultModel = (await resolveDefaultModel(tenantId)) ?? "openrouter/owl-alpha";
+    const model = overrideModel || defaultModel;
+    let systemPromptOverride;
+    const dbPrompt = await repos.prompts.findActive({ tenantId, key: "assistant" });
+    if (dbPrompt) {
+        systemPromptOverride = dbPrompt.content;
+        // Replace placeholders using {{key}}
+        const variables = {
+            contact_name: contactName,
+            tenant_id: tenantId,
+        };
+        for (const [k, v] of Object.entries(variables)) {
+            systemPromptOverride = systemPromptOverride.replaceAll(`{{${k}}}`, v);
+        }
+    }
+    // Format messages for the tool-calling agent runner
+    const formattedMessages = messages.map((m) => ({
+        id: m.id,
+        tenantId: m.tenant_id,
+        channel: "zalo",
+        threadId: conversation.external_thread_id,
+        externalUserId: m.direction === "inbound" ? externalUserId : "agent",
+        text: m.text ?? "",
+        receivedAt: new Date(m.created_at).toISOString(),
+        raw: m.raw_payload ?? {},
+    }));
+    const scenario = {
+        id: conversationId,
+        name: conversationId,
+        description: "Zalo Simulator isolation run.",
+        tenantId,
+        channel: "zalo",
+        threadId: conversation.external_thread_id,
+        externalUserId,
+        messages: formattedMessages,
+    };
+    // Run the tool-loop agent scenario!
+    const agentResult = await runHrAgentScenario({
+        scenario,
         model,
-        system: [
-            "You are a helpful sales/support assistant.",
-            "Reply concisely in Vietnamese as a natural chat conversation.",
-            "Return only JSON in this shape: {\"responses\":[\"message 1\",\"message 2\"]}.",
-            "Strictly follow a message-by-message response style like a human chatting on a messaging app.",
-            "Keep each message extremely short, natural, and concise (ideally 1-2 short sentences per message bubble). Use 1-4 short responses in total.",
-            "Break your thoughts into sequential, realistic chat bubbles instead of combining everything into a single long reply.",
-            "Add appropriate friendly icons/emojis (e.g., 😊, 👍, ✨) to make the chat engaging and friendly.",
-            "Do not write one very long message with newlines; instead, break it down into a list of separate messages inside the responses array.",
-            "Do not put newline characters inside any response.",
-            "If unclear, ask one clarifying question.",
-        ].join(" "),
-        prompt: `Conversation so far:\n${transcript}\n\nWrite the next chat responses.`,
-        temperature: 0.3,
-        responseFormat: { type: "json_object" },
+        useLocalCache: true,
+        forceProfileReload: false,
+        printCache: false,
+        mockLlm: false,
+        skillMode: process.env.HR_SKILL_MODE || "default",
+        systemPromptOverride,
     });
-    const responses = parseDraftResponses(result.text);
+    // Write all tool calls to database audits
+    for (const step of agentResult.steps) {
+        if (!step.toolCalls || step.toolCalls.length === 0)
+            continue;
+        for (const call of step.toolCalls) {
+            const matchingResult = step.toolResults?.find((r) => r.toolCallId === call.toolCallId);
+            await repos.audits.append({
+                tenantId,
+                conversationId,
+                runId: call.toolCallId,
+                toolName: call.toolName,
+                inputPayload: call.args,
+                outputPayload: matchingResult ? matchingResult.result : null,
+                status: matchingResult?.isError ? "error" : "ok",
+            });
+        }
+    }
+    const responses = parseDraftResponses(agentResult.assistantText);
     const batchId = `draft:${tenantId}:${conversationId}:${Date.now()}`;
     for (const [index, response] of responses.entries()) {
         const idempotencyKey = `${batchId}:${index + 1}`;
@@ -170,10 +218,10 @@ async function generateDraftReply(tenantId, conversationId) {
             idempotencyKey,
             rawPayload: {
                 kind: "draft",
-                model: result.model,
+                model: model,
                 responseIndex: index + 1,
                 responseCount: responses.length,
-                originalText: result.text,
+                originalText: agentResult.assistantText,
             },
         });
         await enqueueZaloMessage({
@@ -183,7 +231,7 @@ async function generateDraftReply(tenantId, conversationId) {
             idempotencyKey,
         });
     }
-    return { ...result, responses };
+    return { text: agentResult.assistantText, model, responses };
 }
 function parseDraftResponses(text) {
     const parsed = DraftResponsesSchema.safeParse(parseJsonLike(text));

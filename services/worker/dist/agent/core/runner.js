@@ -62,7 +62,7 @@ export async function runHrAgentScenario(options) {
             model: options.model,
             enablePromptCaching: providerCache.enableProviderPromptCaching,
         }),
-        system: promptContext.system,
+        system: options.systemPromptOverride || promptContext.system,
         prompt: promptContext.prompt,
         tools,
         maxSteps: 8,

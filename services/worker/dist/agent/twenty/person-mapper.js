@@ -24,6 +24,10 @@ export function mapTwentyPersonToCandidateProfile(input) {
         salaryExpectationVnd: readNumber(raw, RECRUITING_PERSON_FIELDS.salaryExpectationVnd),
         availability: readString(raw, "availability") ?? undefined,
         notes: buildNotes(raw),
+        education: readString(raw, RECRUITING_PERSON_FIELDS.education) ?? undefined,
+        resumeUrl: readString(raw, RECRUITING_PERSON_FIELDS.resumeUrl) ?? undefined,
+        candidateSource: readString(raw, RECRUITING_PERSON_FIELDS.candidateSource) ?? undefined,
+        hiringRating: readNumber(raw, RECRUITING_PERSON_FIELDS.hiringRating),
     };
 }
 export function mapTwentyJobPostingRecord(raw) {
@@ -41,6 +45,10 @@ export function mapTwentyJobPostingRecord(raw) {
         seniority: readString(raw, RECRUITING_JOB_POSTING_FIELDS.seniority) ?? "",
         requiredSkills: splitCommaList(readString(raw, RECRUITING_JOB_POSTING_FIELDS.requiredSkills)),
         description: readString(raw, RECRUITING_JOB_POSTING_FIELDS.description) ?? "",
+        jobType: readString(raw, RECRUITING_JOB_POSTING_FIELDS.jobType) ?? undefined,
+        experienceRequiredYears: readNumber(raw, RECRUITING_JOB_POSTING_FIELDS.experienceRequiredYears),
+        benefits: readString(raw, RECRUITING_JOB_POSTING_FIELDS.benefits) ?? undefined,
+        educationRequired: readString(raw, RECRUITING_JOB_POSTING_FIELDS.educationRequired) ?? undefined,
     };
 }
 export function mapTwentyJobApplicationRecord(input) {

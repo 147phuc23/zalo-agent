@@ -151,6 +151,7 @@ export interface Database {
                     contact_id: string;
                     status: string;
                     assignee_user_id: string | null;
+                    override_model: string | null;
                     last_activity_at: string;
                     created_at: string;
                 };
@@ -162,6 +163,7 @@ export interface Database {
                     contact_id: string;
                     status?: string;
                     assignee_user_id?: string | null;
+                    override_model?: string | null;
                     last_activity_at?: string;
                     created_at?: string;
                 };
@@ -173,6 +175,7 @@ export interface Database {
                     contact_id?: string;
                     status?: string;
                     assignee_user_id?: string | null;
+                    override_model?: string | null;
                     last_activity_at?: string;
                     created_at?: string;
                 };
@@ -189,6 +192,8 @@ export interface Database {
                     external_message_id: string | null;
                     idempotency_key: string;
                     raw_payload: Json;
+                    is_read: boolean;
+                    read_at: string | null;
                     created_at: string;
                 };
                 Insert: {
@@ -201,6 +206,8 @@ export interface Database {
                     external_message_id?: string | null;
                     idempotency_key: string;
                     raw_payload?: Json;
+                    is_read?: boolean;
+                    read_at?: string | null;
                     created_at?: string;
                 };
                 Update: {
@@ -213,6 +220,8 @@ export interface Database {
                     external_message_id?: string | null;
                     idempotency_key?: string;
                     raw_payload?: Json;
+                    is_read?: boolean;
+                    read_at?: string | null;
                     created_at?: string;
                 };
                 Relationships: [];
@@ -456,6 +465,36 @@ export interface Database {
                     remote_id?: string;
                     remote_type?: string;
                     unique_key_hash?: string;
+                    created_at?: string;
+                };
+                Relationships: [];
+            };
+            prompt_templates: {
+                Row: {
+                    id: string;
+                    tenant_id: string;
+                    key: string;
+                    content: string;
+                    version: number;
+                    is_active: boolean;
+                    created_at: string;
+                };
+                Insert: {
+                    id?: string;
+                    tenant_id: string;
+                    key: string;
+                    content: string;
+                    version: number;
+                    is_active?: boolean;
+                    created_at?: string;
+                };
+                Update: {
+                    id?: string;
+                    tenant_id?: string;
+                    key?: string;
+                    content?: string;
+                    version?: number;
+                    is_active?: boolean;
                     created_at?: string;
                 };
                 Relationships: [];

@@ -6,11 +6,11 @@ services:
     volumes:
       - server-local-data:/app/packages/twenty-server/.local-storage
     ports:
-      - "3000:3000"
+      - "7300:7300"
     environment:
-      NODE_PORT: 3000
+      NODE_PORT: 7300
       PG_DATABASE_URL: postgres://${PG_DATABASE_USER:-postgres}:${PG_DATABASE_PASSWORD:-postgres}@${PG_DATABASE_HOST:-db}:${PG_DATABASE_PORT:-5432}/default
-      SERVER_URL: ${SERVER_URL:-http://localhost:3000}
+      SERVER_URL: ${SERVER_URL:-http://localhost:7300}
       REDIS_URL: redis://redis:6379
       DISABLE_DB_MIGRATIONS: ${DISABLE_DB_MIGRATIONS}
       DISABLE_CRON_JOBS_REGISTRATION: ${DISABLE_CRON_JOBS_REGISTRATION}
@@ -25,7 +25,7 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: curl --fail http://localhost:3000/healthz
+      test: curl --fail http://localhost:7300/healthz
       interval: 5s
       timeout: 5s
       retries: 20
@@ -38,7 +38,7 @@ services:
     command: ["yarn", "worker:prod"]
     environment:
       PG_DATABASE_URL: postgres://${PG_DATABASE_USER:-postgres}:${PG_DATABASE_PASSWORD:-postgres}@${PG_DATABASE_HOST:-db}:${PG_DATABASE_PORT:-5432}/default
-      SERVER_URL: ${SERVER_URL:-http://localhost:3000}
+      SERVER_URL: ${SERVER_URL:-http://localhost:7300}
       REDIS_URL: redis://redis:6379
       DISABLE_DB_MIGRATIONS: "true"
       DISABLE_CRON_JOBS_REGISTRATION: "true"
@@ -74,13 +74,31 @@ services:
     restart: always
     command: ["--maxmemory-policy", "noeviction"]
     ports:
-      - "6379:6379"
+      - "7379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10
 
+  platform-db:
+    image: pgvector/pgvector:pg16
+    ports:
+      - "7432:5432"
+    environment:
+      POSTGRES_DB: platform
+      POSTGRES_PASSWORD: platform_secure_pass
+      POSTGRES_USER: platform_user
+    volumes:
+      - platform-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U platform_user -d platform
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
+
 volumes:
   db-data:
   server-local-data:
+  platform-db-data:
