@@ -10,7 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { Controller, Get, Headers, Param, Query, UnauthorizedException } from "@nestjs/common";
+import { Controller, Get, Headers, Inject, Param, Query, UnauthorizedException } from "@nestjs/common";
 import { z } from "zod";
 import { loadApiEnv } from "@platform/config";
 import { InboxQueryService } from "../services/inbox-query.service.js";
@@ -65,6 +65,7 @@ __decorate([
 ], InternalInboxController.prototype, "listMessages", null);
 InternalInboxController = __decorate([
     Controller(),
+    __param(0, Inject(InboxQueryService)),
     __metadata("design:paramtypes", [InboxQueryService])
 ], InternalInboxController);
 export { InternalInboxController };

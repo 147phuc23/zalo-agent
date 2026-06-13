@@ -11,18 +11,59 @@ import { Injectable } from "@nestjs/common";
 import { Queue } from "bullmq";
 import { loadApiEnv } from "@platform/config";
 let QueueService = class QueueService {
-    queue;
+    messageReceivedQueue;
+    messageSendQueue;
+    crmSyncQueue;
+    humanTaskCreateQueue;
+    knowledgeEmbedQueue;
+    deadLetterQueue;
     constructor() {
         const env = loadApiEnv();
-        this.queue = new Queue("message.received", {
+        const connection = { url: env.REDIS_URL };
+        this.messageReceivedQueue = new Queue("message.received", {
+            connection,
+            defaultJobOptions: DEFAULT_JOB_OPTIONS,
+        });
+        this.messageSendQueue = new Queue("message.send", {
+            connection,
+            defaultJobOptions: DEFAULT_JOB_OPTIONS,
+        });
+        this.crmSyncQueue = new Queue("crm.sync", {
+            connection,
+            defaultJobOptions: DEFAULT_JOB_OPTIONS,
+        });
+        this.humanTaskCreateQueue = new Queue("human.task.create", {
+            connection,
+            defaultJobOptions: DEFAULT_JOB_OPTIONS,
+        });
+        this.knowledgeEmbedQueue = new Queue("knowledge.embed", {
+            connection,
+            defaultJobOptions: DEFAULT_JOB_OPTIONS,
+        });
+        this.deadLetterQueue = new Queue("dead-letter", {
             connection: { url: env.REDIS_URL },
+            defaultJobOptions: DEFAULT_JOB_OPTIONS,
         });
     }
     async enqueueMessageReceived(payload) {
         const queueJobId = payload.idempotencyKey.replaceAll(":", "_");
-        await this.queue.add("message.received", payload, 
-        // jobId ensures dedupe at queue-level too
-        { jobId: queueJobId, removeOnComplete: 1000, removeOnFail: 1000 });
+        await this.messageReceivedQueue.add("message.received", payload, { jobId: queueJobId });
+    }
+    async enqueueMessageSend(payload) {
+        const jobId = (payload.idempotencyKey ?? `${payload.tenantId}:${payload.threadId}:${payload.text}`).replaceAll(":", "_");
+        await this.messageSendQueue.add("message.send", payload, { jobId });
+    }
+    async enqueueCrmSync(payload) {
+        await this.crmSyncQueue.add("crm.sync", payload);
+    }
+    async enqueueHumanTaskCreate(payload) {
+        await this.humanTaskCreateQueue.add("human.task.create", payload);
+    }
+    async enqueueKnowledgeEmbed(payload) {
+        await this.knowledgeEmbedQueue.add("knowledge.embed", payload);
+    }
+    async enqueueDeadLetter(payload) {
+        await this.deadLetterQueue.add("dead-letter", payload);
     }
 };
 QueueService = __decorate([
@@ -30,3 +71,12 @@ QueueService = __decorate([
     __metadata("design:paramtypes", [])
 ], QueueService);
 export { QueueService };
+const DEFAULT_JOB_OPTIONS = {
+    attempts: 3,
+    backoff: {
+        type: "exponential",
+        delay: 1000,
+    },
+    removeOnComplete: 1000,
+    removeOnFail: 5000,
+};

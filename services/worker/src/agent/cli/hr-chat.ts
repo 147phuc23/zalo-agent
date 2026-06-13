@@ -99,17 +99,14 @@ try {
   const messages: MockZaloPayload[] = [];
 
   let explicitExit = false;
+  let pendingMessages: string[] = [];
+  let debounceTimeout: NodeJS.Timeout | null = null;
 
-  for await (const text of rl) {
-    sessionLogger.logUserInput(text);
+  async function processPendingMessages() {
+    if (pendingMessages.length === 0) return;
 
-    const inbound = args.machine ? parseMachineStdinLine(text) : parseInteractiveLine(text);
-    if (inbound.kind === "exit") {
-      explicitExit = true;
-      break;
-    }
-    if (inbound.kind === "skip") continue;
-    const userText = inbound.text;
+    const userText = pendingMessages.join("\n");
+    pendingMessages = [];
 
     messages.push({
       id: `interactive-${messages.length + 1}`,
@@ -168,6 +165,29 @@ try {
       rl.prompt();
     }
   }
+
+  for await (const text of rl) {
+    sessionLogger.logUserInput(text);
+
+    const inbound = args.machine ? parseMachineStdinLine(text) : parseInteractiveLine(text);
+    if (inbound.kind === "exit") {
+      explicitExit = true;
+      break;
+    }
+    if (inbound.kind === "skip") continue;
+
+    pendingMessages.push(inbound.text);
+
+    if (debounceTimeout) clearTimeout(debounceTimeout);
+    debounceTimeout = setTimeout(() => {
+      processPendingMessages().catch(console.error);
+    }, 1000); // 1 second debounce
+  }
+
+  if (debounceTimeout) {
+    clearTimeout(debounceTimeout);
+  }
+  await processPendingMessages();
 
   if (!explicitExit && sessionEnd === "exit") {
     sessionEnd = "eof";

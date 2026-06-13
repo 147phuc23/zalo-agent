@@ -10,6 +10,7 @@ export type GenerateInput = {
   system?: string;
   prompt: string;
   temperature?: number;
+  responseFormat?: { type: "json_object" | "text" };
 };
 
 export type GenerateOutput = {
@@ -37,6 +38,7 @@ export class OpenRouterAiClient {
         model: input.model,
         messages: buildMessages(input),
         temperature: input.temperature,
+        response_format: input.responseFormat ? { type: input.responseFormat.type } : undefined,
       }),
     });
 

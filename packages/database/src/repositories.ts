@@ -226,14 +226,14 @@ export function createMessageRepository(client: DatabaseClient) {
           "id, tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, raw_payload, created_at",
         )
         .eq("conversation_id", input.conversationId)
-        .order("created_at", { ascending: true })
+        .order("created_at", { ascending: false })
         .limit(input.limit);
 
       if (result.error) {
         throw new Error(result.error.message);
       }
 
-      return (result.data ?? []) as MessageRow[];
+      return ((result.data ?? []) as MessageRow[]).reverse();
     },
     async findLatestByExternalMessageId(input: { tenantId: string; externalMessageId: string }) {
       const result = await client

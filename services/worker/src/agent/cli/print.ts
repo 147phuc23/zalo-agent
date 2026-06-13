@@ -15,7 +15,13 @@ export function printScenarioResult(input: {
   }
 
   console.log("\nSystem:");
-  printSystemResponse(input.result.assistantText, input.styledOutput);
+  const parts = input.result.assistantText
+    .split(/\n\n+/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  for (const part of parts) {
+    printSystemResponse(part, input.styledOutput);
+  }
 
   if (input.printDebugSteps) {
     console.log("\nTool steps:");

@@ -7,7 +7,10 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
-import { Injectable } from "@nestjs/common";
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+import { Inject, Injectable } from "@nestjs/common";
 import { SupabaseService } from "./supabase.service.js";
 let InboxQueryService = class InboxQueryService {
     supabase;
@@ -81,6 +84,7 @@ let InboxQueryService = class InboxQueryService {
 };
 InboxQueryService = __decorate([
     Injectable(),
+    __param(0, Inject(SupabaseService)),
     __metadata("design:paramtypes", [SupabaseService])
 ], InboxQueryService);
 export { InboxQueryService };

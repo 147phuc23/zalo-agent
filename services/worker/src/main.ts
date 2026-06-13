@@ -2,10 +2,14 @@ import dotenv from "dotenv";
 import { Queue, Worker } from "bullmq";
 import { loadWorkerEnv } from "@platform/config";
 import { createDatabaseClient, createRepositorySet } from "@platform/database";
+import type { Database } from "@platform/database";
 import { z } from "zod";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { OpenRouterAiClient } from "@platform/ai-client";
+
+type MessageRow = Database["public"]["Tables"]["messages"]["Row"];
+type ConversationRow = Database["public"]["Tables"]["conversations"]["Row"];
 
 const JobPayloadSchema = z.object({
   tenantId: z.string().min(1),
@@ -22,10 +26,29 @@ const messageSendQueue = new Queue("message.send", {
   connection: { url: env.REDIS_URL },
 });
 
+interface SessionContext {
+  messages: MessageRow[];
+  conversation: ConversationRow;
+  lastUpdated: number;
+}
+
+const sessionCache = new Map<string, SessionContext>();
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const latestJobForConversation = new Map<string, string>();
+
 const worker = new Worker(
   "message.received",
   async (job) => {
     const payload = JobPayloadSchema.parse(job.data);
+    latestJobForConversation.set(payload.conversationId, job.id!);
+
+    // Debounce: Wait for a short duration (2000ms) to bundle consecutive incoming messages
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    if (latestJobForConversation.get(payload.conversationId) !== job.id) {
+      console.log(`[worker] debounced job ${job.id} for conversation ${payload.conversationId} (newer job received)`);
+      return { ok: true, action: "debounced" };
+    }
 
     const mode = await resolveMode(payload.tenantId);
     if (mode === "auto") {
@@ -116,10 +139,44 @@ async function createHumanTask(
 }
 
 async function generateDraftReply(tenantId: string, conversationId: string) {
-  const messages = await repos.messages.listByConversation({ conversationId, limit: 30 });
-  const conversation = await repos.conversations.findById(conversationId);
-  if (!conversation) {
-    throw new Error(`Conversation not found: ${conversationId}`);
+  const now = Date.now();
+  const cached = sessionCache.get(conversationId);
+
+  let messages: MessageRow[];
+  let conversation: ConversationRow;
+
+  if (cached && (now - cached.lastUpdated) < CACHE_TTL_MS) {
+    conversation = cached.conversation;
+    // Fetch only the latest 10 messages from the database to find new ones
+    const latestDbMessages = await repos.messages.listByConversation({ conversationId, limit: 10 });
+    
+    // Merge latest messages with the cache, avoiding duplicates
+    const cachedMap = new Map(cached.messages.map((m) => [m.id, m]));
+    for (const msg of latestDbMessages) {
+      cachedMap.set(msg.id, msg);
+    }
+
+    // Sort chronologically and limit to last 100 messages
+    const merged = Array.from(cachedMap.values()).sort(
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+
+    messages = merged.slice(-100);
+    cached.messages = messages;
+    cached.lastUpdated = now;
+  } else {
+    // Cache miss or expired: Load last 100 messages and conversation
+    messages = await repos.messages.listByConversation({ conversationId, limit: 100 });
+    const conversationDb = await repos.conversations.findById(conversationId);
+    if (!conversationDb) {
+      throw new Error(`Conversation not found: ${conversationId}`);
+    }
+    conversation = conversationDb;
+    sessionCache.set(conversationId, {
+      messages,
+      conversation,
+      lastUpdated: now,
+    });
   }
 
   const transcript = messages
@@ -135,12 +192,17 @@ async function generateDraftReply(tenantId: string, conversationId: string) {
         "You are a helpful sales/support assistant.",
         "Reply concisely in Vietnamese as a natural chat conversation.",
         "Return only JSON in this shape: {\"responses\":[\"message 1\",\"message 2\"]}.",
-        "Each response is one Zalo chat bubble. Use 1-4 short responses.",
+        "Strictly follow a message-by-message response style like a human chatting on a messaging app.",
+        "Keep each message extremely short, natural, and concise (ideally 1-2 short sentences per message bubble). Use 1-4 short responses in total.",
+        "Break your thoughts into sequential, realistic chat bubbles instead of combining everything into a single long reply.",
+        "Add appropriate friendly icons/emojis (e.g., 😊, 👍, ✨) to make the chat engaging and friendly.",
+        "Do not write one very long message with newlines; instead, break it down into a list of separate messages inside the responses array.",
         "Do not put newline characters inside any response.",
         "If unclear, ask one clarifying question.",
       ].join(" "),
     prompt: `Conversation so far:\n${transcript}\n\nWrite the next chat responses.`,
     temperature: 0.3,
+    responseFormat: { type: "json_object" },
   });
 
   const responses = parseDraftResponses(result.text);

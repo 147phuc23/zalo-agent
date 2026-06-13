@@ -8,15 +8,12 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 import { Injectable } from "@nestjs/common";
-import { createClient } from "@supabase/supabase-js";
 import { loadApiEnv } from "@platform/config";
+import { createDatabaseClient } from "@platform/database";
 let SupabaseService = class SupabaseService {
     client;
     constructor() {
-        const env = loadApiEnv();
-        this.client = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-            auth: { persistSession: false },
-        });
+        this.client = createDatabaseClient(loadApiEnv());
     }
 };
 SupabaseService = __decorate([

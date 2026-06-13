@@ -111,6 +111,35 @@ export async function applyRecruitingSchema() {
     isNullable: true,
   });
 
+  await ensureTextField(baseUrl, apiKey, fields, {
+    objectMetadataId: personObjectId,
+    name: RECRUITING_PERSON_FIELDS.currentTitle,
+    label: "Current title",
+    description: "Current or most recent job title",
+    isNullable: true,
+  });
+
+  await ensureTextField(baseUrl, apiKey, fields, {
+    objectMetadataId: personObjectId,
+    name: RECRUITING_PERSON_FIELDS.currentCompany,
+    label: "Current company",
+    isNullable: true,
+  });
+
+  await ensureNumberField(baseUrl, apiKey, fields, {
+    objectMetadataId: personObjectId,
+    name: RECRUITING_PERSON_FIELDS.noticePeriodDays,
+    label: "Notice period (days)",
+    isNullable: true,
+  });
+
+  await ensureTextField(baseUrl, apiKey, fields, {
+    objectMetadataId: personObjectId,
+    name: RECRUITING_PERSON_FIELDS.linkedinUrl,
+    label: "LinkedIn URL",
+    isNullable: true,
+  });
+
   console.log("[twenty:schema] Ensuring custom objects…");
 
   let jobPostingObject =
@@ -185,6 +214,33 @@ export async function applyRecruitingSchema() {
     objectMetadataId: jobPostingObjectId,
     name: RECRUITING_JOB_POSTING_FIELDS.description,
     label: "Role description",
+    isNullable: true,
+  });
+
+  await ensureSelectField(baseUrl, apiKey, fields, {
+    objectMetadataId: jobPostingObjectId,
+    name: RECRUITING_JOB_POSTING_FIELDS.status,
+    label: "Status",
+    isNullable: true,
+    options: [
+      { position: 0, label: "Open", value: "open", color: "green" },
+      { position: 1, label: "Paused", value: "paused", color: "orange" },
+      { position: 2, label: "Closed", value: "closed", color: "red" },
+    ],
+  });
+
+  await ensureTextField(baseUrl, apiKey, fields, {
+    objectMetadataId: jobPostingObjectId,
+    name: RECRUITING_JOB_POSTING_FIELDS.department,
+    label: "Department",
+    isNullable: true,
+  });
+
+  await ensureNumberField(baseUrl, apiKey, fields, {
+    objectMetadataId: jobPostingObjectId,
+    name: RECRUITING_JOB_POSTING_FIELDS.headcount,
+    label: "Headcount",
+    description: "Number of open seats",
     isNullable: true,
   });
 

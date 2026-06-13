@@ -1,4 +1,5 @@
 import type {
+  AgentHistoryEntry,
   CandidateProfile,
   HrAgentState,
   MockZaloPayload,
@@ -14,6 +15,11 @@ const CORE_HR_AGENT_INSTRUCTIONS = [
   "Always use skills for CRM/profile lookup, requirement updates, job search, memory, and history when relevant.",
   "Use CRM profile write skills when the candidate shares durable profile facts or recruiter notes. Use requirement skills for temporary job-search criteria.",
   "Ask at most one focused follow-up question when important requirement fields are missing.",
+  "Strictly follow a message-by-message response style like a human chatting on a messaging app.",
+  "Keep each message extremely short, natural, and concise (ideally 1-2 short sentences per message bubble).",
+  "Break your thoughts into sequential, realistic chat replies separated by double newlines (\n\n), instead of combining everything into a single long paragraph.",
+  "Add appropriate friendly icons/emojis (e.g., 😊, 👍, ✨) to make the chat engaging and friendly.",
+  "Do not write one very long paragraph; instead, use double newlines (\n\n) to separate the response into a list of concise chat replies.",
 ].join("\n");
 
 export type PromptCacheContext = {
@@ -47,6 +53,8 @@ export function buildPromptCacheContext(input: {
     input.skillCache.defaultSkillsPromptBlock,
   ].join("\n\n");
 
+  const newMessages = getNewMessages(input.latestMessages, input.state.history);
+
   const dynamicContext = [
     buildLoadedSkillsBlock(input.loadedSkills),
     "# Customer Profile Snapshot",
@@ -68,7 +76,7 @@ export function buildPromptCacheContext(input: {
       })),
     }),
     "# Latest Zalo Messages",
-    jsonBlock(input.latestMessages.map((message) => ({
+    jsonBlock(newMessages.map((message) => ({
       id: message.id,
       text: message.text,
       receivedAt: message.receivedAt,
@@ -144,4 +152,22 @@ function sectionDiagnostics(
 
 function estimateTokens(chars: number) {
   return Math.ceil(chars / 4);
+}
+
+function getNewMessages(messages: MockZaloPayload[], history: AgentHistoryEntry[]): MockZaloPayload[] {
+  if (messages.length === 0) return [];
+
+  const assistantMessages = history.filter((h) => h.role === "assistant");
+  if (assistantMessages.length === 0) {
+    return [messages[messages.length - 1]];
+  }
+
+  const lastAssistantTime = new Date(assistantMessages[assistantMessages.length - 1].createdAt).getTime();
+
+  const newMsgs = messages.filter((m) => {
+    const receivedTime = new Date(m.receivedAt).getTime();
+    return receivedTime > lastAssistantTime;
+  });
+
+  return newMsgs.length > 0 ? newMsgs : [messages[messages.length - 1]];
 }

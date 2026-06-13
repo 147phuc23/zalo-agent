@@ -10,7 +10,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { Body, Controller, Headers, Post, UnauthorizedException } from "@nestjs/common";
+import { Body, Controller, Headers, Inject, Post, UnauthorizedException } from "@nestjs/common";
 import { z } from "zod";
 import { NormalizedEventSchema } from "@platform/shared/schemas";
 import { IngestService } from "../services/ingest.service.js";
@@ -44,6 +44,7 @@ __decorate([
 ], InternalEventsController.prototype, "ingest", null);
 InternalEventsController = __decorate([
     Controller(),
+    __param(0, Inject(IngestService)),
     __metadata("design:paramtypes", [IngestService])
 ], InternalEventsController);
 export { InternalEventsController };

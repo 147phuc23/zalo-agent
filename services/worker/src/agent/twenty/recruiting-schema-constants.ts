@@ -10,6 +10,10 @@ export const RECRUITING_PERSON_FIELDS = {
   preferredRolesSummary: "preferredRolesSummary",
   salaryExpectationVnd: "salaryExpectationVnd",
   yearsExperience: "yearsExperience",
+  currentTitle: "currentTitle",
+  currentCompany: "currentCompany",
+  noticePeriodDays: "noticePeriodDays",
+  linkedinUrl: "linkedinUrl",
 } as const;
 
 export const RECRUITING_OBJECTS = {
@@ -32,6 +36,9 @@ export const RECRUITING_JOB_POSTING_FIELDS = {
   seniority: "seniority",
   requiredSkills: "requiredSkills",
   description: "description",
+  status: "status",
+  department: "department",
+  headcount: "headcount",
 } as const;
 
 export const RECRUITING_JOB_APPLICATION_FIELDS = {
