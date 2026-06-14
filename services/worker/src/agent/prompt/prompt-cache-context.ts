@@ -1,8 +1,6 @@
 import type {
-  AgentHistoryEntry,
   CandidateProfile,
   HrAgentState,
-  MockZaloPayload,
   SkillCacheResult,
   SkillDefinition,
 } from "../types.js";
@@ -12,7 +10,7 @@ const CORE_HR_AGENT_INSTRUCTIONS = [
   "You are an HR recruiter chat agent for Zalo conversations.",
   "Reply in Vietnamese unless the candidate writes in English.",
   "Your job is to gather candidate requirements, avoid asking for known CRM details, search matching jobs when enough information exists, and save interaction state/history through skills.",
-  "CRITICAL: The chat history is strictly truncated to the last 50 messages. If the candidate shares ANY job requirements (role, experience, salary, location), you MUST immediately call the `hr_gatherRequirement` tool to save it into the Conversation State. If you do not save it, you will forget it and ask again.",
+  "CRITICAL: The chat history is strictly truncated to the last 30 messages. If the candidate shares ANY job requirements (role, experience, salary, location), you MUST immediately call the `hr_gatherRequirement` tool to save it into the Conversation State. If you do not save it, you will forget it and ask again.",
   "Always use skills for CRM/profile lookup, requirement updates, job search, memory, and history when relevant.",
   "Use CRM profile write skills when the candidate shares durable profile facts or recruiter notes.",
   "Ask at most one focused follow-up question when important requirement fields are missing.",
@@ -23,6 +21,7 @@ const CORE_HR_AGENT_INSTRUCTIONS = [
   "Do not write one very long paragraph; instead, use double newlines (\n\n) to separate the response into a list of concise chat replies.",
   "When listing or recommending jobs, do NOT use markdown bold formatting (like **Job Title**). Use plain text.",
   "Do NOT use numbered list emojis (like 1️⃣, 2️⃣) or shopping/cart emojis (like 🛒) when presenting jobs. Write in a natural, human-like conversational style.",
+  "IMPORTANT: The most recent unread messages from the candidate are located at the very bottom of the Conversation State history. Process them carefully and respond."
 ].join("\n");
 
 export type PromptCacheContext = {
@@ -49,41 +48,18 @@ export function buildPromptCacheContext(input: {
   loadedSkills: SkillDefinition[];
   customerProfile: CandidateProfile;
   state: HrAgentState;
-  latestMessages: MockZaloPayload[];
 }): PromptCacheContext {
   const stablePrefix = [
     CORE_HR_AGENT_INSTRUCTIONS,
     input.skillCache.defaultSkillsPromptBlock,
   ].join("\n\n");
 
-  const newMessages = getNewMessages(input.latestMessages, input.state.history);
-
   const dynamicContext = [
     buildLoadedSkillsBlock(input.loadedSkills),
     "# Customer Profile Snapshot",
-    jsonBlock(input.customerProfile),
+    formatProfile(input.customerProfile),
     "# Conversation State",
-    jsonBlock({
-      tenantId: input.state.tenantId,
-      channel: input.state.channel,
-      threadId: input.state.threadId,
-      externalUserId: input.state.externalUserId,
-      version: input.state.version,
-      intent: input.state.intent ?? null,
-      requirement: input.state.requirement,
-      loadedSkills: input.state.loadedSkills,
-      history: input.state.history.slice(-50).map((entry) => ({
-        role: entry.role,
-        content: entry.content,
-        createdAt: entry.createdAt,
-      })),
-    }),
-    "# Latest Zalo Messages",
-    jsonBlock(newMessages.map((message) => ({
-      id: message.id,
-      text: message.text,
-      receivedAt: message.receivedAt,
-    }))),
+    formatState(input.state),
     "# Required Agent Output",
     "Use tools as needed. Then produce the next concise recruiter reply for the candidate.",
   ].join("\n\n");
@@ -112,8 +88,40 @@ function buildLoadedSkillsBlock(skills: SkillDefinition[]) {
   ].join("\n\n");
 }
 
-function jsonBlock(value: unknown) {
-  return `\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\``;
+function formatProfile(profile: CandidateProfile): string {
+  const lines: string[] = [];
+  for (const [key, value] of Object.entries(profile)) {
+    if (value === null || value === undefined || value === "") continue;
+    if (Array.isArray(value) && value.length === 0) continue;
+    lines.push(`- ${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
+  }
+  return lines.length > 0 ? lines.join("\n") : "No profile data available.";
+}
+
+function formatState(state: HrAgentState): string {
+  const lines: string[] = [
+    `- tenantId: ${state.tenantId}`,
+    `- channel: ${state.channel}`,
+    `- threadId: ${state.threadId}`,
+    `- externalUserId: ${state.externalUserId}`,
+    `- version: ${state.version}`,
+    `- intent: ${state.intent || "null"}`,
+    `- requirement: ${Object.keys(state.requirement).length > 0 ? JSON.stringify(state.requirement) : "{}"}`,
+    `- loadedSkills: ${state.loadedSkills.length > 0 ? state.loadedSkills.join(", ") : "[]"}`,
+    "",
+    "## Chat History (Last 30 messages):"
+  ];
+  
+  const recentHistory = state.history.slice(-30);
+  if (recentHistory.length === 0) {
+    lines.push("(Empty)");
+  } else {
+    for (const msg of recentHistory) {
+      lines.push(`[${msg.role.toUpperCase()}]: ${msg.content}`);
+    }
+  }
+
+  return lines.join("\n");
 }
 
 function buildDiagnostics(input: {
@@ -157,20 +165,4 @@ function estimateTokens(chars: number) {
   return Math.ceil(chars / 4);
 }
 
-function getNewMessages(messages: MockZaloPayload[], history: AgentHistoryEntry[]): MockZaloPayload[] {
-  if (messages.length === 0) return [];
 
-  const assistantMessages = history.filter((h) => h.role === "assistant");
-  if (assistantMessages.length === 0) {
-    return [messages[messages.length - 1]];
-  }
-
-  const lastAssistantTime = new Date(assistantMessages[assistantMessages.length - 1].createdAt).getTime();
-
-  const newMsgs = messages.filter((m) => {
-    const receivedTime = new Date(m.receivedAt).getTime();
-    return receivedTime > lastAssistantTime;
-  });
-
-  return newMsgs.length > 0 ? newMsgs : [messages[messages.length - 1]];
-}

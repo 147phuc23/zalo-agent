@@ -47,7 +47,6 @@ export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<Hr
     loadedSkills: [],
     customerProfile: profileCache.profile,
     state,
-    latestMessages: options.scenario.messages,
   });
 
   if (options.mockLlm) {
