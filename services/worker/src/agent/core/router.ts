@@ -1,0 +1,121 @@
+import { OpenRouterAiClient } from "@platform/ai-client";
+
+export type RouterMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export type ClassificationResult = {
+  category: "CHITCHAT" | "HR_SPECIALIST";
+  reason: string;
+};
+
+const CLASSIFIER_SYSTEM_PROMPT = `You are a frontline classification and routing assistant for an autonomous recruiting system.
+Your goal is to classify the candidate's latest message and short conversation history into one of the following two categories:
+
+1. "CHITCHAT":
+- Casual greetings or standard icebreakers (e.g., "Hi", "Hello", "Chào bạn", "Xin chào", "Hi bot").
+- Polite phrases, farewells, or simple acknowledgments (e.g., "Cảm ơn", "Tạm biệt", "Dạ vâng", "Ok b").
+- Basic FAQs or general chitchat not containing any specific job requirements or candidate profile facts (e.g., "Bạn là ai?", "Bạn làm được gì?", "Có ai ở đó không?").
+
+2. "HR_SPECIALIST":
+- The user expresses a clear, explicit intent to find a job or view job listings (e.g., "Mình muốn tìm việc", "Tìm việc giúp mình").
+- The user provides specific candidate criteria/requirements such as target role, location, preferred salary, work mode, or years of experience.
+- The user uploads or mentions sending/extracting a CV/resume.
+- The user asks about their application status, interview schedules, or feedback.
+- The user lists their specific skills or background (e.g., "Mình biết làm React", "I am a backend developer").
+
+You must respond ONLY with a JSON object containing the fields:
+{
+  "category": "CHITCHAT" | "HR_SPECIALIST",
+  "reason": "Brief justification for the classification"
+}
+Do not include any other text, markdown formatting (like \`\`\`json), or explanations outside of the JSON.`;
+
+const CHITCHAT_SYSTEM_PROMPT = `You are a friendly, helpful HR recruiter chat agent for Zalo.
+You handle initial greetings, casual chitchat, and general inquiries.
+Keep your responses extremely short, warm, and natural (1-2 sentences maximum).
+Reply in Vietnamese unless the candidate writes in English.
+Add appropriate friendly emojis (e.g., 😊, 👍, ✨).
+Do not try to match or recommend jobs, and do not look up CRM records.
+If the user asks to find a job or shares their skills/experience, politely transition to finding them a job (but keep it brief).
+Examples:
+- Candidate: "Chào bạn" -> Response: "Chào bạn! Mình có thể giúp gì cho bạn hôm nay? 😊"
+- Candidate: "Bạn là ai vậy?" -> Response: "Mình là trợ lý tuyển dụng tự động. Rất vui được làm quen với bạn! Bạn đang muốn tìm kiếm cơ hội công việc mới à?"
+- Candidate: "Cảm ơn nha" -> Response: "Dạ không có gì ạ! Chúc bạn một ngày vui vẻ nhé! 👍"`;
+
+export async function classifyIntent(
+  messages: RouterMessage[],
+  model: string = "openrouter/owl-alpha",
+): Promise<ClassificationResult> {
+  const client = new OpenRouterAiClient();
+  const historyText = formatHistory(messages);
+
+  const response = await client.generate({
+    model,
+    system: CLASSIFIER_SYSTEM_PROMPT,
+    prompt: `Classify the following conversation:\n\n${historyText}\n\nLatest message: ${messages[messages.length - 1]?.content ?? ""}`,
+    temperature: 0.1,
+    responseFormat: { type: "json_object" },
+  });
+
+  try {
+    const parsed = parseJsonLike(response.text);
+    if (parsed && typeof parsed === "object" && "category" in parsed) {
+      const category = (parsed as { category: string }).category;
+      if (category === "CHITCHAT" || category === "HR_SPECIALIST") {
+        return {
+          category,
+          reason: (parsed as { reason?: string }).reason ?? "",
+        };
+      }
+    }
+  } catch (err) {
+    console.error("[router] Failed to parse classification JSON:", err, "Raw text:", response.text);
+  }
+
+  // Fallback default
+  return {
+    category: "HR_SPECIALIST",
+    reason: "Fallback due to JSON parsing error.",
+  };
+}
+
+export async function generateChitchatReply(
+  messages: RouterMessage[],
+  model: string = "openrouter/owl-alpha",
+): Promise<string> {
+  const client = new OpenRouterAiClient();
+  const historyText = formatHistory(messages);
+
+  const response = await client.generate({
+    model,
+    system: CHITCHAT_SYSTEM_PROMPT,
+    prompt: `Generate the next friendly recruiter reply for this conversation:\n\n${historyText}`,
+    temperature: 0.7,
+  });
+
+  return response.text;
+}
+
+function formatHistory(messages: RouterMessage[]): string {
+  const recent = messages.slice(-5); // Use last 5 messages for quick context
+  return recent.map((m) => `[${m.role.toUpperCase()}]: ${m.content}`).join("\n");
+}
+
+function parseJsonLike(text: string): unknown {
+  const trimmed = text.trim();
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
+    if (fenced) {
+      try {
+        return JSON.parse(fenced[1]);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+}

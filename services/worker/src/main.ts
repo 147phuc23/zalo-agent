@@ -7,6 +7,9 @@ import { z } from "zod";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runHrAgentScenario } from "./agent/core/runner.js";
+import { classifyIntent, generateChitchatReply } from "./agent/core/router.js";
+import { startCvWorker } from "./agent/core/cv-extractor.js";
+import { startOutreachCampaignWorkers } from "./agent/core/outreach-engine.js";
 import type { MockZaloPayload, HrSkillMode } from "./agent/types.js";
 import { Redis } from "ioredis";
 
@@ -31,6 +34,10 @@ async function publishSseEvent(event: { type: string; payload: unknown }) {
 }
 
 const messageSendQueue = new Queue("message.send", {
+  connection: { url: env.REDIS_URL },
+});
+
+const cvUploadedQueue = new Queue("cv.uploaded", {
   connection: { url: env.REDIS_URL },
 });
 
@@ -131,6 +138,45 @@ worker.on("failed", (job, err) => {
 
 console.log("[worker] started");
 
+const cvWorker = startCvWorker({
+  redisUrl: env.REDIS_URL,
+  repos,
+  redisPublisher,
+  messageSendQueue,
+});
+
+cvWorker.on("completed", (job) => {
+  console.log("[cv-worker] completed", job.id);
+});
+
+cvWorker.on("failed", (job, err) => {
+  console.error("[cv-worker] failed", job?.id, err);
+});
+
+const outreachWorkers = startOutreachCampaignWorkers({
+  redisUrl: env.REDIS_URL,
+  db,
+  repos,
+  redisPublisher,
+  messageSendQueue,
+});
+
+outreachWorkers.followupWorker.on("completed", (job) => {
+  console.log("[outreach-followup-worker] completed", job.id);
+});
+
+outreachWorkers.followupWorker.on("failed", (job, err) => {
+  console.error("[outreach-followup-worker] failed", job?.id, err);
+});
+
+outreachWorkers.campaignWorker.on("completed", (job) => {
+  console.log("[outreach-campaign-worker] completed", job.id);
+});
+
+outreachWorkers.campaignWorker.on("failed", (job, err) => {
+  console.error("[outreach-campaign-worker] failed", job?.id, err);
+});
+
 function loadRepoEnv() {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
@@ -216,6 +262,131 @@ async function generateDraftReply(tenantId: string, conversationId: string, abor
   const overrideModel = conversation.override_model;
   const defaultModel = (await resolveDefaultModel(tenantId)) ?? "openrouter/owl-alpha";
   const model = overrideModel || defaultModel;
+
+  const classifierModel = (await resolveClassifierModel(tenantId)) ?? "openrouter/owl-alpha";
+  const routerMessages = messages.map((m) => ({
+    role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
+    content: m.text ?? "",
+  }));
+
+  const classification = await classifyIntent(routerMessages, classifierModel);
+  console.log(`[worker] classification result for conversation ${conversationId}: ${classification.category} (reason: ${classification.reason})`);
+
+  if (classification.category === "CHITCHAT") {
+    const chitchatText = await generateChitchatReply(routerMessages, classifierModel);
+    const responses = parseDraftResponses(chitchatText);
+    const batchId = `draft:${tenantId}:${conversationId}:${Date.now()}`;
+
+    for (const [index, response] of responses.entries()) {
+      const idempotencyKey = `${batchId}:${index + 1}`;
+      const msgRow = await repos.messages.createOutbound({
+        tenantId,
+        conversationId,
+        messageType: "text",
+        text: response,
+        externalMessageId: null,
+        idempotencyKey,
+        rawPayload: {
+          kind: "chitchat",
+          model: classifierModel,
+          responseIndex: index + 1,
+          responseCount: responses.length,
+          originalText: chitchatText,
+        },
+      });
+      await publishSseEvent({
+        type: "message_created",
+        payload: {
+          conversationId,
+          message: {
+            id: msgRow.id,
+            tenantId: msgRow.tenant_id,
+            conversationId: msgRow.conversation_id,
+            direction: msgRow.direction,
+            messageType: msgRow.message_type,
+            text: msgRow.text,
+            externalMessageId: msgRow.external_message_id,
+            idempotencyKey: msgRow.idempotency_key,
+            isRead: msgRow.is_read,
+            readAt: msgRow.read_at ? new Date(msgRow.read_at).toISOString() : null,
+            createdAt: new Date(msgRow.created_at).toISOString(),
+          },
+        },
+      });
+      await enqueueZaloMessage({
+        tenantId,
+        threadId: conversation.external_thread_id,
+        text: response,
+        idempotencyKey,
+      });
+    }
+
+    return { text: chitchatText, model: classifierModel, responses };
+  }
+
+  // Check if latest message is a file/resume upload
+  const latestMessage = messages[messages.length - 1];
+  const isFile = latestMessage?.message_type === "file";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const attachments = (latestMessage?.raw_payload as any)?.attachments || [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const fileAttachment = attachments.find((a: any) => a.type === "file");
+
+  if (isFile && fileAttachment) {
+    console.log(`[worker] detected file upload in conversation ${conversationId}. Enqueueing to cv.uploaded...`);
+    await cvUploadedQueue.add("cv.extract", {
+      tenantId,
+      conversationId,
+      externalUserId,
+      fileUrl: fileAttachment.url,
+      fileName: fileAttachment.name,
+      mimeType: fileAttachment.mimeType,
+      sizeBytes: fileAttachment.sizeBytes,
+    });
+
+    const ackText = "Mình đã nhận được CV của bạn. Hệ thống đang tiến hành xử lý và trích xuất thông tin. Mình sẽ phản hồi lại ngay sau khi hoàn tất nhé! ⏳";
+    const batchId = `cv_ack:${tenantId}:${conversationId}:${Date.now()}`;
+    const idempotencyKey = `${batchId}:1`;
+
+    const msgRow = await repos.messages.createOutbound({
+      tenantId,
+      conversationId,
+      messageType: "text",
+      text: ackText,
+      externalMessageId: null,
+      idempotencyKey,
+      rawPayload: { kind: "cv_ack" },
+    });
+
+    await publishSseEvent({
+      type: "message_created",
+      payload: {
+        conversationId,
+        message: {
+          id: msgRow.id,
+          tenantId: msgRow.tenant_id,
+          conversationId: msgRow.conversation_id,
+          direction: msgRow.direction,
+          messageType: msgRow.message_type,
+          text: msgRow.text,
+          externalMessageId: msgRow.external_message_id,
+          idempotencyKey: msgRow.idempotency_key,
+          isRead: msgRow.is_read,
+          readAt: msgRow.read_at ? new Date(msgRow.read_at).toISOString() : null,
+          createdAt: new Date(msgRow.created_at).toISOString(),
+        },
+      },
+    });
+
+    await enqueueZaloMessage({
+      tenantId,
+      threadId: conversation.external_thread_id,
+      text: ackText,
+      idempotencyKey,
+    });
+
+    return { text: ackText, model: "system", responses: [ackText] };
+  }
 
   let systemPromptOverride: string | undefined;
   const dbPrompt = await repos.prompts.findActive({ tenantId, key: "assistant" });
@@ -414,6 +585,11 @@ const DraftResponsesSchema = z.union([
 async function resolveDefaultModel(tenantId: string): Promise<string | null> {
   const workflow = await repos.workflows.findLatestByTenant(tenantId);
   return workflow?.default_model ?? null;
+}
+
+async function resolveClassifierModel(tenantId: string): Promise<string | null> {
+  const workflow = await repos.workflows.findLatestByTenant(tenantId);
+  return workflow?.classifier_model ?? null;
 }
 
 async function appendAudit(

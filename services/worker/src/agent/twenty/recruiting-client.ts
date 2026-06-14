@@ -58,6 +58,83 @@ export class TwentyRecruitingClient {
     });
   }
 
+  async updateCandidateProfile(input: {
+    externalUserId: string;
+    patch: {
+      displayName?: string;
+      phone?: string;
+      email?: string;
+      location?: string;
+      yearsOfExperience?: number;
+      currentTitle?: string;
+      skills?: string[];
+      preferredRoles?: string[];
+      salaryExpectationVnd?: number;
+      availability?: string;
+    };
+  }): Promise<void> {
+    const person = await this.findPersonByExternalUserId(input.externalUserId);
+    
+    const body: Record<string, unknown> = {};
+    if (input.patch.displayName) {
+      const parts = input.patch.displayName.split(" ");
+      body.name = {
+        firstName: parts[0] || "",
+        lastName: parts.slice(1).join(" ") || "",
+      };
+    }
+    if (input.patch.phone) {
+      body.phones = { primaryPhoneNumber: input.patch.phone, primaryPhoneCountryCode: "" };
+    }
+    if (input.patch.email) {
+      body.emails = { primaryEmail: input.patch.email };
+    }
+    if (input.patch.location) {
+      body.city = input.patch.location;
+    }
+    if (input.patch.yearsOfExperience !== undefined) {
+      body[RECRUITING_PERSON_FIELDS.yearsExperience] = input.patch.yearsOfExperience;
+    }
+    if (input.patch.currentTitle) {
+      body.jobTitle = input.patch.currentTitle;
+    }
+    if (input.patch.skills) {
+      body[RECRUITING_PERSON_FIELDS.skillsSummary] = input.patch.skills.join(", ");
+    }
+    if (input.patch.preferredRoles) {
+      body[RECRUITING_PERSON_FIELDS.preferredRolesSummary] = input.patch.preferredRoles.join(", ");
+    }
+    if (input.patch.salaryExpectationVnd !== undefined) {
+      body[RECRUITING_PERSON_FIELDS.salaryExpectationVnd] = input.patch.salaryExpectationVnd;
+    }
+    if (input.patch.availability) {
+      body.availability = input.patch.availability;
+    }
+
+    if (person && typeof person.id === "string") {
+      await twentyHttpJson({
+        baseUrl: this.options.baseUrl,
+        apiKey: this.options.apiKey,
+        request: {
+          path: `/rest/people/${person.id}`,
+          method: "PATCH",
+          body,
+        },
+      });
+    } else {
+      body[RECRUITING_PERSON_FIELDS.externalUserId] = input.externalUserId;
+      await twentyHttpJson({
+        baseUrl: this.options.baseUrl,
+        apiKey: this.options.apiKey,
+        request: {
+          path: `/rest/people`,
+          method: "POST",
+          body,
+        },
+      });
+    }
+  }
+
   async findPersonByExternalUserId(externalUserId: string): Promise<Record<string, unknown> | null> {
     const filter = buildEqFilter(RECRUITING_PERSON_FIELDS.externalUserId, externalUserId);
     const payload = await twentyHttpJson<unknown>({

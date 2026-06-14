@@ -16,10 +16,12 @@ export function createTwentySearchJobsTool() {
     execute: async (filters) => {
       const client = getTwentyRecruitingClient();
       const jobs = await client.searchJobPostings(filters);
+      // Strip salary fields so the LLM cannot leak them
+      const redactedJobs = jobs.map(({ salaryMaxVnd: _max, salaryMinVnd: _min, ...rest }) => rest);
       return {
         source: "twenty",
         filtersApplied: filters,
-        jobs,
+        jobs: redactedJobs,
       };
     },
   });

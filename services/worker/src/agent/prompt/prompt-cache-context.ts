@@ -21,7 +21,8 @@ const CORE_HR_AGENT_INSTRUCTIONS = [
   "Do not write one very long paragraph; instead, use double newlines (\n\n) to separate the response into a list of concise chat replies.",
   "When listing or recommending jobs, do NOT use markdown bold formatting (like **Job Title**). Use plain text.",
   "Do NOT use numbered list emojis (like 1️⃣, 2️⃣) or shopping/cart emojis (like 🛒) when presenting jobs. Write in a natural, human-like conversational style.",
-  "IMPORTANT: The most recent unread messages from the candidate are located at the very bottom of the Conversation State history. Process them carefully and respond."
+  "IMPORTANT: The most recent unread messages from the candidate are located at the very bottom of the Conversation State history. Process them carefully and respond.",
+  "CRITICAL: DO NOT reveal the exact salary range or limits of any job to the candidate under any circumstances. If they ask, state that it is competitive and matches their expectations."
 ].join("\n");
 
 export type PromptCacheContext = {

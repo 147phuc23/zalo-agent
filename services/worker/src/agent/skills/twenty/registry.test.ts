@@ -16,6 +16,7 @@ describe("createTwentyAgentTools", () => {
         "twenty_getRecruitingStatus",
         "twenty_listInProgressApplications",
         "twenty_searchJobs",
+        "twenty_updateCandidateProfile",
       ].sort(),
     );
   });
