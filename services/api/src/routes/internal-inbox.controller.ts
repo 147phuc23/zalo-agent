@@ -1,8 +1,11 @@
-import { Controller, Get, Headers, Inject, Param, Query, Post, Body, UnauthorizedException } from "@nestjs/common";
+import { Controller, Get, Headers, Inject, Param, Query, Post, Body, UnauthorizedException, Sse, MessageEvent } from "@nestjs/common";
 import { z } from "zod";
+import { Observable } from "rxjs";
+import { map } from "rxjs/operators";
 import { loadApiEnv } from "@platform/config";
 import { InboxQueryService } from "../services/inbox-query.service.js";
 import { PostgresService } from "../services/postgres.service.js";
+import { SseService } from "../services/sse.service.js";
 
 const ConversationsQuerySchema = z.object({
   tenantId: z.string().uuid(),
@@ -34,7 +37,18 @@ export class InternalInboxController {
   constructor(
     @Inject(InboxQueryService) private readonly inboxQueryService: InboxQueryService,
     @Inject(PostgresService) private readonly postgres: PostgresService,
+    @Inject(SseService) private readonly sseService: SseService,
   ) {}
+
+  @Sse("/internal/sse")
+  streamEvents(
+    @Headers("authorization") authorization: string | undefined,
+  ): Observable<MessageEvent> {
+    assertAuthorized(authorization);
+    return this.sseService.getEventStream().pipe(
+      map((event) => ({ data: event } as MessageEvent)),
+    );
+  }
 
   @Get("/internal/conversations")
   async listConversations(
@@ -93,6 +107,11 @@ export class InternalInboxController {
       });
     }
 
+    await this.sseService.publish({
+      type: "conversation_updated",
+      payload: { conversationId: conversation.id },
+    });
+
     return { ok: true, conversationId: conversation.id };
   }
 
@@ -147,6 +166,10 @@ export class InternalInboxController {
       parsedParams.conversationId,
       parsedBody.model
     );
+    await this.sseService.publish({
+      type: "conversation_updated",
+      payload: { conversationId: parsedParams.conversationId },
+    });
     return { ok: true, updated: true };
   }
 

@@ -190,7 +190,7 @@ export declare function createMessageRepository(client: DatabaseClient): {
         externalMessageId?: string | null;
         idempotencyKey: string;
         rawPayload: Record<string, unknown>;
-    }): Promise<void>;
+    }): Promise<MessageRow>;
     createOutbound(input: {
         tenantId: string;
         conversationId: string;
@@ -199,7 +199,7 @@ export declare function createMessageRepository(client: DatabaseClient): {
         externalMessageId?: string | null;
         idempotencyKey: string;
         rawPayload: Record<string, unknown>;
-    }): Promise<void>;
+    }): Promise<MessageRow>;
     markAsRead(conversationId: string): Promise<void>;
 };
 export declare function createDeliveryRepository(client: DatabaseClient): {
@@ -234,7 +234,7 @@ export declare function createAuditRepository(client: DatabaseClient): {
         inputPayload?: Record<string, unknown>;
         outputPayload?: Record<string, unknown> | null;
         status?: "ok" | "error";
-    }): Promise<void>;
+    }): Promise<ToolCallAuditRow>;
     listByConversation(conversationId: string): Promise<ToolCallAuditRow[]>;
 };
 export declare function createPromptTemplateRepository(client: DatabaseClient): {
@@ -323,7 +323,7 @@ export declare function createRepositorySet(client: DatabaseClient): {
             externalMessageId?: string | null;
             idempotencyKey: string;
             rawPayload: Record<string, unknown>;
-        }): Promise<void>;
+        }): Promise<MessageRow>;
         createOutbound(input: {
             tenantId: string;
             conversationId: string;
@@ -332,7 +332,7 @@ export declare function createRepositorySet(client: DatabaseClient): {
             externalMessageId?: string | null;
             idempotencyKey: string;
             rawPayload: Record<string, unknown>;
-        }): Promise<void>;
+        }): Promise<MessageRow>;
         markAsRead(conversationId: string): Promise<void>;
     };
     deliveries: {
@@ -367,7 +367,7 @@ export declare function createRepositorySet(client: DatabaseClient): {
             inputPayload?: Record<string, unknown>;
             outputPayload?: Record<string, unknown> | null;
             status?: "ok" | "error";
-        }): Promise<void>;
+        }): Promise<ToolCallAuditRow>;
         listByConversation(conversationId: string): Promise<ToolCallAuditRow[]>;
     };
     prompts: {

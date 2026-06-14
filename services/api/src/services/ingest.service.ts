@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { PostgresService } from "./postgres.service.js";
 import { QueueService } from "./queue.service.js";
+import { SseService } from "./sse.service.js";
 import type { NormalizedEvent } from "@platform/shared/contracts";
 
 type TenantResult = { ok: true } | { ok: false; error: string };
@@ -12,6 +13,7 @@ export class IngestService {
   constructor(
     @Inject(PostgresService) private readonly postgres: PostgresService,
     @Inject(QueueService) private readonly queue: QueueService,
+    @Inject(SseService) private readonly sseService: SseService,
   ) {}
 
   async ingestEvents(events: NormalizedEvent[]) {
@@ -38,8 +40,9 @@ export class IngestService {
     const conversation = await this.ensureConversation(event, contact.contactId);
     if (!conversation.ok) return conversation;
 
+    let messageRow;
     try {
-      await this.postgres.repos.messages.createInbound({
+      messageRow = await this.postgres.repos.messages.createInbound({
         tenantId: event.tenantId,
         conversationId: conversation.conversationId,
         messageType: event.messageType,
@@ -65,6 +68,26 @@ export class IngestService {
       tenantId: event.tenantId,
       conversationId: conversation.conversationId,
       idempotencyKey: event.idempotencyKey,
+    });
+
+    await this.sseService.publish({
+      type: "message_created",
+      payload: {
+        conversationId: conversation.conversationId,
+        message: {
+          id: messageRow.id,
+          tenantId: messageRow.tenant_id,
+          conversationId: messageRow.conversation_id,
+          direction: messageRow.direction,
+          messageType: messageRow.message_type,
+          text: messageRow.text,
+          externalMessageId: messageRow.external_message_id,
+          idempotencyKey: messageRow.idempotency_key,
+          isRead: messageRow.is_read,
+          readAt: messageRow.read_at ? new Date(messageRow.read_at).toISOString() : null,
+          createdAt: new Date(messageRow.created_at).toISOString(),
+        },
+      },
     });
 
     return {

@@ -15,6 +15,7 @@ import { QueueModule } from "./queue.module.js";
 import { IngestService } from "../services/ingest.service.js";
 import { InboxQueryService } from "../services/inbox-query.service.js";
 import { PromptsService } from "../services/prompts.service.js";
+import { SseService } from "../services/sse.service.js";
 let AppModule = class AppModule {
 };
 AppModule = __decorate([
@@ -27,7 +28,7 @@ AppModule = __decorate([
             InternalOutboundController,
             InternalPromptsController,
         ],
-        providers: [IngestService, InboxQueryService, PromptsService],
+        providers: [IngestService, InboxQueryService, PromptsService, SseService],
     })
 ], AppModule);
 export { AppModule };

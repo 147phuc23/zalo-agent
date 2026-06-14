@@ -10,11 +10,14 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { Controller, Get, Headers, Inject, Param, Query, Post, Body, UnauthorizedException } from "@nestjs/common";
+import { Controller, Get, Headers, Inject, Param, Query, Post, Body, UnauthorizedException, Sse } from "@nestjs/common";
 import { z } from "zod";
+import { Observable } from "rxjs";
+import { map } from "rxjs/operators";
 import { loadApiEnv } from "@platform/config";
 import { InboxQueryService } from "../services/inbox-query.service.js";
 import { PostgresService } from "../services/postgres.service.js";
+import { SseService } from "../services/sse.service.js";
 const ConversationsQuerySchema = z.object({
     tenantId: z.string().uuid(),
     limit: z.coerce.number().int().positive().max(100).default(20),
@@ -38,9 +41,15 @@ const CreateConversationSchema = z.object({
 let InternalInboxController = class InternalInboxController {
     inboxQueryService;
     postgres;
-    constructor(inboxQueryService, postgres) {
+    sseService;
+    constructor(inboxQueryService, postgres, sseService) {
         this.inboxQueryService = inboxQueryService;
         this.postgres = postgres;
+        this.sseService = sseService;
+    }
+    streamEvents(authorization) {
+        assertAuthorized(authorization);
+        return this.sseService.getEventStream().pipe(map((event) => ({ data: event })));
     }
     async listConversations(authorization, query) {
         assertAuthorized(authorization);
@@ -86,6 +95,10 @@ let InternalInboxController = class InternalInboxController {
                 contactId: contact.id,
             });
         }
+        await this.sseService.publish({
+            type: "conversation_updated",
+            payload: { conversationId: conversation.id },
+        });
         return { ok: true, conversationId: conversation.id };
     }
     async listMessages(authorization, params, query) {
@@ -115,6 +128,10 @@ let InternalInboxController = class InternalInboxController {
         const parsedParams = ConversationParamsSchema.parse(params);
         const parsedBody = UpdateModelSchema.parse(body);
         await this.postgres.repos.conversations.updateOverrideModel(parsedParams.conversationId, parsedBody.model);
+        await this.sseService.publish({
+            type: "conversation_updated",
+            payload: { conversationId: parsedParams.conversationId },
+        });
         return { ok: true, updated: true };
     }
     async listModels(authorization) {
@@ -128,6 +145,13 @@ let InternalInboxController = class InternalInboxController {
         return { ok: true, models };
     }
 };
+__decorate([
+    Sse("/internal/sse"),
+    __param(0, Headers("authorization")),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Observable)
+], InternalInboxController.prototype, "streamEvents", null);
 __decorate([
     Get("/internal/conversations"),
     __param(0, Headers("authorization")),
@@ -189,8 +213,10 @@ InternalInboxController = __decorate([
     Controller(),
     __param(0, Inject(InboxQueryService)),
     __param(1, Inject(PostgresService)),
+    __param(2, Inject(SseService)),
     __metadata("design:paramtypes", [InboxQueryService,
-        PostgresService])
+        PostgresService,
+        SseService])
 ], InternalInboxController);
 export { InternalInboxController };
 function assertAuthorized(value) {

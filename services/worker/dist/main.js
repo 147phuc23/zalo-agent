@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { OpenRouterAiClient } from "@platform/ai-client";
 import { runHrAgentScenario } from "./agent/core/runner.js";
+import { Redis } from "ioredis";
 const JobPayloadSchema = z.object({
     tenantId: z.string().min(1),
     conversationId: z.string().min(1),
@@ -17,6 +18,15 @@ const env = loadWorkerEnv();
 const db = createDatabaseClient(env);
 const repos = createRepositorySet(db);
 const ai = new OpenRouterAiClient();
+const redisPublisher = new Redis(env.REDIS_URL);
+async function publishSseEvent(event) {
+    try {
+        await redisPublisher.publish("platform:sse", JSON.stringify(event));
+    }
+    catch (err) {
+        console.error("[worker] Failed to publish SSE event", err);
+    }
+}
 const messageSendQueue = new Queue("message.send", {
     connection: { url: env.REDIS_URL },
 });
@@ -194,7 +204,7 @@ async function generateDraftReply(tenantId, conversationId) {
             continue;
         for (const call of step.toolCalls) {
             const matchingResult = step.toolResults?.find((r) => r.toolCallId === call.toolCallId);
-            await repos.audits.append({
+            const auditRow = await repos.audits.append({
                 tenantId,
                 conversationId,
                 runId: call.toolCallId,
@@ -203,13 +213,20 @@ async function generateDraftReply(tenantId, conversationId) {
                 outputPayload: matchingResult ? matchingResult.result : null,
                 status: matchingResult?.isError ? "error" : "ok",
             });
+            await publishSseEvent({
+                type: "audit_created",
+                payload: {
+                    conversationId,
+                    audit: auditRow,
+                },
+            });
         }
     }
     const responses = parseDraftResponses(agentResult.assistantText);
     const batchId = `draft:${tenantId}:${conversationId}:${Date.now()}`;
     for (const [index, response] of responses.entries()) {
         const idempotencyKey = `${batchId}:${index + 1}`;
-        await repos.messages.createOutbound({
+        const msgRow = await repos.messages.createOutbound({
             tenantId,
             conversationId,
             messageType: "text",
@@ -222,6 +239,25 @@ async function generateDraftReply(tenantId, conversationId) {
                 responseIndex: index + 1,
                 responseCount: responses.length,
                 originalText: agentResult.assistantText,
+            },
+        });
+        await publishSseEvent({
+            type: "message_created",
+            payload: {
+                conversationId,
+                message: {
+                    id: msgRow.id,
+                    tenantId: msgRow.tenant_id,
+                    conversationId: msgRow.conversation_id,
+                    direction: msgRow.direction,
+                    messageType: msgRow.message_type,
+                    text: msgRow.text,
+                    externalMessageId: msgRow.external_message_id,
+                    idempotencyKey: msgRow.idempotency_key,
+                    isRead: msgRow.is_read,
+                    readAt: msgRow.read_at ? new Date(msgRow.read_at).toISOString() : null,
+                    createdAt: new Date(msgRow.created_at).toISOString(),
+                },
             },
         });
         await enqueueZaloMessage({
@@ -291,7 +327,7 @@ async function resolveDefaultModel(tenantId) {
     return workflow?.default_model ?? null;
 }
 async function appendAudit(tenantId, conversationId, toolName, output) {
-    await repos.audits.append({
+    const auditRow = await repos.audits.append({
         tenantId,
         conversationId,
         runId: null,
@@ -300,9 +336,16 @@ async function appendAudit(tenantId, conversationId, toolName, output) {
         outputPayload: output,
         status: "ok",
     });
+    await publishSseEvent({
+        type: "audit_created",
+        payload: {
+            conversationId,
+            audit: auditRow,
+        },
+    });
 }
 async function appendAuditError(tenantId, conversationId, toolName, output) {
-    await repos.audits.append({
+    const auditRow = await repos.audits.append({
         tenantId,
         conversationId,
         runId: null,
@@ -310,5 +353,12 @@ async function appendAuditError(tenantId, conversationId, toolName, output) {
         inputPayload: {},
         outputPayload: output,
         status: "error",
+    });
+    await publishSseEvent({
+        type: "audit_created",
+        payload: {
+            conversationId,
+            audit: auditRow,
+        },
     });
 }

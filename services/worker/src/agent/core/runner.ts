@@ -84,8 +84,18 @@ export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<Hr
     prompt: promptContext.prompt,
     tools,
     maxSteps: 8,
+    maxTokens: 2000,
     temperature: 0.2,
     providerOptions: providerCache.providerOptions as ProviderMetadata,
+    onStepFinish: async (step) => {
+      if (options.onStepFinish) {
+        await options.onStepFinish({
+          text: step.text,
+          toolCalls: step.toolCalls,
+          toolResults: step.toolResults,
+        });
+      }
+    },
   });
 
   const savedIntent = getIntent({

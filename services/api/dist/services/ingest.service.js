@@ -13,12 +13,15 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 import { Inject, Injectable } from "@nestjs/common";
 import { PostgresService } from "./postgres.service.js";
 import { QueueService } from "./queue.service.js";
+import { SseService } from "./sse.service.js";
 let IngestService = class IngestService {
     postgres;
     queue;
-    constructor(postgres, queue) {
+    sseService;
+    constructor(postgres, queue, sseService) {
         this.postgres = postgres;
         this.queue = queue;
+        this.sseService = sseService;
     }
     async ingestEvents(events) {
         const results = [];
@@ -45,8 +48,9 @@ let IngestService = class IngestService {
         const conversation = await this.ensureConversation(event, contact.contactId);
         if (!conversation.ok)
             return conversation;
+        let messageRow;
         try {
-            await this.postgres.repos.messages.createInbound({
+            messageRow = await this.postgres.repos.messages.createInbound({
                 tenantId: event.tenantId,
                 conversationId: conversation.conversationId,
                 messageType: event.messageType,
@@ -68,6 +72,25 @@ let IngestService = class IngestService {
             tenantId: event.tenantId,
             conversationId: conversation.conversationId,
             idempotencyKey: event.idempotencyKey,
+        });
+        await this.sseService.publish({
+            type: "message_created",
+            payload: {
+                conversationId: conversation.conversationId,
+                message: {
+                    id: messageRow.id,
+                    tenantId: messageRow.tenant_id,
+                    conversationId: messageRow.conversation_id,
+                    direction: messageRow.direction,
+                    messageType: messageRow.message_type,
+                    text: messageRow.text,
+                    externalMessageId: messageRow.external_message_id,
+                    idempotencyKey: messageRow.idempotency_key,
+                    isRead: messageRow.is_read,
+                    readAt: messageRow.read_at ? new Date(messageRow.read_at).toISOString() : null,
+                    createdAt: new Date(messageRow.created_at).toISOString(),
+                },
+            },
         });
         return {
             kind: event.kind,
@@ -211,7 +234,9 @@ IngestService = __decorate([
     Injectable(),
     __param(0, Inject(PostgresService)),
     __param(1, Inject(QueueService)),
+    __param(2, Inject(SseService)),
     __metadata("design:paramtypes", [PostgresService,
-        QueueService])
+        QueueService,
+        SseService])
 ], IngestService);
 export { IngestService };

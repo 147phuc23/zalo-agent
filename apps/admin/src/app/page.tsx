@@ -19,6 +19,8 @@ import {
   Sliders,
   Sparkles,
   Search,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 type Conversation = {
@@ -108,6 +110,8 @@ function Dashboard() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [audits, setAudits] = useState<Audit[]>([]);
+  const [selectedAuditForModal, setSelectedAuditForModal] = useState<Audit | null>(null);
+  const [expandedAudits, setExpandedAudits] = useState<Record<string, boolean>>({});
   
   // Prompt State
   const [promptContent, setPromptContent] = useState("");
@@ -150,11 +154,9 @@ function Dashboard() {
       .catch((err) => console.error("Failed to load models from backend", err));
   }, []);
 
-  // Poll conversation list
+  // Fetch conversation list on mount
   useEffect(() => {
     fetchConversations();
-    const timer = setInterval(fetchConversations, 3000);
-    return () => clearInterval(timer);
   }, []);
 
   // Fetch messages and audits when conversation changes
@@ -163,15 +165,62 @@ function Dashboard() {
       fetchMessages(selectedId);
       fetchAudits(selectedId);
       markAsRead(selectedId);
-
-      // Poll messages and audits while selected
-      const interval = setInterval(() => {
-        fetchMessages(selectedId, true);
-        fetchAudits(selectedId);
-      }, 3000);
-
-      return () => clearInterval(interval);
     }
+  }, [selectedId]);
+
+  // Connect to SSE stream
+  useEffect(() => {
+    const eventSource = new EventSource("/api/sse");
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("[SSE] Received event:", data);
+
+        if (data.type === "message_created") {
+          if (data.payload.conversationId === selectedId) {
+            setMessages((prev) => {
+              const hasMessage = prev.some(
+                (m) =>
+                  m.id === data.payload.message.id ||
+                  (m.idempotencyKey && m.idempotencyKey === data.payload.message.idempotencyKey)
+              );
+              if (hasMessage) {
+                return prev.map((m) =>
+                  (m.idempotencyKey === data.payload.message.idempotencyKey || m.id === data.payload.message.id)
+                    ? data.payload.message
+                    : m
+                );
+              }
+              return [...prev, data.payload.message];
+            });
+            scrollToBottom();
+          }
+          fetchConversations();
+        } else if (data.type === "audit_created") {
+          if (data.payload.conversationId === selectedId) {
+            setAudits((prev) => {
+              if (prev.some((a) => a.id === data.payload.audit.id)) {
+                return prev;
+              }
+              return [...prev, data.payload.audit];
+            });
+          }
+        } else if (data.type === "conversation_updated") {
+          fetchConversations();
+        }
+      } catch (err) {
+        console.error("[SSE] Failed to parse event data", err);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error("[SSE] EventSource connection error, will auto-reconnect", err);
+    };
+
+    return () => {
+      eventSource.close();
+    };
   }, [selectedId]);
 
   // Fetch Prompt versions on startup
@@ -251,18 +300,9 @@ function Dashboard() {
 
     const messageText = inputText;
     setInputText("");
+    const idempotencyKey = `opt-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
     try {
-      await fetch("/api/events", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          threadId: currentConvo.externalThreadId,
-          senderExternalId: currentConvo.contact?.externalUserId ?? "simulator-user",
-          text: messageText,
-        }),
-      });
-
       // Optimistically add message
       const optimisticMsg: Message = {
         id: `optimistic-${Date.now()}`,
@@ -272,13 +312,24 @@ function Dashboard() {
         messageType: "text",
         text: messageText,
         externalMessageId: null,
-        idempotencyKey: `opt-${Date.now()}`,
+        idempotencyKey,
         isRead: true,
         readAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, optimisticMsg]);
       scrollToBottom();
+
+      await fetch("/api/events", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          threadId: currentConvo.externalThreadId,
+          senderExternalId: currentConvo.contact?.externalUserId ?? "simulator-user",
+          text: messageText,
+          idempotencyKey,
+        }),
+      });
     } catch (err) {
       console.error("Failed to send message", err);
     }
@@ -449,6 +500,37 @@ function Dashboard() {
 
   const activeConversation = conversations.find((c) => c.id === selectedId);
 
+  const mergedTimeline = React.useMemo(() => {
+    const items: Array<
+      | { type: "message"; data: Message; timestamp: number }
+      | { type: "audit"; data: Audit; timestamp: number }
+    > = [];
+
+    for (const msg of messages) {
+      items.push({
+        type: "message",
+        data: msg,
+        timestamp: new Date(msg.createdAt).getTime(),
+      });
+    }
+
+    for (const audit of audits) {
+      items.push({
+        type: "audit",
+        data: audit,
+        timestamp: new Date(audit.created_at).getTime(),
+      });
+    }
+
+    return items.sort((a, b) => {
+      if (a.timestamp === b.timestamp) {
+        if (a.type === "audit" && b.type === "message") return -1;
+        if (a.type === "message" && b.type === "audit") return 1;
+      }
+      return a.timestamp - b.timestamp;
+    });
+  }, [messages, audits]);
+
   return (
     <div className="flex h-screen bg-[#110e0c] font-sans text-stone-100 overflow-hidden">
       {/* 1. Left Sidebar: Chat Sessions List */}
@@ -561,39 +643,136 @@ function Dashboard() {
 
             {/* Chat Messages Panel */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
-              {messages.map((m) => {
-                const isInbound = m.direction === "inbound";
-                return (
-                  <div
-                    key={m.id}
-                    className={`flex ${isInbound ? "justify-start" : "justify-end"}`}
-                  >
+              {mergedTimeline.map((item) => {
+                if (item.type === "message") {
+                  const m = item.data;
+                  const isInbound = m.direction === "inbound";
+                  return (
                     <div
-                      className={`max-w-[85%] rounded-2xl p-3 px-4 shadow-lg leading-relaxed text-sm ${
-                        isInbound
-                          ? "bg-stone-900 border border-stone-800 text-stone-200 rounded-tl-sm"
-                          : "bg-amber-600 text-stone-100 rounded-tr-sm"
-                      }`}
+                      key={m.id}
+                      className={`flex ${isInbound ? "justify-start" : "justify-end"}`}
                     >
-                      <div>{m.text}</div>
-                      <div className="flex items-center justify-end gap-1.5 mt-1 text-[10px] text-stone-400 select-none">
-                        <span>
-                          {new Date(m.createdAt).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                        {!isInbound && (
-                          m.isRead ? (
-                            <CheckCheck className="w-3.5 h-3.5 text-blue-400" />
-                          ) : (
-                            <Check className="w-3.5 h-3.5 text-stone-500" />
-                          )
+                      <div
+                        className={`max-w-[85%] rounded-2xl p-3 px-4 shadow-lg leading-relaxed text-sm ${
+                          isInbound
+                            ? "bg-stone-900 border border-stone-800 text-stone-200 rounded-tl-sm"
+                            : "bg-amber-600 text-stone-100 rounded-tr-sm"
+                        }`}
+                      >
+                        <div>{m.text}</div>
+                        <div className="flex items-center justify-end gap-1.5 mt-1 text-[10px] text-stone-400 select-none">
+                          <span>
+                            {new Date(m.createdAt).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                          {!isInbound && (
+                            m.isRead ? (
+                              <CheckCheck className="w-3.5 h-3.5 text-blue-400" />
+                            ) : (
+                              <Check className="w-3.5 h-3.5 text-stone-500" />
+                            )
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                } else {
+                  const a = item.data;
+                  const isExpanded = !!expandedAudits[a.id];
+                  const toggleExpand = () => {
+                    setExpandedAudits((prev) => ({
+                      ...prev,
+                      [a.id]: !prev[a.id],
+                    }));
+                  };
+                  const inputStr = JSON.stringify(a.input, null, 2);
+                  const outputStr = a.output ? JSON.stringify(a.output, null, 2) : "";
+                  const isLong = inputStr.length > 150 || outputStr.length > 150;
+
+                  return (
+                    <div key={a.id} className="flex justify-center my-2">
+                      <div
+                        onClick={toggleExpand}
+                        className="max-w-[90%] w-full bg-stone-950/40 border border-dashed border-stone-850 rounded-xl p-3 cursor-pointer hover:bg-stone-950/60 transition group"
+                      >
+                        <div className="flex items-center justify-between gap-2 select-none">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <Terminal className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                            <span className="font-mono text-xs font-semibold text-stone-300 truncate">
+                              {a.tool_name}
+                            </span>
+                            {isExpanded ? (
+                              <ChevronUp className="w-3.5 h-3.5 text-stone-500 group-hover:text-stone-300 transition" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5 text-stone-500 group-hover:text-stone-300 transition" />
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <span
+                              className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase ${
+                                a.status === "ok"
+                                  ? "bg-emerald-500/10 text-emerald-400"
+                                  : "bg-red-500/10 text-red-400"
+                              }`}
+                            >
+                              {a.status}
+                            </span>
+                            <button
+                              onClick={() => setSelectedAuditForModal(a)}
+                              className="text-[10px] text-amber-500 hover:text-amber-400 hover:underline font-semibold"
+                            >
+                              Inspect
+                            </button>
+                          </div>
+                        </div>
+
+                        {!isExpanded && a.input && Object.keys(a.input).length > 0 && (
+                          <div className="mt-1.5 text-[11px] text-stone-500 font-mono truncate max-w-full">
+                            args: {JSON.stringify(a.input)}
+                          </div>
+                        )}
+
+                        {isExpanded && (
+                          <div className="mt-2.5 space-y-2 text-left" onClick={(e) => e.stopPropagation()}>
+                            {a.input && Object.keys(a.input).length > 0 && (
+                              <div>
+                                <div className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-1">
+                                  Arguments
+                                </div>
+                                <code className="block p-2.5 rounded-lg bg-stone-950 text-stone-300 text-[11px] font-mono overflow-x-auto border border-stone-850 max-h-48 select-text">
+                                  {inputStr}
+                                </code>
+                              </div>
+                            )}
+                            {a.output && (
+                              <div>
+                                <div className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-1">
+                                  Response
+                                </div>
+                                <code className="block p-2.5 rounded-lg bg-stone-950 text-stone-300 text-[11px] font-mono overflow-x-auto border border-stone-850 max-h-48 select-text">
+                                  {outputStr}
+                                </code>
+                              </div>
+                            )}
+                            {isLong && (
+                              <div className="flex justify-end pt-1">
+                                <button
+                                  onClick={() => setSelectedAuditForModal(a)}
+                                  className="text-[11px] bg-amber-600/10 hover:bg-amber-600/20 text-amber-400 px-2.5 py-1 rounded-lg border border-amber-500/20 font-semibold flex items-center gap-1 transition"
+                                >
+                                  <Sliders className="w-3 h-3" />
+                                  Inspect Full Payload
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
-                  </div>
-                );
+                  );
+                }
               })}
               <div ref={messagesEndRef} />
             </div>
@@ -714,16 +893,16 @@ function Dashboard() {
                       <div className="mt-2 space-y-2">
                         <div>
                           <div className="text-[10px] text-stone-500 mb-1">Inputs:</div>
-                          <pre className="p-2 rounded bg-stone-900 text-[10px] text-stone-300 overflow-x-auto border border-stone-800">
+                          <code className="block p-2 rounded bg-stone-900 text-[10px] text-stone-300 overflow-x-auto border border-stone-800 select-text">
                             {JSON.stringify(a.input, null, 2)}
-                          </pre>
+                          </code>
                         </div>
                         {a.output && (
                           <div>
                             <div className="text-[10px] text-stone-500 mb-1">Outputs:</div>
-                            <pre className="p-2 rounded bg-stone-900 text-[10px] text-stone-300 overflow-x-auto border border-stone-800">
+                            <code className="block p-2 rounded bg-stone-900 text-[10px] text-stone-300 overflow-x-auto border border-stone-800 select-text">
                               {JSON.stringify(a.output, null, 2)}
-                            </pre>
+                            </code>
                           </div>
                         )}
                       </div>
@@ -904,6 +1083,61 @@ function Dashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Audit JSON inspector modal */}
+      {selectedAuditForModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+          <div className="bg-[#161210] border border-stone-800 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden text-stone-100">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-stone-800 bg-stone-950/20">
+              <div className="flex items-center gap-2">
+                <Terminal className="w-5 h-5 text-amber-500" />
+                <h3 className="font-semibold text-stone-200 font-mono text-sm">
+                  {selectedAuditForModal.tool_name}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedAuditForModal(null)}
+                className="text-stone-400 hover:text-stone-200 text-sm font-semibold p-1"
+              >
+                Close
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 overflow-y-auto space-y-4">
+              <div>
+                <div className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-1">
+                  Input Parameters
+                </div>
+                <code className="block p-3 rounded-xl bg-stone-950 text-stone-300 text-xs font-mono overflow-x-auto border border-stone-850 select-text">
+                  {JSON.stringify(selectedAuditForModal.input, null, 2)}
+                </code>
+              </div>
+              {selectedAuditForModal.output && (
+                <div>
+                  <div className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-1">
+                    Output Payload
+                  </div>
+                  <code className="block p-3 rounded-xl bg-stone-950 text-stone-300 text-xs font-mono overflow-x-auto border border-stone-850 select-text">
+                    {JSON.stringify(selectedAuditForModal.output, null, 2)}
+                  </code>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-stone-800 flex justify-end">
+              <button
+                onClick={() => setSelectedAuditForModal(null)}
+                className="bg-stone-800 hover:bg-stone-750 text-stone-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition"
+              >
+                Dismiss
+              </button>
+            </div>
           </div>
         </div>
       )}

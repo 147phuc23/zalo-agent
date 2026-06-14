@@ -316,10 +316,11 @@ export function createMessageRepository(client: DatabaseClient) {
       externalMessageId?: string | null;
       idempotencyKey: string;
       rawPayload: Record<string, unknown>;
-    }) {
-      await client.query(
+    }): Promise<MessageRow> {
+      const res = await client.query(
         `INSERT INTO messages (tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, raw_payload, is_read)
-         VALUES ($1, $2, 'inbound', $3, $4, $5, $6, $7, false)`,
+         VALUES ($1, $2, 'inbound', $3, $4, $5, $6, $7, false)
+         RETURNING id, tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, is_read, read_at, created_at`,
         [
           input.tenantId,
           input.conversationId,
@@ -330,6 +331,7 @@ export function createMessageRepository(client: DatabaseClient) {
           JSON.stringify(input.rawPayload),
         ]
       );
+      return res.rows[0] as MessageRow;
     },
     async createOutbound(input: {
       tenantId: string;
@@ -339,10 +341,11 @@ export function createMessageRepository(client: DatabaseClient) {
       externalMessageId?: string | null;
       idempotencyKey: string;
       rawPayload: Record<string, unknown>;
-    }) {
-      await client.query(
+    }): Promise<MessageRow> {
+      const res = await client.query(
         `INSERT INTO messages (tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, raw_payload, is_read, read_at)
-         VALUES ($1, $2, 'outbound', $3, $4, $5, $6, $7, true, NOW())`,
+         VALUES ($1, $2, 'outbound', $3, $4, $5, $6, $7, true, NOW())
+         RETURNING id, tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, is_read, read_at, created_at`,
         [
           input.tenantId,
           input.conversationId,
@@ -353,6 +356,7 @@ export function createMessageRepository(client: DatabaseClient) {
           JSON.stringify(input.rawPayload),
         ]
       );
+      return res.rows[0] as MessageRow;
     },
     async markAsRead(conversationId: string) {
       await client.query(
@@ -441,10 +445,11 @@ export function createAuditRepository(client: DatabaseClient) {
       inputPayload?: Record<string, unknown>;
       outputPayload?: Record<string, unknown> | null;
       status?: "ok" | "error";
-    }) {
-      await client.query(
+    }): Promise<ToolCallAuditRow> {
+      const res = await client.query(
         `INSERT INTO tool_call_audits (tenant_id, conversation_id, run_id, tool_name, input, output, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, tenant_id, conversation_id, run_id, tool_name, input, output, status, created_at`,
         [
           input.tenantId,
           input.conversationId ?? null,
@@ -455,6 +460,7 @@ export function createAuditRepository(client: DatabaseClient) {
           input.status ?? "ok",
         ]
       );
+      return res.rows[0] as ToolCallAuditRow;
     },
     async listByConversation(conversationId: string) {
       const res = await client.query(

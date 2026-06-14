@@ -47,8 +47,15 @@ export async function loadSkillsFromDirectory(input: {
 
     const skillId = entry.name;
     const filePath = path.join(resolvedRoot, skillId, "SKILL.md");
-    const content = await fs.readFile(filePath, "utf-8");
-    skills.push(parseSkillMarkdown({ id: skillId, filePath, content }));
+    try {
+      const content = await fs.readFile(filePath, "utf-8");
+      skills.push(parseSkillMarkdown({ id: skillId, filePath, content }));
+    } catch (err: any) {
+      if (err.code === "ENOENT") {
+        continue;
+      }
+      throw err;
+    }
   }
 
   skills.sort((a, b) => a.id.localeCompare(b.id));

@@ -124,6 +124,11 @@ export type HrAgentRunOptions = {
   mockLlm: boolean;
   skillMode: HrSkillMode;
   systemPromptOverride?: string;
+  onStepFinish?: (step: {
+    text?: string;
+    toolCalls?: any[];
+    toolResults?: any[];
+  }) => Promise<void> | void;
 };
 
 export type HrAgentRunResult = {

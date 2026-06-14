@@ -112,8 +112,9 @@ export function createMessageRepository(client) {
             return res.rows[0] || null;
         },
         async createInbound(input) {
-            await client.query(`INSERT INTO messages (tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, raw_payload, is_read)
-         VALUES ($1, $2, 'inbound', $3, $4, $5, $6, $7, false)`, [
+            const res = await client.query(`INSERT INTO messages (tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, raw_payload, is_read)
+         VALUES ($1, $2, 'inbound', $3, $4, $5, $6, $7, false)
+         RETURNING id, tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, is_read, read_at, created_at`, [
                 input.tenantId,
                 input.conversationId,
                 input.messageType,
@@ -122,10 +123,12 @@ export function createMessageRepository(client) {
                 input.idempotencyKey,
                 JSON.stringify(input.rawPayload),
             ]);
+            return res.rows[0];
         },
         async createOutbound(input) {
-            await client.query(`INSERT INTO messages (tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, raw_payload, is_read, read_at)
-         VALUES ($1, $2, 'outbound', $3, $4, $5, $6, $7, true, NOW())`, [
+            const res = await client.query(`INSERT INTO messages (tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, raw_payload, is_read, read_at)
+         VALUES ($1, $2, 'outbound', $3, $4, $5, $6, $7, true, NOW())
+         RETURNING id, tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, is_read, read_at, created_at`, [
                 input.tenantId,
                 input.conversationId,
                 input.messageType,
@@ -134,6 +137,7 @@ export function createMessageRepository(client) {
                 input.idempotencyKey,
                 JSON.stringify(input.rawPayload),
             ]);
+            return res.rows[0];
         },
         async markAsRead(conversationId) {
             await client.query("UPDATE messages SET is_read = true, read_at = NOW() WHERE conversation_id = $1 AND direction = 'inbound' AND is_read = false", [conversationId]);
@@ -185,8 +189,9 @@ export function createHumanTaskRepository(client) {
 export function createAuditRepository(client) {
     return {
         async append(input) {
-            await client.query(`INSERT INTO tool_call_audits (tenant_id, conversation_id, run_id, tool_name, input, output, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`, [
+            const res = await client.query(`INSERT INTO tool_call_audits (tenant_id, conversation_id, run_id, tool_name, input, output, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, tenant_id, conversation_id, run_id, tool_name, input, output, status, created_at`, [
                 input.tenantId,
                 input.conversationId ?? null,
                 input.runId ?? null,
@@ -195,6 +200,7 @@ export function createAuditRepository(client) {
                 input.outputPayload === null ? null : JSON.stringify(input.outputPayload ?? {}),
                 input.status ?? "ok",
             ]);
+            return res.rows[0];
         },
         async listByConversation(conversationId) {
             const res = await client.query(`SELECT id, tenant_id, conversation_id, run_id, tool_name, input, output, status, created_at 

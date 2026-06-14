@@ -16,8 +16,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     const url = new URL("/internal/events", apiBaseUrl);
 
-    // Create a unique idempotency key for this simulated message
-    const idempotencyKey = `${body.threadId}:${Date.now()}`;
+    // Use frontend idempotency key if provided, otherwise create a unique one
+    const idempotencyKey = body.idempotencyKey ?? `${body.threadId}:${Date.now()}`;
 
     const res = await fetch(url, {
       method: "POST",
