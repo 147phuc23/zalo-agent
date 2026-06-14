@@ -5,7 +5,6 @@ import { createDatabaseClient, createRepositorySet } from "@platform/database";
 import { z } from "zod";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { OpenRouterAiClient } from "@platform/ai-client";
 import { runHrAgentScenario } from "./agent/core/runner.js";
 import { Redis } from "ioredis";
 const JobPayloadSchema = z.object({
@@ -17,7 +16,6 @@ loadRepoEnv();
 const env = loadWorkerEnv();
 const db = createDatabaseClient(env);
 const repos = createRepositorySet(db);
-const ai = new OpenRouterAiClient();
 const redisPublisher = new Redis(env.REDIS_URL);
 async function publishSseEvent(event) {
     try {
@@ -33,11 +31,17 @@ const messageSendQueue = new Queue("message.send", {
 const sessionCache = new Map();
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const latestJobForConversation = new Map();
+const activeAbortControllers = new Map();
 const worker = new Worker("message.received", async (job) => {
     const payload = JobPayloadSchema.parse(job.data);
     latestJobForConversation.set(payload.conversationId, job.id);
-    // Debounce: Wait for a short duration (2000ms) to bundle consecutive incoming messages
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const existingController = activeAbortControllers.get(payload.conversationId);
+    if (existingController) {
+        console.log(`[worker] aborting previous job for conversation ${payload.conversationId} because a newer message arrived`);
+        existingController.abort();
+    }
+    // Debounce: Wait for a short duration (10000ms) to bundle consecutive incoming messages
+    await new Promise((resolve) => setTimeout(resolve, 10000));
     if (latestJobForConversation.get(payload.conversationId) !== job.id) {
         console.log(`[worker] debounced job ${job.id} for conversation ${payload.conversationId} (newer job received)`);
         return { ok: true, action: "debounced" };
@@ -45,7 +49,10 @@ const worker = new Worker("message.received", async (job) => {
     const mode = await resolveMode(payload.tenantId);
     if (mode === "auto") {
         try {
-            const draft = await generateDraftReply(payload.tenantId, payload.conversationId);
+            const controller = new AbortController();
+            activeAbortControllers.set(payload.conversationId, controller);
+            const draft = await generateDraftReply(payload.tenantId, payload.conversationId, controller.signal);
+            activeAbortControllers.delete(payload.conversationId);
             await appendAudit(payload.tenantId, payload.conversationId, "ai.generateDraft", {
                 model: draft.model,
                 responseCount: draft.responses.length,
@@ -53,7 +60,12 @@ const worker = new Worker("message.received", async (job) => {
             return { ok: true, action: "auto->drafts-enqueued", responseCount: draft.responses.length };
         }
         catch (err) {
+            activeAbortControllers.delete(payload.conversationId);
             const message = err instanceof Error ? err.message : String(err);
+            if (err instanceof Error && err.name === "AbortError") {
+                console.log(`[worker] job ${job.id} aborted mid-flight for conversation ${payload.conversationId}`);
+                return { ok: true, action: "aborted" };
+            }
             await appendAuditError(payload.tenantId, payload.conversationId, "ai.generateDraft", {
                 error: message,
             });
@@ -112,7 +124,7 @@ async function createHumanTask(tenantId, conversationId, type, payload) {
         payload,
     });
 }
-async function generateDraftReply(tenantId, conversationId) {
+async function generateDraftReply(tenantId, conversationId, abortSignal) {
     const now = Date.now();
     const cached = sessionCache.get(conversationId);
     let messages;
@@ -197,10 +209,13 @@ async function generateDraftReply(tenantId, conversationId) {
         mockLlm: false,
         skillMode: process.env.HR_SKILL_MODE || "default",
         systemPromptOverride,
+        abortSignal,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         onStepFinish: async (step) => {
             if (!step.toolCalls || step.toolCalls.length === 0)
                 return;
             for (const call of step.toolCalls) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const matchingResult = step.toolResults?.find((r) => r.toolCallId === call.toolCallId);
                 const auditRow = await repos.audits.append({
                     tenantId,

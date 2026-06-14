@@ -112,6 +112,7 @@ export type HrScenario = {
   threadId: string;
   externalUserId: string;
   messages: MockZaloPayload[];
+  forceProfileReload?: boolean;
 };
 
 export type HrAgentRunOptions = {

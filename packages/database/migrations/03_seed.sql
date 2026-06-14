@@ -365,7 +365,10 @@ Strictly follow a message-by-message response style like a human chatting on a m
 Keep each message extremely short, natural, and concise (ideally 1-2 short sentences per message bubble).
 Break your thoughts into sequential, realistic chat replies separated by double newlines (\n\n), instead of combining everything into a single long paragraph.
 Add appropriate friendly icons/emojis (e.g., 😊, 👍, ✨) to make the chat engaging and friendly.
-Do not write one very long paragraph; instead, use double newlines (\n\n) to separate the response into a list of concise chat replies.',
+Do not write one very long paragraph; instead, use double newlines (\n\n) to separate the response into a list of concise chat replies.
+
+When listing or recommending jobs, do NOT use markdown bold formatting (like **Job Title**). Use plain text.
+Do NOT use numbered list emojis (like 1️⃣, 2️⃣) or shopping/cart emojis (like 🛒) when presenting jobs. Write in a natural, human-like conversational style.',
     1,
     true
   ),
@@ -385,7 +388,10 @@ Strictly follow a message-by-message response style like a human chatting on a m
 Keep each message extremely short, natural, and concise (ideally 1-2 short sentences per message bubble).
 Break your thoughts into sequential, realistic chat replies separated by double newlines (\n\n), instead of combining everything into a single long paragraph.
 Add appropriate friendly icons/emojis (e.g., 😊, 👍, ✨) to make the chat engaging and friendly.
-Do not write one very long paragraph; instead, use double newlines (\n\n) to separate the response into a list of concise chat replies.',
+Do not write one very long paragraph; instead, use double newlines (\n\n) to separate the response into a list of concise chat replies.
+
+When listing or recommending jobs, do NOT use markdown bold formatting (like **Job Title**). Use plain text.
+Do NOT use numbered list emojis (like 1️⃣, 2️⃣) or shopping/cart emojis (like 🛒) when presenting jobs. Write in a natural, human-like conversational style.',
     1,
     true
   ),
@@ -405,7 +411,10 @@ Strictly follow a message-by-message response style like a human chatting on a m
 Keep each message extremely short, natural, and concise (ideally 1-2 short sentences per message bubble).
 Break your thoughts into sequential, realistic chat replies separated by double newlines (\n\n), instead of combining everything into a single long paragraph.
 Add appropriate friendly icons/emojis (e.g., 😊, 👍, ✨) to make the chat engaging and friendly.
-Do not write one very long paragraph; instead, use double newlines (\n\n) to separate the response into a list of concise chat replies.',
+Do not write one very long paragraph; instead, use double newlines (\n\n) to separate the response into a list of concise chat replies.
+
+When listing or recommending jobs, do NOT use markdown bold formatting (like **Job Title**). Use plain text.
+Do NOT use numbered list emojis (like 1️⃣, 2️⃣) or shopping/cart emojis (like 🛒) when presenting jobs. Write in a natural, human-like conversational style.',
     1,
     true
   )

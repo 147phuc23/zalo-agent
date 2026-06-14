@@ -59,6 +59,7 @@ let IngestService = class IngestService {
                 idempotencyKey: event.idempotencyKey,
                 rawPayload: event.rawPayload,
             });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         }
         catch (error) {
             // Postgres unique violation code is 23505 (idempotency key constraint)
@@ -127,6 +128,7 @@ let IngestService = class IngestService {
                 errorMessage: event.errorMessage ?? null,
                 providerPayload: event.rawPayload,
             });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         }
         catch (error) {
             return { kind: event.kind, status: "error", error: error.message };
@@ -166,6 +168,7 @@ let IngestService = class IngestService {
            RETURNING id`, [event.tenantId, event.channel, event.externalAccountId, event.status, event.receivedAt]);
                 return { kind: event.kind, status: "stored", channelAccountId: inserted.rows[0].id };
             }
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         }
         catch (error) {
             return { kind: event.kind, status: "error", error: error.message };
@@ -180,6 +183,7 @@ let IngestService = class IngestService {
                 locale: "vi-VN",
             });
             return { ok: true };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         }
         catch (error) {
             return { ok: false, error: error.message };
@@ -201,6 +205,7 @@ let IngestService = class IngestService {
                 externalUserId: event.senderExternalId,
             });
             return { ok: true, contactId: created.id };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         }
         catch (error) {
             return { ok: false, error: error.message };
@@ -224,6 +229,7 @@ let IngestService = class IngestService {
                 lastActivityAt: event.receivedAt,
             });
             return { ok: true, conversationId: created.id };
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
         }
         catch (error) {
             return { ok: false, error: error.message };

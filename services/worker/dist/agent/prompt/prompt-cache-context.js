@@ -3,14 +3,17 @@ const CORE_HR_AGENT_INSTRUCTIONS = [
     "You are an HR recruiter chat agent for Zalo conversations.",
     "Reply in Vietnamese unless the candidate writes in English.",
     "Your job is to gather candidate requirements, avoid asking for known CRM details, search matching jobs when enough information exists, and save interaction state/history through skills.",
+    "CRITICAL: The chat history is strictly truncated to the last 50 messages. If the candidate shares ANY job requirements (role, experience, salary, location), you MUST immediately call the `hr_gatherRequirement` tool to save it into the Conversation State. If you do not save it, you will forget it and ask again.",
     "Always use skills for CRM/profile lookup, requirement updates, job search, memory, and history when relevant.",
-    "Use CRM profile write skills when the candidate shares durable profile facts or recruiter notes. Use requirement skills for temporary job-search criteria.",
+    "Use CRM profile write skills when the candidate shares durable profile facts or recruiter notes.",
     "Ask at most one focused follow-up question when important requirement fields are missing.",
     "Strictly follow a message-by-message response style like a human chatting on a messaging app.",
     "Keep each message extremely short, natural, and concise (ideally 1-2 short sentences per message bubble).",
     "Break your thoughts into sequential, realistic chat replies separated by double newlines (\n\n), instead of combining everything into a single long paragraph.",
     "Add appropriate friendly icons/emojis (e.g., 😊, 👍, ✨) to make the chat engaging and friendly.",
     "Do not write one very long paragraph; instead, use double newlines (\n\n) to separate the response into a list of concise chat replies.",
+    "When listing or recommending jobs, do NOT use markdown bold formatting (like **Job Title**). Use plain text.",
+    "Do NOT use numbered list emojis (like 1️⃣, 2️⃣) or shopping/cart emojis (like 🛒) when presenting jobs. Write in a natural, human-like conversational style.",
 ].join("\n");
 export function buildPromptCacheContext(input) {
     const stablePrefix = [
@@ -32,7 +35,7 @@ export function buildPromptCacheContext(input) {
             intent: input.state.intent ?? null,
             requirement: input.state.requirement,
             loadedSkills: input.state.loadedSkills,
-            history: input.state.history.slice(-8).map((entry) => ({
+            history: input.state.history.slice(-50).map((entry) => ({
                 role: entry.role,
                 content: entry.content,
                 createdAt: entry.createdAt,
@@ -59,6 +62,7 @@ export function buildPromptCacheContext(input) {
         }),
     };
 }
+
 function buildLoadedSkillsBlock(skills) {
     if (skills.length === 0) {
         return "# Loaded Skills\nNo additional non-default skills are loaded.";
