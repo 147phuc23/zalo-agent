@@ -87,6 +87,7 @@ export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<Hr
     maxTokens: 2000,
     temperature: 0.2,
     providerOptions: providerCache.providerOptions as ProviderMetadata,
+    abortSignal: options.abortSignal,
     onStepFinish: async (step) => {
       if (options.onStepFinish) {
         await options.onStepFinish({

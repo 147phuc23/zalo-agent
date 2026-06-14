@@ -538,17 +538,17 @@ function Dashboard() {
   }, [messages, audits]);
 
   return (
-    <div className="flex h-screen bg-[#110e0c] font-sans text-stone-100 overflow-hidden">
+    <div className="flex h-screen bg-[#F0F2F5] font-sans text-slate-800 overflow-hidden">
       {/* 1. Left Sidebar: Chat Sessions List */}
-      <div className="w-80 border-r border-stone-800 bg-[#161210] flex flex-col h-full">
-        <div className="p-4 border-b border-stone-800 flex items-center justify-between">
+      <div className="w-80 border-r border-gray-200 bg-white flex flex-col h-full">
+        <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-amber-500" />
-            <h2 className="font-bold tracking-tight text-lg">Zalo Simulator</h2>
+            <Sparkles className="w-5 h-5 text-blue-600" />
+            <h2 className="font-bold tracking-tight text-lg text-slate-800">Zalo Simulator</h2>
           </div>
           <button
             onClick={() => setIsNewChatOpen(true)}
-            className="p-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-stone-100 transition"
+            className="p-1.5 rounded-lg bg-[#0068FF] hover:bg-blue-500 text-white transition"
             title="Create Simulated Chat"
           >
             <Plus className="w-4 h-4" />
@@ -556,14 +556,14 @@ function Dashboard() {
         </div>
 
         {/* Search */}
-        <div className="p-3 border-b border-stone-800 relative">
-          <Search className="w-4 h-4 text-stone-500 absolute left-6 top-6" />
+        <div className="p-3 border-b border-gray-200 relative">
+          <Search className="w-4 h-4 text-gray-400 absolute left-6 top-6" />
           <input
             type="text"
             placeholder="Search conversations..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-stone-900 border border-stone-800 rounded-xl py-2 pl-9 pr-4 text-sm text-stone-200 placeholder-stone-500 focus:outline-none focus:border-amber-600"
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 pl-9 pr-4 text-sm text-slate-800 placeholder-gray-400 focus:outline-none focus:border-blue-600"
           />
         </div>
 
@@ -579,20 +579,20 @@ function Dashboard() {
                 onClick={() => setSelectedId(c.id)}
                 className={`w-full text-left p-3.5 rounded-2xl flex items-center justify-between gap-3 transition ${
                   isSelected
-                    ? "bg-amber-600/15 border border-amber-600/30 text-stone-100"
-                    : "bg-transparent border border-transparent text-stone-400 hover:bg-stone-900/40 hover:text-stone-200"
+                    ? "bg-blue-50 border border-blue-200/50 text-blue-755 font-semibold"
+                    : "bg-transparent border border-transparent text-slate-500 hover:bg-gray-50 hover:text-slate-800"
                 }`}
               >
                 <div className="min-w-0">
-                  <div className={`font-semibold truncate text-sm ${isSelected ? "text-amber-500" : "text-stone-200"}`}>
+                  <div className={`font-semibold truncate text-sm ${isSelected ? "text-blue-600" : "text-slate-800"}`}>
                     {displayName}
                   </div>
-                  <div className="text-xs text-stone-500 truncate mt-1">
+                  <div className="text-xs text-slate-400 truncate mt-1">
                     Thread: {c.externalThreadId}
                   </div>
                 </div>
                 <div className="text-right flex flex-col items-end gap-1">
-                  <span className="text-[10px] text-stone-500">
+                  <span className="text-[10px] text-slate-400">
                     {new Date(c.lastActivityAt).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
@@ -607,7 +607,7 @@ function Dashboard() {
           })}
 
           {filteredConversations.length === 0 && (
-            <div className="text-center p-6 text-xs text-stone-600 mt-10">
+            <div className="text-center p-6 text-xs text-slate-400 mt-10">
               No simulated chat sections found.
             </div>
           )}
@@ -615,27 +615,27 @@ function Dashboard() {
       </div>
 
       {/* 2. Middle Pane: Chat Simulator View */}
-      <div className="flex-1 min-w-0 flex flex-col h-full bg-[#110e0c] relative">
+      <div className="flex-1 min-w-0 flex flex-col h-full bg-[#F4F5F7] relative">
         {activeConversation ? (
           <>
             {/* Conversation Header */}
-            <div className="p-4 border-b border-stone-800 bg-[#161210]/60 flex items-center justify-between gap-4">
+            <div className="p-4 border-b border-gray-200 bg-white flex items-center justify-between gap-4">
               <div>
-                <h3 className="font-bold text-stone-100 text-base">
+                <h3 className="font-bold text-slate-800 text-base">
                   {activeConversation.contact?.displayName ?? activeConversation.contact?.externalUserId}
                 </h3>
-                <span className="text-xs text-stone-500">
+                <span className="text-xs text-slate-500">
                   Zalo Thread: {activeConversation.externalThreadId}
                 </span>
               </div>
 
               {/* Model selection dropdown */}
               <div className="flex items-center gap-2">
-                <Cpu className="w-4 h-4 text-stone-400" />
+                <Cpu className="w-4 h-4 text-slate-400" />
                 <select
                   value={activeConversation.overrideModel ?? "default"}
                   onChange={(e) => handleUpdateModel(e.target.value === "default" ? null : e.target.value)}
-                  className="bg-stone-900 border border-stone-800 rounded-lg text-xs py-1.5 px-3 text-stone-300 focus:outline-none focus:border-amber-600"
+                  className="bg-white border border-gray-200 rounded-lg text-xs py-1.5 px-3 text-slate-700 focus:outline-none focus:border-blue-600"
                 >
                   <option value="default">Default Model</option>
                   {availableModels.map((m) => (
@@ -659,14 +659,16 @@ function Dashboard() {
                       className={`flex ${isInbound ? "justify-start" : "justify-end"}`}
                     >
                       <div
-                        className={`max-w-[70%] rounded-2xl p-3 px-4 shadow-lg leading-relaxed text-sm ${
+                        className={`max-w-[70%] rounded-2xl p-3 px-4 shadow-sm leading-relaxed text-sm ${
                           isInbound
-                            ? "bg-stone-900 border border-stone-800 text-stone-200 rounded-tl-sm"
-                            : "bg-amber-600 text-stone-100 rounded-tr-sm"
+                            ? "bg-white border border-gray-200 text-slate-800 rounded-tl-sm"
+                            : "bg-[#0068FF] text-white rounded-tr-sm"
                         }`}
                       >
                         <div className="whitespace-pre-wrap break-words">{m.text}</div>
-                        <div className="flex items-center justify-end gap-1.5 mt-1 text-[10px] text-stone-400 select-none">
+                        <div className={`flex items-center justify-end gap-1.5 mt-1 text-[10px] select-none ${
+                          isInbound ? "text-gray-400" : "text-blue-100"
+                        }`}>
                           <span>
                             {new Date(m.createdAt).toLocaleTimeString([], {
                               hour: "2-digit",
@@ -675,9 +677,9 @@ function Dashboard() {
                           </span>
                           {!isInbound && (
                             m.isRead ? (
-                              <CheckCheck className="w-3.5 h-3.5 text-blue-400" />
+                              <CheckCheck className="w-3.5 h-3.5 text-blue-200" />
                             ) : (
-                              <Check className="w-3.5 h-3.5 text-stone-500" />
+                              <Check className="w-3.5 h-3.5 text-blue-300" />
                             )
                           )}
                         </div>
@@ -701,33 +703,33 @@ function Dashboard() {
                     <div key={a.id} className="flex justify-center my-2">
                       <div
                         onClick={toggleExpand}
-                        className="max-w-[70%] w-full bg-stone-950/40 border border-dashed border-stone-850 rounded-xl p-3 cursor-pointer hover:bg-stone-950/60 transition group"
+                        className="max-w-[70%] w-full bg-white border border-dashed border-gray-200 rounded-xl p-3 cursor-pointer hover:bg-gray-50 transition group"
                       >
                         <div className="flex items-center justify-between gap-2 select-none">
                           <div className="flex items-center gap-1.5 min-w-0">
-                            <Terminal className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                            <span className="font-mono text-xs font-semibold text-stone-300 truncate">
+                            <Terminal className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                            <span className="font-mono text-xs font-semibold text-slate-700 truncate">
                               {a.tool_name}
                             </span>
                             {isExpanded ? (
-                              <ChevronUp className="w-3.5 h-3.5 text-stone-500 group-hover:text-stone-300 transition" />
+                              <ChevronUp className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition" />
                             ) : (
-                              <ChevronDown className="w-3.5 h-3.5 text-stone-500 group-hover:text-stone-300 transition" />
+                              <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition" />
                             )}
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                             <span
-                              className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase ${
+                              className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase border ${
                                 a.status === "ok"
-                                  ? "bg-emerald-500/10 text-emerald-400"
-                                  : "bg-red-500/10 text-red-400"
+                                  ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                  : "bg-red-50 text-red-650 border-red-100"
                               }`}
                             >
                               {a.status}
                             </span>
                             <button
                               onClick={() => setSelectedAuditForModal(a)}
-                              className="text-[10px] text-amber-500 hover:text-amber-400 hover:underline font-semibold"
+                              className="text-[10px] text-blue-600 hover:text-blue-500 hover:underline font-semibold"
                             >
                               Inspect
                             </button>
@@ -735,7 +737,7 @@ function Dashboard() {
                         </div>
 
                         {!isExpanded && a.input && Object.keys(a.input).length > 0 && (
-                          <div className="mt-1.5 text-[11px] text-stone-500 font-mono truncate max-w-full">
+                          <div className="mt-1.5 text-[11px] text-slate-450 font-mono truncate max-w-full">
                             args: {JSON.stringify(a.input)}
                           </div>
                         )}
@@ -744,20 +746,20 @@ function Dashboard() {
                           <div className="mt-2.5 space-y-2 text-left" onClick={(e) => e.stopPropagation()}>
                             {a.input && Object.keys(a.input).length > 0 && (
                               <div>
-                                <div className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-1">
+                                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
                                   Arguments
                                 </div>
-                                <code className="block p-2.5 rounded-lg bg-stone-950 text-stone-300 text-[11px] font-mono overflow-x-auto border border-stone-850 max-h-48 select-text">
+                                <code className="block p-2.5 rounded-lg bg-gray-50 text-slate-700 text-[11px] font-mono overflow-x-auto border border-gray-200 max-h-48 select-text">
                                   {inputStr}
                                 </code>
                               </div>
                             )}
                             {a.output && (
                               <div>
-                                <div className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-1">
+                                <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
                                   Response
                                 </div>
-                                <code className="block p-2.5 rounded-lg bg-stone-950 text-stone-300 text-[11px] font-mono overflow-x-auto border border-stone-850 max-h-48 select-text">
+                                <code className="block p-2.5 rounded-lg bg-gray-50 text-slate-700 text-[11px] font-mono overflow-x-auto border border-gray-200 max-h-48 select-text">
                                   {outputStr}
                                 </code>
                               </div>
@@ -766,7 +768,7 @@ function Dashboard() {
                               <div className="flex justify-end pt-1">
                                 <button
                                   onClick={() => setSelectedAuditForModal(a)}
-                                  className="text-[11px] bg-amber-600/10 hover:bg-amber-600/20 text-amber-400 px-2.5 py-1 rounded-lg border border-amber-500/20 font-semibold flex items-center gap-1 transition"
+                                  className="text-[11px] bg-blue-50 hover:bg-blue-100 text-blue-600 px-2.5 py-1 rounded-lg border border-blue-200/50 font-semibold flex items-center gap-1 transition"
                                 >
                                   <Sliders className="w-3 h-3" />
                                   Inspect Full Payload
@@ -784,18 +786,18 @@ function Dashboard() {
             </div>
 
             {/* Inbound Send Box (Simulates Candidate typing) */}
-            <form onSubmit={handleSendMessage} className="p-4 border-t border-stone-800 bg-[#161210]/40">
+            <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200 bg-white">
               <div className="flex gap-2">
                 <input
                   type="text"
                   placeholder="Type a simulated message bubble as Candidate..."
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  className="flex-1 bg-stone-900 border border-stone-800 rounded-xl px-4 py-2.5 text-sm text-stone-100 placeholder-stone-500 focus:outline-none focus:border-amber-600"
+                  className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 placeholder-gray-400 focus:outline-none focus:border-blue-600"
                 />
                 <button
                   type="submit"
-                  className="bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-stone-100 px-4 rounded-xl flex items-center justify-center transition"
+                  className="bg-[#0068FF] hover:bg-blue-500 active:bg-blue-700 text-white px-4 rounded-xl flex items-center justify-center transition"
                 >
                   <Send className="w-4 h-4" />
                 </button>
@@ -803,10 +805,10 @@ function Dashboard() {
             </form>
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-stone-500">
-            <MessageSquare className="w-12 h-12 text-stone-700 mb-3" />
-            <h3 className="font-semibold text-stone-400 text-base">Zalo Sandbox Chatroom</h3>
-            <p className="text-xs text-stone-600 max-w-sm mt-1">
+          <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-500">
+            <MessageSquare className="w-12 h-12 text-slate-400 mb-3" />
+            <h3 className="font-semibold text-slate-700 text-base">Zalo Sandbox Chatroom</h3>
+            <p className="text-xs text-slate-500 max-w-sm mt-1">
               Select an existing chat thread or create a new mock section to trigger toolcalls and debug AI prompts.
             </p>
           </div>
@@ -814,15 +816,15 @@ function Dashboard() {
       </div>
 
       {/* 3. Right Pane: Debugger Inspector & Prompts panel */}
-      <div className="w-96 border-l border-stone-800 bg-[#161210] flex flex-col h-full">
+      <div className="w-96 border-l border-gray-200 bg-white flex flex-col h-full">
         {/* Tab Header */}
-        <div className="flex border-b border-stone-800 text-sm">
+        <div className="flex border-b border-gray-200 text-sm">
           <button
             onClick={() => setActiveTab("debugger")}
             className={`flex-1 py-3 text-center font-medium border-b-2 transition ${
               activeTab === "debugger"
-                ? "border-amber-500 text-amber-500 bg-amber-500/[0.02]"
-                : "border-transparent text-stone-400 hover:text-stone-200"
+                ? "border-blue-600 text-blue-600 bg-blue-50/20"
+                : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
             <Terminal className="w-4 h-4 inline mr-2" />
@@ -832,8 +834,8 @@ function Dashboard() {
             onClick={() => setActiveTab("prompt")}
             className={`flex-1 py-3 text-center font-medium border-b-2 transition ${
               activeTab === "prompt"
-                ? "border-amber-500 text-amber-500 bg-amber-500/[0.02]"
-                : "border-transparent text-stone-400 hover:text-stone-200"
+                ? "border-blue-600 text-blue-600 bg-blue-50/20"
+                : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
             <Settings className="w-4 h-4 inline mr-2" />
@@ -846,13 +848,13 @@ function Dashboard() {
           {activeTab === "debugger" ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h4 className="font-semibold text-xs tracking-wider uppercase text-stone-400">
+                <h4 className="font-semibold text-xs tracking-wider uppercase text-slate-500">
                   Tool Calls & Audits
                 </h4>
                 {selectedId && (
                   <button
                     onClick={handleExportSession}
-                    className="text-xs text-amber-500 hover:text-amber-400 flex items-center gap-1 font-semibold"
+                    className="text-xs text-blue-600 hover:text-blue-500 flex items-center gap-1 font-semibold"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Export Trace
@@ -865,48 +867,48 @@ function Dashboard() {
                 {audits.map((a) => (
                   <div
                     key={a.id}
-                    className={`rounded-xl border p-3 bg-stone-950/50 ${
-                      a.status === "ok" ? "border-stone-850" : "border-red-900/50"
+                    className={`rounded-xl border p-3 bg-gray-50 ${
+                      a.status === "ok" ? "border-gray-200" : "border-red-200"
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-1.5">
-                        <Sliders className="w-3.5 h-3.5 text-amber-500" />
-                        <span className="font-mono text-xs font-bold text-stone-200">
+                        <Sliders className="w-3.5 h-3.5 text-blue-600" />
+                        <span className="font-mono text-xs font-bold text-slate-800">
                           {a.tool_name}
                         </span>
                       </div>
                       <span
                         className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
                           a.status === "ok"
-                            ? "bg-emerald-500/10 text-emerald-400"
-                            : "bg-red-500/10 text-red-400"
+                            ? "bg-emerald-50 text-emerald-600"
+                            : "bg-red-50 text-red-650"
                         }`}
                       >
                         {a.status}
                       </span>
                     </div>
 
-                    <div className="text-[10px] text-stone-500 flex items-center gap-1 mb-2">
+                    <div className="text-[10px] text-slate-400 flex items-center gap-1 mb-2">
                       <Clock className="w-3 h-3" />
                       {new Date(a.created_at).toLocaleTimeString()}
                     </div>
 
                     <details className="mt-2 text-xs group">
-                      <summary className="cursor-pointer text-[11px] text-stone-400 select-none hover:text-stone-300 font-semibold">
+                      <summary className="cursor-pointer text-[11px] text-slate-500 select-none hover:text-slate-700 font-semibold">
                         View parameters / results
                       </summary>
                       <div className="mt-2 space-y-2">
                         <div>
-                          <div className="text-[10px] text-stone-500 mb-1">Inputs:</div>
-                          <code className="block p-2 rounded bg-stone-900 text-[10px] text-stone-300 overflow-x-auto border border-stone-800 select-text">
+                          <div className="text-[10px] text-slate-500 mb-1">Inputs:</div>
+                          <code className="block p-2 rounded bg-white text-[10px] text-slate-700 overflow-x-auto border border-gray-200 select-text">
                             {JSON.stringify(a.input, null, 2)}
                           </code>
                         </div>
                         {a.output && (
                           <div>
-                            <div className="text-[10px] text-stone-500 mb-1">Outputs:</div>
-                            <code className="block p-2 rounded bg-stone-900 text-[10px] text-stone-300 overflow-x-auto border border-stone-800 select-text">
+                            <div className="text-[10px] text-slate-500 mb-1">Outputs:</div>
+                            <code className="block p-2 rounded bg-white text-[10px] text-slate-700 overflow-x-auto border border-gray-200 select-text">
                               {JSON.stringify(a.output, null, 2)}
                             </code>
                           </div>
@@ -917,7 +919,7 @@ function Dashboard() {
                 ))}
 
                 {audits.length === 0 && (
-                  <div className="text-center p-6 text-xs text-stone-600 bg-stone-950/20 border border-stone-900 rounded-xl">
+                  <div className="text-center p-6 text-xs text-slate-400 bg-gray-50 border border-gray-200 rounded-xl">
                     No tool execution calls captured yet.
                   </div>
                 )}
@@ -926,29 +928,29 @@ function Dashboard() {
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-stone-400 mb-2">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
                   System Instruction Prompt Template
                 </label>
-                <div className="text-[11px] text-stone-500 mb-2 leading-relaxed">
+                <div className="text-[11px] text-slate-455 mb-2 leading-relaxed">
                   Modify the instructions variables using double curly brackets (e.g. `{'{{contact_name}}'}`, `{'{{tenant_id}}'}`) to seed them dynamically.
                 </div>
                 <textarea
                   value={promptContent}
                   onChange={(e) => setPromptContent(e.target.value)}
-                  className="w-full h-80 bg-stone-900 border border-stone-800 rounded-xl p-3 text-xs font-mono text-stone-200 placeholder-stone-600 focus:outline-none focus:border-amber-600 resize-none leading-relaxed"
+                  className="w-full h-80 bg-gray-50 border border-gray-200 rounded-xl p-3 text-xs font-mono text-slate-800 placeholder-gray-400 focus:outline-none focus:border-blue-600 resize-none leading-relaxed"
                 />
                 <button
                   onClick={handleSavePrompt}
-                  className="mt-2.5 w-full bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-stone-100 font-semibold text-xs py-2 px-4 rounded-xl transition"
+                  className="mt-2.5 w-full bg-[#0068FF] hover:bg-blue-500 active:bg-blue-700 text-white font-semibold text-xs py-2 px-4 rounded-xl transition"
                 >
                   Save New Version Template
                 </button>
               </div>
 
               {/* Version History List */}
-              <div className="border-t border-stone-800 pt-4">
-                <h5 className="font-semibold text-xs text-stone-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-stone-400" />
+              <div className="border-t border-gray-200 pt-4">
+                <h5 className="font-semibold text-xs text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-slate-400" />
                   Version History
                 </h5>
                 <div className="space-y-2">
@@ -958,26 +960,26 @@ function Dashboard() {
                       onClick={() => handleSelectPromptVersion(v)}
                       className={`w-full text-left p-3 rounded-xl border text-xs flex items-center justify-between gap-3 transition ${
                         v.is_active
-                          ? "bg-amber-600/10 border-amber-600/30 text-amber-500 font-semibold"
-                          : "bg-stone-950/40 border-stone-900 text-stone-400 hover:bg-stone-900/40 hover:text-stone-300"
+                          ? "bg-blue-50 border-blue-200/50 text-blue-700 font-semibold"
+                          : "bg-gray-50 border-gray-150 text-slate-500 hover:bg-gray-100 hover:text-slate-700"
                       }`}
                     >
                       <div className="min-w-0">
-                        <div className="font-medium text-stone-200">
+                        <div className="font-medium text-slate-800">
                           Version {v.version} {v.is_active && "(Active)"}
                         </div>
-                        <div className="text-[10px] text-stone-500 mt-1 truncate">
+                        <div className="text-[10px] text-slate-400 mt-1 truncate">
                           {v.content.slice(0, 80)}...
                         </div>
                       </div>
-                      <span className="text-[9px] text-stone-500 whitespace-nowrap">
+                      <span className="text-[9px] text-slate-400 whitespace-nowrap">
                         {new Date(v.created_at).toLocaleDateString()}
                       </span>
                     </button>
                   ))}
 
                   {promptVersions.length === 0 && (
-                    <div className="text-center p-6 text-xs text-stone-600 bg-stone-950/20 border border-stone-900 rounded-xl">
+                    <div className="text-center p-6 text-xs text-slate-400 bg-gray-50 border border-gray-200 rounded-xl">
                       No prompt history logged.
                     </div>
                   )}
@@ -990,13 +992,13 @@ function Dashboard() {
 
       {/* 4. New Chat Modal Dialog */}
       {isNewChatOpen && (
-        <div className="fixed inset-0 bg-stone-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#161210] border border-stone-850 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-stone-800 pb-3">
-              <h3 className="font-bold text-lg text-stone-200">Create New Simulator Chat</h3>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-gray-200 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-5 text-slate-800">
+            <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+              <h3 className="font-bold text-lg text-slate-800">Create New Simulator Chat</h3>
               <button
                 onClick={() => setIsNewChatOpen(false)}
-                className="text-stone-500 hover:text-stone-300 transition text-sm font-semibold"
+                className="text-slate-500 hover:text-slate-700 transition text-sm font-semibold"
               >
                 Close
               </button>
@@ -1004,7 +1006,7 @@ function Dashboard() {
 
             {/* Presets Selection */}
             <div>
-              <label className="block text-xs font-semibold text-stone-400 uppercase tracking-wider mb-2">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
                 Quick Preset Templates (Candidate Context)
               </label>
               <div className="grid grid-cols-1 gap-2">
@@ -1015,15 +1017,15 @@ function Dashboard() {
                     onClick={() => handlePresetSelect(idx)}
                     className={`w-full text-left p-3 rounded-2xl border text-xs flex items-center justify-between transition ${
                       selectedPresetIndex === idx
-                        ? "bg-amber-600/10 border-amber-600/30 text-amber-500"
-                        : "bg-stone-950/50 border-stone-900 text-stone-400 hover:bg-stone-900/40 hover:text-stone-300"
+                        ? "bg-blue-50 border-blue-200/50 text-blue-750 font-semibold"
+                        : "bg-gray-50 border border-gray-150 text-slate-500 hover:bg-gray-100 hover:text-slate-800"
                     }`}
                   >
                     <div>
-                      <div className="font-semibold text-stone-200">{p.name}</div>
-                      <div className="text-[10px] text-stone-500 mt-1 truncate max-w-xs">{p.text}</div>
+                      <div className="font-semibold text-slate-800">{p.name}</div>
+                      <div className="text-[10px] text-slate-450 mt-1 truncate max-w-xs">{p.text}</div>
                     </div>
-                    {selectedPresetIndex === idx && <Sparkles className="w-4 h-4 text-amber-500" />}
+                    {selectedPresetIndex === idx && <Sparkles className="w-4 h-4 text-blue-600" />}
                   </button>
                 ))}
               </div>
@@ -1032,7 +1034,7 @@ function Dashboard() {
             <form onSubmit={handleCreateChat} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-semibold text-stone-400 uppercase tracking-wider mb-1.5">
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                     External Thread ID
                   </label>
                   <input
@@ -1041,11 +1043,11 @@ function Dashboard() {
                     placeholder="e.g. thread-12345"
                     value={newThreadId}
                     onChange={(e) => setNewThreadId(e.target.value)}
-                    className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200 focus:outline-none focus:border-amber-600"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-semibold text-stone-400 uppercase tracking-wider mb-1.5">
+                  <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                     External User ID
                   </label>
                   <input
@@ -1054,13 +1056,13 @@ function Dashboard() {
                     placeholder="e.g. user-abc"
                     value={newUserId}
                     onChange={(e) => setNewUserId(e.target.value)}
-                    className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200 focus:outline-none focus:border-amber-600"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-stone-400 uppercase tracking-wider mb-1.5">
+                <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                   Display Contact Name
                 </label>
                 <input
@@ -1068,22 +1070,22 @@ function Dashboard() {
                   placeholder="e.g. Candidate Nguyen Van A"
                   value={newDisplayName}
                   onChange={(e) => setNewDisplayName(e.target.value)}
-                  className="w-full bg-stone-900 border border-stone-800 rounded-xl px-3.5 py-2.5 text-xs text-stone-200 focus:outline-none focus:border-amber-600"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-blue-600"
                 />
               </div>
 
-              <div className="pt-2 border-t border-stone-800 flex justify-end gap-2 text-xs">
+              <div className="pt-2 border-t border-gray-200 flex justify-end gap-2 text-xs">
                 <button
                   type="button"
                   onClick={() => setIsNewChatOpen(false)}
-                  className="px-4 py-2.5 border border-stone-800 text-stone-400 rounded-xl hover:bg-stone-900 transition"
+                  className="px-4 py-2.5 border border-gray-200 text-slate-500 rounded-xl hover:bg-gray-50 transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2.5 bg-amber-600 text-stone-100 rounded-xl font-semibold hover:bg-amber-500 transition disabled:opacity-50"
+                  className="px-4 py-2.5 bg-[#0068FF] text-white rounded-xl font-semibold hover:bg-blue-500 transition disabled:opacity-50"
                 >
                   {isSubmitting ? "Creating..." : "Create Chat Section"}
                 </button>
@@ -1095,19 +1097,19 @@ function Dashboard() {
 
       {/* Audit JSON inspector modal */}
       {selectedAuditForModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="bg-[#161210] border border-stone-800 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden text-stone-100">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white border border-gray-200 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden text-slate-800">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-4 border-b border-stone-800 bg-stone-950/20">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
               <div className="flex items-center gap-2">
-                <Terminal className="w-5 h-5 text-amber-500" />
-                <h3 className="font-semibold text-stone-200 font-mono text-sm">
+                <Terminal className="w-5 h-5 text-blue-600" />
+                <h3 className="font-semibold text-slate-850 font-mono text-sm">
                   {selectedAuditForModal.tool_name}
                 </h3>
               </div>
               <button
                 onClick={() => setSelectedAuditForModal(null)}
-                className="text-stone-400 hover:text-stone-200 text-sm font-semibold p-1"
+                className="text-slate-500 hover:text-slate-700 text-sm font-semibold p-1"
               >
                 Close
               </button>
@@ -1116,19 +1118,19 @@ function Dashboard() {
             {/* Modal Body */}
             <div className="p-4 overflow-y-auto space-y-4">
               <div>
-                <div className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-1">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                   Input Parameters
                 </div>
-                <code className="block p-3 rounded-xl bg-stone-950 text-stone-300 text-xs font-mono overflow-x-auto border border-stone-850 select-text">
+                <code className="block p-3 rounded-xl bg-gray-50 text-slate-700 text-xs font-mono overflow-x-auto border border-gray-150 select-text">
                   {JSON.stringify(selectedAuditForModal.input, null, 2)}
                 </code>
               </div>
               {selectedAuditForModal.output && (
                 <div>
-                  <div className="text-xs font-semibold text-stone-400 uppercase tracking-wider mb-1">
+                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
                     Output Payload
                   </div>
-                  <code className="block p-3 rounded-xl bg-stone-950 text-stone-300 text-xs font-mono overflow-x-auto border border-stone-850 select-text">
+                  <code className="block p-3 rounded-xl bg-gray-50 text-slate-700 text-xs font-mono overflow-x-auto border border-gray-150 select-text">
                     {JSON.stringify(selectedAuditForModal.output, null, 2)}
                   </code>
                 </div>
@@ -1136,10 +1138,10 @@ function Dashboard() {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-stone-800 flex justify-end">
+            <div className="p-4 border-t border-gray-200 flex justify-end">
               <button
                 onClick={() => setSelectedAuditForModal(null)}
-                className="bg-stone-800 hover:bg-stone-750 text-stone-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition"
+                className="bg-gray-100 hover:bg-gray-200 text-slate-700 px-4 py-2.5 rounded-xl text-xs font-semibold transition"
               >
                 Dismiss
               </button>
@@ -1153,7 +1155,7 @@ function Dashboard() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-stone-500 bg-[#110e0c] h-screen">Loading Zalo Simulator...</div>}>
+    <Suspense fallback={<div className="p-6 text-sm text-slate-500 bg-[#F0F2F5] h-screen">Loading Zalo Simulator...</div>}>
       <Dashboard />
     </Suspense>
   );

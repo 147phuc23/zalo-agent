@@ -44,14 +44,22 @@ const sessionCache = new Map<string, SessionContext>();
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const latestJobForConversation = new Map<string, string>();
 
+const activeAbortControllers = new Map<string, AbortController>();
+
 const worker = new Worker(
   "message.received",
   async (job) => {
     const payload = JobPayloadSchema.parse(job.data);
     latestJobForConversation.set(payload.conversationId, job.id!);
 
-    // Debounce: Wait for a short duration (2000ms) to bundle consecutive incoming messages
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const existingController = activeAbortControllers.get(payload.conversationId);
+    if (existingController) {
+      console.log(`[worker] aborting previous job for conversation ${payload.conversationId} because a newer message arrived`);
+      existingController.abort();
+    }
+
+    // Debounce: Wait for a short duration (10000ms) to bundle consecutive incoming messages
+    await new Promise((resolve) => setTimeout(resolve, 10000));
 
     if (latestJobForConversation.get(payload.conversationId) !== job.id) {
       console.log(`[worker] debounced job ${job.id} for conversation ${payload.conversationId} (newer job received)`);
@@ -61,14 +69,27 @@ const worker = new Worker(
     const mode = await resolveMode(payload.tenantId);
     if (mode === "auto") {
       try {
-        const draft = await generateDraftReply(payload.tenantId, payload.conversationId);
+        const controller = new AbortController();
+        activeAbortControllers.set(payload.conversationId, controller);
+        
+        const draft = await generateDraftReply(payload.tenantId, payload.conversationId, controller.signal);
+        
+        activeAbortControllers.delete(payload.conversationId);
+
         await appendAudit(payload.tenantId, payload.conversationId, "ai.generateDraft", {
           model: draft.model,
           responseCount: draft.responses.length,
         });
         return { ok: true, action: "auto->drafts-enqueued", responseCount: draft.responses.length };
       } catch (err) {
+        activeAbortControllers.delete(payload.conversationId);
         const message = err instanceof Error ? err.message : String(err);
+        
+        if (err instanceof Error && err.name === "AbortError") {
+          console.log(`[worker] job ${job.id} aborted mid-flight for conversation ${payload.conversationId}`);
+          return { ok: true, action: "aborted" };
+        }
+
         await appendAuditError(payload.tenantId, payload.conversationId, "ai.generateDraft", {
           error: message,
         });
@@ -146,7 +167,7 @@ async function createHumanTask(
   });
 }
 
-async function generateDraftReply(tenantId: string, conversationId: string) {
+async function generateDraftReply(tenantId: string, conversationId: string, abortSignal?: AbortSignal) {
   const now = Date.now();
   const cached = sessionCache.get(conversationId);
 
@@ -243,6 +264,7 @@ async function generateDraftReply(tenantId: string, conversationId: string) {
     mockLlm: false,
     skillMode: (process.env.HR_SKILL_MODE as HrSkillMode) || "default",
     systemPromptOverride,
+    abortSignal,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onStepFinish: async (step: any) => {
       if (!step.toolCalls || step.toolCalls.length === 0) return;

@@ -112,18 +112,18 @@ export type HrScenario = {
   threadId: string;
   externalUserId: string;
   messages: MockZaloPayload[];
-  forceProfileReload?: boolean;
 };
 
 export type HrAgentRunOptions = {
   scenario: HrScenario;
   model: string;
   useLocalCache: boolean;
-  forceProfileReload: boolean;
+  forceProfileReload?: boolean;
   printCache: boolean;
   mockLlm: boolean;
   skillMode: HrSkillMode;
   systemPromptOverride?: string;
+  abortSignal?: AbortSignal;
   onStepFinish?: (step: {
     text?: string;
     toolCalls?: unknown[];
