@@ -126,8 +126,8 @@ export type HrAgentRunOptions = {
   systemPromptOverride?: string;
   onStepFinish?: (step: {
     text?: string;
-    toolCalls?: any[];
-    toolResults?: any[];
+    toolCalls?: unknown[];
+    toolResults?: unknown[];
   }) => Promise<void> | void;
 };
 

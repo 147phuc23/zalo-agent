@@ -53,6 +53,16 @@ for (const testCase of cases) {
             mockLlm: false,
             skillMode: "mock",
         });
+        messages.push({
+            id: `${threadId}-msg-${messages.length}`,
+            tenantId,
+            channel: "zalo",
+            threadId,
+            externalUserId: "agent",
+            text: lastResult.assistantText,
+            receivedAt: new Date().toISOString(),
+            raw: { source: "test-runner-assistant" },
+        });
     }
     if (!lastResult)
         continue;

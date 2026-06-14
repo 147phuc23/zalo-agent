@@ -7,7 +7,7 @@ import { loadApiEnv } from "@platform/config";
 export class SseService implements OnModuleDestroy {
   private readonly subClient: Redis;
   private readonly pubClient: Redis;
-  private readonly eventSubject = new Subject<any>();
+  private readonly eventSubject = new Subject<unknown>();
 
   constructor() {
     const env = loadApiEnv();
@@ -34,11 +34,11 @@ export class SseService implements OnModuleDestroy {
     });
   }
 
-  getEventStream(): Observable<any> {
+  getEventStream(): Observable<unknown> {
     return this.eventSubject.asObservable();
   }
 
-  async publish(event: { type: string; payload: any }) {
+  async publish(event: { type: string; payload: unknown }) {
     await this.pubClient.publish("platform:sse", JSON.stringify(event));
   }
 

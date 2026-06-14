@@ -6,9 +6,8 @@ import type { MessageRow, ConversationRow } from "@platform/database";
 import { z } from "zod";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { OpenRouterAiClient } from "@platform/ai-client";
 import { runHrAgentScenario } from "./agent/core/runner.js";
-import type { MockZaloPayload } from "./agent/types.js";
+import type { MockZaloPayload, HrSkillMode } from "./agent/types.js";
 import { Redis } from "ioredis";
 
 const JobPayloadSchema = z.object({
@@ -21,10 +20,9 @@ loadRepoEnv();
 const env = loadWorkerEnv();
 const db = createDatabaseClient(env);
 const repos = createRepositorySet(db);
-const ai = new OpenRouterAiClient();
 const redisPublisher = new Redis(env.REDIS_URL);
 
-async function publishSseEvent(event: { type: string; payload: any }) {
+async function publishSseEvent(event: { type: string; payload: unknown }) {
   try {
     await redisPublisher.publish("platform:sse", JSON.stringify(event));
   } catch (err) {
@@ -243,11 +241,13 @@ async function generateDraftReply(tenantId: string, conversationId: string) {
     forceProfileReload: false,
     printCache: false,
     mockLlm: false,
-    skillMode: (process.env.HR_SKILL_MODE as any) || "default",
+    skillMode: (process.env.HR_SKILL_MODE as HrSkillMode) || "default",
     systemPromptOverride,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onStepFinish: async (step: any) => {
       if (!step.toolCalls || step.toolCalls.length === 0) return;
       for (const call of step.toolCalls) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const matchingResult = step.toolResults?.find((r: any) => r.toolCallId === call.toolCallId);
         const auditRow = await repos.audits.append({
           tenantId,
@@ -267,7 +267,7 @@ async function generateDraftReply(tenantId: string, conversationId: string) {
         });
       }
     },
-  } as any);
+  });
 
   const responses = parseDraftResponses(agentResult.assistantText);
   const batchId = `draft:${tenantId}:${conversationId}:${Date.now()}`;

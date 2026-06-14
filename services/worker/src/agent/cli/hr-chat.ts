@@ -161,6 +161,17 @@ try {
       });
     }
 
+    messages.push({
+      id: `interactive-${messages.length + 1}`,
+      tenantId,
+      channel: "zalo",
+      threadId,
+      externalUserId: "agent",
+      text: result.assistantText,
+      receivedAt: new Date().toISOString(),
+      raw: { source: "interactive-cli-assistant", content: result.assistantText },
+    });
+
     if (!args.machine && stdinIsTTY) {
       rl.prompt();
     }

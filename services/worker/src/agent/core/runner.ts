@@ -147,7 +147,7 @@ function buildInitialState(options: HrAgentRunOptions): HrAgentState {
     requirement: {},
     loadedSkills: [],
     history: options.scenario.messages.map((message) => ({
-      role: "user",
+      role: message.externalUserId === "agent" ? "assistant" : "user",
       content: message.text,
       createdAt: message.receivedAt || now,
       metadata: {

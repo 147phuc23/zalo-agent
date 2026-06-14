@@ -66,8 +66,18 @@ export async function runHrAgentScenario(options) {
         prompt: promptContext.prompt,
         tools,
         maxSteps: 8,
+        maxTokens: 2000,
         temperature: 0.2,
         providerOptions: providerCache.providerOptions,
+        onStepFinish: async (step) => {
+            if (options.onStepFinish) {
+                await options.onStepFinish({
+                    text: step.text,
+                    toolCalls: step.toolCalls,
+                    toolResults: step.toolResults,
+                });
+            }
+        },
     });
     const savedIntent = getIntent({
         tenantId: options.scenario.tenantId,
@@ -112,7 +122,7 @@ function buildInitialState(options) {
         requirement: {},
         loadedSkills: [],
         history: options.scenario.messages.map((message) => ({
-            role: "user",
+            role: message.externalUserId === "agent" ? "assistant" : "user",
             content: message.text,
             createdAt: message.receivedAt || now,
             metadata: {

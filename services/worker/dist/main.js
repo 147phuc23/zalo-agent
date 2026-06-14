@@ -197,31 +197,30 @@ async function generateDraftReply(tenantId, conversationId) {
         mockLlm: false,
         skillMode: process.env.HR_SKILL_MODE || "default",
         systemPromptOverride,
-    });
-    // Write all tool calls to database audits
-    for (const step of agentResult.steps) {
-        if (!step.toolCalls || step.toolCalls.length === 0)
-            continue;
-        for (const call of step.toolCalls) {
-            const matchingResult = step.toolResults?.find((r) => r.toolCallId === call.toolCallId);
-            const auditRow = await repos.audits.append({
-                tenantId,
-                conversationId,
-                runId: call.toolCallId,
-                toolName: call.toolName,
-                inputPayload: call.args,
-                outputPayload: matchingResult ? matchingResult.result : null,
-                status: matchingResult?.isError ? "error" : "ok",
-            });
-            await publishSseEvent({
-                type: "audit_created",
-                payload: {
+        onStepFinish: async (step) => {
+            if (!step.toolCalls || step.toolCalls.length === 0)
+                return;
+            for (const call of step.toolCalls) {
+                const matchingResult = step.toolResults?.find((r) => r.toolCallId === call.toolCallId);
+                const auditRow = await repos.audits.append({
+                    tenantId,
                     conversationId,
-                    audit: auditRow,
-                },
-            });
-        }
-    }
+                    runId: call.toolCallId,
+                    toolName: call.toolName,
+                    inputPayload: call.args,
+                    outputPayload: matchingResult ? matchingResult.result : null,
+                    status: matchingResult?.isError ? "error" : "ok",
+                });
+                await publishSseEvent({
+                    type: "audit_created",
+                    payload: {
+                        conversationId,
+                        audit: auditRow,
+                    },
+                });
+            }
+        },
+    });
     const responses = parseDraftResponses(agentResult.assistantText);
     const batchId = `draft:${tenantId}:${conversationId}:${Date.now()}`;
     for (const [index, response] of responses.entries()) {

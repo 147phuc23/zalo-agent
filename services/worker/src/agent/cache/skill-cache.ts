@@ -50,6 +50,7 @@ export async function loadSkillsFromDirectory(input: {
     try {
       const content = await fs.readFile(filePath, "utf-8");
       skills.push(parseSkillMarkdown({ id: skillId, filePath, content }));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       if (err.code === "ENOENT") {
         continue;

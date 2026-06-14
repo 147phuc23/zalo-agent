@@ -9,7 +9,7 @@ export function createLoadJobsTool() {
       role: z.string().optional(),
       location: z.string().optional(),
       workMode: z.enum(["remote", "hybrid", "onsite"]).optional(),
-      salaryMinVnd: z.number().int().positive().optional(),
+      salaryMinVnd: z.number().int().positive().optional().describe("Expected minimum salary in Vietnamese Dong (VND). IMPORTANT: If candidate specifies their salary expectation in USD (e.g., $2000, 2k net, 2k usd), you MUST convert it to VND by multiplying by 25,000 (e.g., 2,000 USD is 50,000,000 VND). DO NOT pass the raw USD number directly!"),
       skills: z.array(z.string()).optional(),
     }),
     execute: async (filters) => {

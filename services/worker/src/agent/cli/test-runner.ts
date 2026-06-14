@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { runHrAgentScenario } from "../core/runner.js";
 import { resetMockStore } from "../mock/store.js";
 import { allTestCases } from "../verticals/hr/test-cases/index.js";
-import type { Assertion, TestCase } from "../verticals/hr/test-cases/types.js";
+import type { Assertion } from "../verticals/hr/test-cases/types.js";
 import type { HrAgentRunResult, MockZaloPayload, HrScenario } from "../types.js";
 
 loadRepoEnv();
@@ -64,6 +64,17 @@ for (const testCase of cases) {
       printCache: false,
       mockLlm: false,
       skillMode: "mock",
+    });
+
+    messages.push({
+      id: `${threadId}-msg-${messages.length}`,
+      tenantId,
+      channel: "zalo",
+      threadId,
+      externalUserId: "agent",
+      text: lastResult.assistantText,
+      receivedAt: new Date().toISOString(),
+      raw: { source: "test-runner-assistant" },
     });
   }
 

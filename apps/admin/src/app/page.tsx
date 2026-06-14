@@ -134,6 +134,75 @@ function Dashboard() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
 
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  };
+
+  const fetchConversations = async () => {
+    try {
+      const res = await fetch("/api/inbox/conversations");
+      const data = await res.json();
+      if (data.ok && data.conversations) {
+        setConversations(data.conversations);
+      }
+    } catch (err) {
+      console.error("Failed to fetch conversations", err);
+    }
+  };
+
+  const fetchMessages = async (id: string, isSilent = false) => {
+    try {
+      const res = await fetch(`/api/inbox/conversations/${id}/messages`);
+      const data = await res.json();
+      if (data.ok && data.messages) {
+        setMessages(data.messages);
+        if (!isSilent) {
+          scrollToBottom();
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch messages", err);
+    }
+  };
+
+  const fetchAudits = async (id: string) => {
+    try {
+      const res = await fetch(`/api/conversations/${id}/audits`);
+      const data = await res.json();
+      if (data.ok && data.audits) {
+        setAudits(data.audits);
+      }
+    } catch (err) {
+      console.error("Failed to fetch audits", err);
+    }
+  };
+
+  const fetchPromptTemplates = async () => {
+    try {
+      const res = await fetch("/api/prompts?listAll=true");
+      const data = await res.json();
+      if (data.ok) {
+        setPromptVersions(data.versions ?? []);
+        const active = data.versions?.find((v: PromptVersion) => v.is_active);
+        if (active) {
+          setPromptContent(active.content);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch prompts", err);
+    }
+  };
+
+  const markAsRead = async (id: string) => {
+    try {
+      await fetch(`/api/conversations/${id}/read`, { method: "POST" });
+    } catch (err) {
+      console.error("Failed to mark as read", err);
+    }
+  };
+
   // Load conversation ID from URL params on startup
   useEffect(() => {
     const queryId = searchParams.get("id");
@@ -227,69 +296,6 @@ function Dashboard() {
   useEffect(() => {
     fetchPromptTemplates();
   }, []);
-
-  const fetchConversations = async () => {
-    try {
-      const res = await fetch("/api/inbox/conversations");
-      const data = await res.json();
-      if (data.ok && data.conversations) {
-        setConversations(data.conversations);
-      }
-    } catch (err) {
-      console.error("Failed to fetch conversations", err);
-    }
-  };
-
-  const fetchMessages = async (id: string, isSilent = false) => {
-    try {
-      const res = await fetch(`/api/inbox/conversations/${id}/messages`);
-      const data = await res.json();
-      if (data.ok && data.messages) {
-        setMessages(data.messages);
-        if (!isSilent) {
-          scrollToBottom();
-        }
-      }
-    } catch (err) {
-      console.error("Failed to fetch messages", err);
-    }
-  };
-
-  const fetchAudits = async (id: string) => {
-    try {
-      const res = await fetch(`/api/conversations/${id}/audits`);
-      const data = await res.json();
-      if (data.ok && data.audits) {
-        setAudits(data.audits);
-      }
-    } catch (err) {
-      console.error("Failed to fetch audits", err);
-    }
-  };
-
-  const fetchPromptTemplates = async () => {
-    try {
-      const res = await fetch("/api/prompts?listAll=true");
-      const data = await res.json();
-      if (data.ok) {
-        setPromptVersions(data.versions ?? []);
-        const active = data.versions?.find((v: PromptVersion) => v.is_active);
-        if (active) {
-          setPromptContent(active.content);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to fetch prompts", err);
-    }
-  };
-
-  const markAsRead = async (id: string) => {
-    try {
-      await fetch(`/api/conversations/${id}/read`, { method: "POST" });
-    } catch (err) {
-      console.error("Failed to mark as read", err);
-    }
-  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -472,25 +478,25 @@ function Dashboard() {
       content += `**Output Payload:**\n\`\`\`json\n${JSON.stringify(audit.output, null, 2)}\n\`\`\`\n\n`;
     }
 
-    const blob = new Blob([content], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `zalo_session_${selectedId.slice(0, 8)}.md`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+    const filename = `zalo_session_${selectedId.slice(0, 8)}.md`;
 
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 100);
-  };
-
-  const getUnreadCount = (convo: Conversation) => {
-    // If not selected, show count of inbound unread messages if tracked or computed
-    return messages.filter((m) => m.conversationId === convo.id && m.direction === "inbound" && !m.isRead).length;
+    fetch("/api/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, filename }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.ok) {
+          alert(`Trace successfully exported to local file:\n${data.filePath}`);
+        } else {
+          alert(`Failed to export trace: ${data.error}`);
+        }
+      })
+      .catch((err) => {
+        console.error("Export error", err);
+        alert(`Failed to export trace: ${err.message}`);
+      });
   };
 
   const filteredConversations = conversations.filter((c) => {
@@ -609,7 +615,7 @@ function Dashboard() {
       </div>
 
       {/* 2. Middle Pane: Chat Simulator View */}
-      <div className="flex-1 flex flex-col h-full bg-[#110e0c] relative">
+      <div className="flex-1 min-w-0 flex flex-col h-full bg-[#110e0c] relative">
         {activeConversation ? (
           <>
             {/* Conversation Header */}
@@ -653,13 +659,13 @@ function Dashboard() {
                       className={`flex ${isInbound ? "justify-start" : "justify-end"}`}
                     >
                       <div
-                        className={`max-w-[85%] rounded-2xl p-3 px-4 shadow-lg leading-relaxed text-sm ${
+                        className={`max-w-[70%] rounded-2xl p-3 px-4 shadow-lg leading-relaxed text-sm ${
                           isInbound
                             ? "bg-stone-900 border border-stone-800 text-stone-200 rounded-tl-sm"
                             : "bg-amber-600 text-stone-100 rounded-tr-sm"
                         }`}
                       >
-                        <div>{m.text}</div>
+                        <div className="whitespace-pre-wrap break-words">{m.text}</div>
                         <div className="flex items-center justify-end gap-1.5 mt-1 text-[10px] text-stone-400 select-none">
                           <span>
                             {new Date(m.createdAt).toLocaleTimeString([], {
@@ -695,7 +701,7 @@ function Dashboard() {
                     <div key={a.id} className="flex justify-center my-2">
                       <div
                         onClick={toggleExpand}
-                        className="max-w-[90%] w-full bg-stone-950/40 border border-dashed border-stone-850 rounded-xl p-3 cursor-pointer hover:bg-stone-950/60 transition group"
+                        className="max-w-[70%] w-full bg-stone-950/40 border border-dashed border-stone-850 rounded-xl p-3 cursor-pointer hover:bg-stone-950/60 transition group"
                       >
                         <div className="flex items-center justify-between gap-2 select-none">
                           <div className="flex items-center gap-1.5 min-w-0">

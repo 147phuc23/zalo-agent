@@ -51,6 +51,7 @@ export class IngestService {
         idempotencyKey: event.idempotencyKey,
         rawPayload: event.rawPayload as Record<string, unknown>,
       });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       // Postgres unique violation code is 23505 (idempotency key constraint)
       if (error.code === "23505") {
@@ -131,6 +132,7 @@ export class IngestService {
         errorMessage: event.errorMessage ?? null,
         providerPayload: event.rawPayload as Record<string, unknown>,
       });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       return { kind: event.kind, status: "error", error: error.message };
     }
@@ -182,6 +184,7 @@ export class IngestService {
         );
         return { kind: event.kind, status: "stored", channelAccountId: inserted.rows[0].id };
       }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       return { kind: event.kind, status: "error", error: error.message };
     }
@@ -196,6 +199,7 @@ export class IngestService {
         locale: "vi-VN",
       });
       return { ok: true };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       return { ok: false, error: error.message };
     }
@@ -222,6 +226,7 @@ export class IngestService {
       });
 
       return { ok: true, contactId: created.id };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       return { ok: false, error: error.message };
     }
@@ -251,6 +256,7 @@ export class IngestService {
       });
 
       return { ok: true, conversationId: created.id };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       return { ok: false, error: error.message };
     }

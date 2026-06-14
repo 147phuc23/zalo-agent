@@ -29,9 +29,24 @@ export function createGatherRequirementTool() {
       const years = /(\d+)\+?\s*(years|year|nam|năm)/.exec(text);
       if (years) requirement.yearsOfExperience = Number(years[1]);
 
-      const salary = /(\d{2,3})\s*(tr|triệu|m|million)/.exec(text);
-      if (salary) {
-        requirement.salaryMinVnd = Number(salary[1]) * 1_000_000;
+      const salaryVnd = /(\d{2,3})\s*(tr|triệu|m|million)/.exec(text);
+      if (salaryVnd) {
+        requirement.salaryMinVnd = Number(salaryVnd[1]) * 1_000_000;
+      } else {
+        const salaryUsd = /(\d{1,4})\s*(k|usd|\$|đô)/i.exec(text);
+        if (salaryUsd) {
+          const usdVal = Number(salaryUsd[1]);
+          const actualUsd = salaryUsd[2].toLowerCase() === "k" || usdVal < 100 ? usdVal * 1000 : usdVal;
+          requirement.salaryMinVnd = actualUsd * 25_000;
+        } else {
+          const salaryRawUsd = /\b([1-9]\d{2,3})\b/.exec(text);
+          if (salaryRawUsd) {
+            const raw = Number(salaryRawUsd[1]);
+            if (raw >= 500 && raw <= 20000) {
+              requirement.salaryMinVnd = raw * 25_000;
+            }
+          }
+        }
       }
 
       const skills = ["react", "node", "typescript", "nestjs", "python", "sql", "recruiting"]

@@ -63,7 +63,7 @@ export function mapTwentyJobPostingRecord(raw: Record<string, unknown>): JobPost
     seniority: readString(raw, RECRUITING_JOB_POSTING_FIELDS.seniority) ?? "",
     requiredSkills: splitCommaList(readString(raw, RECRUITING_JOB_POSTING_FIELDS.requiredSkills)),
     description: readString(raw, RECRUITING_JOB_POSTING_FIELDS.description) ?? "",
-    jobType: (readString(raw, RECRUITING_JOB_POSTING_FIELDS.jobType) as any) ?? undefined,
+    jobType: (readString(raw, RECRUITING_JOB_POSTING_FIELDS.jobType) as unknown as "FULL_TIME" | "PART_TIME" | "CONTRACT" | "INTERNSHIP") ?? undefined,
     experienceRequiredYears: readNumber(raw, RECRUITING_JOB_POSTING_FIELDS.experienceRequiredYears),
     benefits: readString(raw, RECRUITING_JOB_POSTING_FIELDS.benefits) ?? undefined,
     educationRequired: readString(raw, RECRUITING_JOB_POSTING_FIELDS.educationRequired) ?? undefined,
