@@ -35,7 +35,6 @@ export async function runHrAgentScenario(options) {
         loadedSkills: [],
         customerProfile: profileCache.profile,
         state,
-        latestMessages: options.scenario.messages,
     });
     if (options.mockLlm) {
         return buildMockResult({

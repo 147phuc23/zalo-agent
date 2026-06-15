@@ -12,11 +12,16 @@ import { startCvWorker } from "./agent/core/cv-extractor.js";
 import { startOutreachCampaignWorkers } from "./agent/core/outreach-engine.js";
 import type { MockZaloPayload, HrSkillMode } from "./agent/types.js";
 import { Redis } from "ioredis";
+import { generateText } from "ai";
+import { createOpenRouterChatModel } from "@platform/ai-client";
 
 const JobPayloadSchema = z.object({
   tenantId: z.string().min(1),
   conversationId: z.string().min(1),
   idempotencyKey: z.string().min(1),
+  action: z.enum(["draft", "ai-react", "ai-reply"]).optional(),
+  targetMessageId: z.string().uuid().optional(),
+  reaction: z.string().optional(),
 });
 
 loadRepoEnv();
@@ -57,6 +62,23 @@ const worker = new Worker(
   "message.received",
   async (job) => {
     const payload = JobPayloadSchema.parse(job.data);
+    const action = payload.action ?? "draft";
+
+    if (action === "ai-react") {
+      if (!payload.targetMessageId) {
+        throw new Error("Missing targetMessageId for ai-react action");
+      }
+      await handleAiReact(payload.tenantId, payload.conversationId, payload.targetMessageId, payload.reaction);
+      return { ok: true, action: "ai-react-completed" };
+    }
+
+    if (action === "ai-reply") {
+      if (!payload.targetMessageId) {
+        throw new Error("Missing targetMessageId for ai-reply action");
+      }
+      await handleAiReply(payload.tenantId, payload.conversationId, payload.targetMessageId);
+      return { ok: true, action: "ai-reply-completed" };
+    }
     latestJobForConversation.set(payload.conversationId, job.id!);
 
     const existingController = activeAbortControllers.get(payload.conversationId);
@@ -213,7 +235,12 @@ async function createHumanTask(
   });
 }
 
-async function generateDraftReply(tenantId: string, conversationId: string, abortSignal?: AbortSignal) {
+async function generateDraftReply(
+  tenantId: string,
+  conversationId: string,
+  abortSignal?: AbortSignal,
+  targetMessage?: MessageRow,
+) {
   const now = Date.now();
   const cached = sessionCache.get(conversationId);
 
@@ -292,6 +319,12 @@ async function generateDraftReply(tenantId: string, conversationId: string, abor
           responseIndex: index + 1,
           responseCount: responses.length,
           originalText: chitchatText,
+          quote: targetMessage ? {
+            msg: targetMessage.text,
+            externalMessageId: targetMessage.external_message_id,
+            id: targetMessage.id,
+            data: (targetMessage.raw_payload as any)?.data
+          } : undefined
         },
       });
       await publishSseEvent({
@@ -310,6 +343,7 @@ async function generateDraftReply(tenantId: string, conversationId: string, abor
             isRead: msgRow.is_read,
             readAt: msgRow.read_at ? new Date(msgRow.read_at).toISOString() : null,
             createdAt: new Date(msgRow.created_at).toISOString(),
+            rawPayload: msgRow.raw_payload,
           },
         },
       });
@@ -318,6 +352,7 @@ async function generateDraftReply(tenantId: string, conversationId: string, abor
         threadId: conversation.external_thread_id,
         text: response,
         idempotencyKey,
+        quote: targetMessage ? (targetMessage.raw_payload as any)?.data : undefined
       });
     }
 
@@ -402,6 +437,10 @@ async function generateDraftReply(tenantId: string, conversationId: string, abor
     }
   }
 
+  if (targetMessage) {
+    systemPromptOverride = (systemPromptOverride || "") + `\n\nIMPORTANT: The candidate has sent a message that you are replying to: "${targetMessage.text}". Make sure your response specifically and directly replies to/quotes this message.`;
+  }
+
   // Format messages for the tool-calling agent runner
   const formattedMessages: MockZaloPayload[] = messages.map((m) => ({
     id: m.id,
@@ -480,6 +519,12 @@ async function generateDraftReply(tenantId: string, conversationId: string, abor
         responseIndex: index + 1,
         responseCount: responses.length,
         originalText: agentResult.assistantText,
+        quote: targetMessage ? {
+          msg: targetMessage.text,
+          externalMessageId: targetMessage.external_message_id,
+          id: targetMessage.id,
+          data: (targetMessage.raw_payload as any)?.data
+        } : undefined
       },
     });
     await publishSseEvent({
@@ -498,6 +543,7 @@ async function generateDraftReply(tenantId: string, conversationId: string, abor
           isRead: msgRow.is_read,
           readAt: msgRow.read_at ? new Date(msgRow.read_at).toISOString() : null,
           createdAt: new Date(msgRow.created_at).toISOString(),
+          rawPayload: msgRow.raw_payload,
         },
       },
     });
@@ -506,6 +552,7 @@ async function generateDraftReply(tenantId: string, conversationId: string, abor
       threadId: conversation.external_thread_id,
       text: response,
       idempotencyKey,
+      quote: targetMessage ? (targetMessage.raw_payload as any)?.data : undefined
     });
   }
 
@@ -560,6 +607,7 @@ async function enqueueZaloMessage(input: {
   threadId: string;
   text: string;
   idempotencyKey: string;
+  quote?: any;
 }) {
   const jobId = input.idempotencyKey.replaceAll(":", "_");
   await messageSendQueue.add(
@@ -570,6 +618,7 @@ async function enqueueZaloMessage(input: {
       threadId: input.threadId,
       text: input.text,
       idempotencyKey: input.idempotencyKey,
+      quote: input.quote,
     },
     { jobId },
   );
@@ -638,4 +687,117 @@ async function appendAuditError(
       audit: auditRow,
     },
   });
+}
+
+async function handleAiReact(tenantId: string, conversationId: string, messageId: string, manualReaction?: string) {
+  // 1. Fetch target message
+  const messagesList = await repos.messages.listByConversation({ conversationId, limit: 100 });
+  const targetMessage = messagesList.find((m) => m.id === messageId);
+  if (!targetMessage) {
+    throw new Error(`Target message not found: ${messageId}`);
+  }
+
+  // 2. Load conversation
+  const conversation = await repos.conversations.findById(conversationId);
+  if (!conversation) {
+    throw new Error(`Conversation not found: ${conversationId}`);
+  }
+
+  let reactionCode = "";
+
+  if (manualReaction) {
+    reactionCode = manualReaction;
+  } else {
+    // 3. Prompt LLM to choose reaction
+    const model = conversation.override_model || (await resolveDefaultModel(tenantId)) || "google/gemini-2.5-flash";
+    const messagesContext = messagesList
+      .slice(-10) // last 10 messages for context
+      .map((m) => `${m.direction === "inbound" ? "Candidate" : "Agent"}: ${m.text}`)
+      .join("\n");
+
+    const prompt = `You are a conversation reaction helper. Based on the following chat conversation history, select the single most appropriate reaction emoji for the final message.
+  
+Conversation History:
+${messagesContext}
+
+Target Message to react to:
+"${targetMessage.text}"
+
+Select exactly ONE emoji reaction from this list:
+- HEART (love, care, heart emoji)
+- LIKE (thumbs up, agreement)
+- HAHA (funny, laugh)
+- WOW (surprised, amazed)
+- CRY (sad, sorry)
+- ANGRY (mad, frustrated)
+
+Response format:
+Respond with ONLY the exact reaction name in uppercase, e.g. "HEART" or "LIKE". Do not include any other text, punctuation, or markdown formatting.`;
+
+    console.log(`[worker] generating reaction for message ${messageId} using model ${model}`);
+    const modelInstance = createOpenRouterChatModel({ model });
+    const result = await generateText({
+      model: modelInstance as any,
+      prompt,
+      maxTokens: 10,
+      temperature: 0.1,
+    });
+
+    const responseText = result.text.trim().toUpperCase();
+    console.log(`[worker] reaction response text: ${responseText}`);
+
+    // Map to Reactions enum
+    if (responseText.includes("HEART")) reactionCode = "/-heart";
+    else if (responseText.includes("LIKE")) reactionCode = "/-strong";
+    else if (responseText.includes("HAHA")) reactionCode = ":>";
+    else if (responseText.includes("WOW")) reactionCode = ":o";
+    else if (responseText.includes("CRY")) reactionCode = ":-((";
+    else if (responseText.includes("ANGRY")) reactionCode = ":-h";
+    else reactionCode = "/-strong"; // default
+  }
+
+  // 4. Update database raw_payload
+  const rawPayload = (targetMessage.raw_payload as Record<string, any>) || {};
+  rawPayload.reactions = [
+    {
+      emoji: reactionCode,
+      sender: "agent",
+      createdAt: new Date().toISOString(),
+    }
+  ];
+  await repos.messages.updateRawPayload(messageId, rawPayload);
+
+  // 5. Publish SSE message_updated event
+  await publishSseEvent({
+    type: "message_updated",
+    payload: {
+      conversationId,
+      messageId,
+      rawPayload,
+    },
+  });
+
+  // 6. Enqueue reaction to message.send for Zalo
+  if (targetMessage.external_message_id) {
+    await messageSendQueue.add("message.send", {
+      tenantId,
+      channel: "zalo",
+      threadId: conversation.external_thread_id,
+      reaction: reactionCode,
+      targetExternalMessageId: targetMessage.external_message_id,
+      targetExternalCliMessageId: rawPayload.data?.cliMsgId || rawPayload.data?.msgId || targetMessage.external_message_id,
+    });
+  }
+}
+
+async function handleAiReply(tenantId: string, conversationId: string, messageId: string) {
+  // 1. Fetch target message
+  const messagesList = await repos.messages.listByConversation({ conversationId, limit: 100 });
+  const targetMessage = messagesList.find((m) => m.id === messageId);
+  if (!targetMessage) {
+    throw new Error(`Target message not found: ${messageId}`);
+  }
+
+  // 2. Call generateDraftReply with targetMessage
+  await generateDraftReply(tenantId, conversationId, undefined, targetMessage);
 }

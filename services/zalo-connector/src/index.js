@@ -60,7 +60,31 @@ const sendWorker = new Worker(
       return { skipped: true, reason: "tenant-mismatch" };
     }
 
-    await api.sendMessage(outbound.text, outbound.threadId, ThreadType.User);
+    if (outbound.reaction) {
+      await api.addReaction(outbound.reaction, {
+        data: {
+          msgId: String(outbound.targetExternalMessageId),
+          cliMsgId: String(outbound.targetExternalCliMessageId || outbound.targetExternalMessageId),
+        },
+        threadId: outbound.threadId,
+        type: ThreadType.User,
+      });
+      console.log(`[zalo-connector] reaction ${outbound.reaction} sent to ${outbound.targetExternalMessageId}`);
+      return { ok: true };
+    }
+
+    if (outbound.quote) {
+      await api.sendMessage(
+        {
+          msg: outbound.text,
+          quote: outbound.quote,
+        },
+        outbound.threadId,
+        ThreadType.User,
+      );
+    } else {
+      await api.sendMessage(outbound.text, outbound.threadId, ThreadType.User);
+    }
     console.log(`[zalo-connector] outbound ${outbound.threadId}: ${outbound.text}`);
     return { ok: true };
   },
@@ -150,13 +174,22 @@ function normalizeOutboundMessage(value) {
   const tenantId = readRequiredString(value, "tenantId");
   const channel = readRequiredString(value, "channel");
   const threadId = readRequiredString(value, "threadId");
-  const text = readRequiredString(value, "text");
 
   if (channel !== "zalo") {
     throw new Error(`Unsupported outbound channel: ${channel}`);
   }
 
-  return { tenantId, channel, threadId, text };
+  if (value.reaction) {
+    const reaction = readRequiredString(value, "reaction");
+    const targetExternalMessageId = readRequiredString(value, "targetExternalMessageId");
+    const targetExternalCliMessageId = value.targetExternalCliMessageId ? String(value.targetExternalCliMessageId) : undefined;
+    return { tenantId, channel, threadId, reaction, targetExternalMessageId, targetExternalCliMessageId };
+  }
+
+  const text = readRequiredString(value, "text");
+  const quote = value.quote;
+
+  return { tenantId, channel, threadId, text, quote };
 }
 
 function readRequiredString(value, key) {

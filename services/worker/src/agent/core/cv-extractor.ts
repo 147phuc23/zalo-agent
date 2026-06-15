@@ -41,7 +41,7 @@ export async function extractCvData(
   if (fileName.toLowerCase().includes("frontend") || fileUrl.includes("frontend")) {
     return {
       displayName: "Nguyễn Văn Frontend",
-      phone: "0901234567",
+      phone: "+84901234567",
       email: "frontend@example.com",
       location: "Hồ Chí Minh",
       yearsOfExperience: 3,
@@ -56,7 +56,7 @@ export async function extractCvData(
   if (fileName.toLowerCase().includes("backend") || fileUrl.includes("backend")) {
     return {
       displayName: "Trần Văn Backend",
-      phone: "0987654321",
+      phone: "+84987654321",
       email: "backend@example.com",
       location: "Hà Nội",
       yearsOfExperience: 5,

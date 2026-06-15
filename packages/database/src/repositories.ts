@@ -364,6 +364,24 @@ export function createMessageRepository(client: DatabaseClient) {
         [conversationId]
       );
     },
+    async findById(id: string): Promise<MessageRow | null> {
+      const res = await client.query(
+        `SELECT id, tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, raw_payload, is_read, read_at, created_at 
+         FROM messages 
+         WHERE id = $1 
+         LIMIT 1`,
+        [id]
+      );
+      return (res.rows[0] as MessageRow) || null;
+    },
+    async updateRawPayload(id: string, rawPayload: Record<string, unknown>): Promise<void> {
+      await client.query(
+        `UPDATE messages 
+         SET raw_payload = $1 
+         WHERE id = $2`,
+        [JSON.stringify(rawPayload), id]
+      );
+    },
   };
 }
 

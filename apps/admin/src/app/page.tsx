@@ -21,6 +21,10 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  Paperclip,
+  Smile,
+  CornerUpLeft,
+  Loader2,
 } from "lucide-react";
 
 type Conversation = {
@@ -48,6 +52,7 @@ type Message = {
   isRead: boolean;
   readAt: string | null;
   createdAt: string;
+  rawPayload?: any;
 };
 
 type Audit = {
@@ -100,6 +105,15 @@ const AVAILABLE_MODELS = [
   { id: "openrouter/owl-alpha", name: "OpenRouter Owl Alpha (Default)" },
 ];
 
+const EMOJI_OPTIONS = [
+  { emoji: "❤️", code: "/-heart", label: "Heart" },
+  { emoji: "👍", code: "/-strong", label: "Like" },
+  { emoji: "😂", code: ":>", label: "Haha" },
+  { emoji: "😮", code: ":o", label: "Wow" },
+  { emoji: "😢", code: ":-((", label: "Cry" },
+  { emoji: "😡", code: ":-h", label: "Angry" },
+];
+
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -132,7 +146,9 @@ function Dashboard() {
   const [selectedPresetIndex, setSelectedPresetIndex] = useState<number>(-1);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const searchParams = useSearchParams();
+  const [isUploadingCv, setIsUploadingCv] = useState(false);
 
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -275,6 +291,16 @@ function Dashboard() {
               return [...prev, data.payload.audit];
             });
           }
+        } else if (data.type === "message_updated") {
+          if (data.payload.conversationId === selectedId) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === data.payload.messageId
+                  ? { ...m, rawPayload: data.payload.rawPayload }
+                  : m
+              )
+            );
+          }
         } else if (data.type === "conversation_updated") {
           fetchConversations();
         }
@@ -296,6 +322,146 @@ function Dashboard() {
   useEffect(() => {
     fetchPromptTemplates();
   }, []);
+
+  const [activeActions, setActiveActions] = useState<Record<string, "reacting" | "replying" | null>>({});
+  const [activeReactionPickerMessageId, setActiveReactionPickerMessageId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      setActiveReactionPickerMessageId(null);
+    };
+    window.addEventListener("click", handleGlobalClick);
+    return () => {
+      window.removeEventListener("click", handleGlobalClick);
+    };
+  }, []);
+
+  const handleManualReactClick = async (messageId: string, reactionCode: string) => {
+    if (!selectedId) return;
+    setActiveReactionPickerMessageId(null);
+    setActiveActions((prev) => ({ ...prev, [messageId]: "reacting" }));
+    try {
+      const res = await fetch(`/api/conversations/${selectedId}/messages/${messageId}/ai-react`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ reaction: reactionCode }),
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        console.error("Failed to apply manual reaction:", data.error);
+      }
+    } catch (err) {
+      console.error("Error applying manual reaction:", err);
+    } finally {
+      setActiveActions((prev) => ({ ...prev, [messageId]: null }));
+    }
+  };
+
+  const handleAiReactClick = async (messageId: string) => {
+    if (!selectedId) return;
+    setActiveReactionPickerMessageId(null);
+    setActiveActions((prev) => ({ ...prev, [messageId]: "reacting" }));
+    try {
+      const res = await fetch(`/api/conversations/${selectedId}/messages/${messageId}/ai-react`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        console.error("Failed to trigger AI react:", data.error);
+      }
+    } catch (err) {
+      console.error("Error triggering AI react:", err);
+    } finally {
+      setActiveActions((prev) => ({ ...prev, [messageId]: null }));
+    }
+  };
+
+  const handleAiReplyClick = async (messageId: string) => {
+    if (!selectedId) return;
+    setActiveActions((prev) => ({ ...prev, [messageId]: "replying" }));
+    try {
+      const res = await fetch(`/api/conversations/${selectedId}/messages/${messageId}/ai-reply`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        console.error("Failed to trigger AI reply:", data.error);
+      }
+    } catch (err) {
+      console.error("Error triggering AI reply:", err);
+    } finally {
+      setActiveActions((prev) => ({ ...prev, [messageId]: null }));
+    }
+  };
+
+  const renderActionButtons = (m: Message) => {
+    const isReacting = activeActions[m.id] === "reacting";
+    const isReplying = activeActions[m.id] === "replying";
+    const isDisabled = !!activeActions[m.id];
+
+    return (
+      <>
+        <div className="relative flex items-center" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveReactionPickerMessageId(activeReactionPickerMessageId === m.id ? null : m.id);
+            }}
+            disabled={isDisabled}
+            className="p-1.5 rounded-full bg-white border border-gray-200 text-gray-500 hover:text-blue-600 hover:bg-gray-50 transition shadow-sm disabled:opacity-50"
+            title="React to Message"
+          >
+            {isReacting ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Smile className="w-3.5 h-3.5" />
+            )}
+          </button>
+
+          {activeReactionPickerMessageId === m.id && (
+            <div
+              className={`absolute bottom-full mb-2 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 flex items-center gap-1.5 ${
+                m.direction === "inbound" ? "left-0" : "right-0"
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {EMOJI_OPTIONS.map((opt) => (
+                <button
+                  key={opt.code}
+                  onClick={() => handleManualReactClick(m.id, opt.code)}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-sm transition"
+                  title={opt.label}
+                >
+                  {opt.emoji}
+                </button>
+              ))}
+              <div className="w-px h-5 bg-gray-200 mx-0.5" />
+              <button
+                onClick={() => handleAiReactClick(m.id)}
+                className="px-2 py-1 flex items-center gap-1 rounded-lg hover:bg-blue-50 text-blue-600 text-xs font-semibold transition whitespace-nowrap"
+                title="Let AI React"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>AI</span>
+              </button>
+            </div>
+          )}
+        </div>
+        <button
+          onClick={() => handleAiReplyClick(m.id)}
+          disabled={isDisabled}
+          className="p-1.5 rounded-full bg-white border border-gray-200 text-gray-500 hover:text-blue-600 hover:bg-gray-50 transition shadow-sm disabled:opacity-50"
+          title="Let AI Reply"
+        >
+          {isReplying ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <CornerUpLeft className="w-3.5 h-3.5" />
+          )}
+        </button>
+      </>
+    );
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -338,6 +504,73 @@ function Dashboard() {
       });
     } catch (err) {
       console.error("Failed to send message", err);
+    }
+  };
+
+  const handleUploadCvClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedId) return;
+
+    const currentConvo = conversations.find((c) => c.id === selectedId);
+    if (!currentConvo) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    setIsUploadingCv(true);
+    try {
+      // Optimistically add message
+      const optimisticMsg: Message = {
+        id: `optimistic-file-${Date.now()}`,
+        tenantId: currentConvo.tenantId,
+        conversationId: selectedId,
+        direction: "inbound",
+        messageType: "file",
+        text: `Uploaded CV: ${file.name}`,
+        externalMessageId: null,
+        idempotencyKey: `optimistic-key-${Date.now()}`,
+        isRead: true,
+        readAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        rawPayload: {
+          attachments: [
+            {
+              type: "file",
+              url: "", // will be set by server
+              name: file.name,
+              mimeType: file.type,
+              sizeBytes: file.size,
+            }
+          ]
+        }
+      };
+      setMessages((prev) => [...prev, optimisticMsg]);
+      scrollToBottom();
+
+      const res = await fetch(`/api/conversations/${selectedId}/cv`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        console.error("Failed to upload CV:", data.error);
+      } else {
+        // Refresh messages after brief delay
+        setTimeout(() => {
+          fetchMessages(selectedId, true);
+        }, 1000);
+      }
+    } catch (err) {
+      console.error("Failed to upload CV", err);
+    } finally {
+      setIsUploadingCv(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -653,19 +886,82 @@ function Dashboard() {
                 if (item.type === "message") {
                   const m = item.data;
                   const isInbound = m.direction === "inbound";
+                  const isFile = m.messageType === "file";
+                  const attachments = m.rawPayload?.attachments || [];
+                  const fileAttachment = attachments.find((a: any) => a.type === "file");
                   return (
                     <div
                       key={m.id}
-                      className={`flex ${isInbound ? "justify-start" : "justify-end"}`}
+                      className={`flex items-center gap-2 group/msg ${isInbound ? "justify-start" : "justify-end"}`}
                     >
+                      {!isInbound && (
+                        <div className="opacity-0 group-hover/msg:opacity-100 transition-opacity flex gap-1.5 flex-shrink-0">
+                          {renderActionButtons(m)}
+                        </div>
+                      )}
                       <div
-                        className={`max-w-[70%] rounded-2xl p-3 px-4 shadow-sm leading-relaxed text-sm ${
+                        className={`max-w-[70%] rounded-2xl p-3 px-4 shadow-sm leading-relaxed text-sm relative ${
                           isInbound
                             ? "bg-white border border-gray-200 text-slate-800 rounded-tl-sm"
                             : "bg-[#0068FF] text-white rounded-tr-sm"
                         }`}
                       >
-                        <div className="whitespace-pre-wrap break-words">{m.text}</div>
+                        {m.rawPayload?.quote && (
+                          <div className={`p-2 mb-2 text-xs rounded border-l-4 font-normal ${
+                            isInbound
+                              ? "bg-gray-105 bg-gray-100 border-gray-400 text-slate-650"
+                              : "bg-blue-600/50 border-white text-blue-100"
+                          }`}>
+                            <div className="font-semibold text-[10px] uppercase">Replying to:</div>
+                            <div className="truncate">{m.rawPayload.quote.msg || m.rawPayload.quote.text}</div>
+                          </div>
+                        )}
+                        {isFile && fileAttachment ? (
+                          <div className="flex items-center gap-3 py-1">
+                            <FileText className={`w-8 h-8 ${isInbound ? "text-blue-600" : "text-blue-200"}`} />
+                            <div className="min-w-0">
+                              <p className={`font-semibold truncate text-xs ${isInbound ? "text-slate-800" : "text-white"}`}>
+                                {fileAttachment.name || "Attached CV"}
+                              </p>
+                              {fileAttachment.sizeBytes && (
+                                <p className={`text-[10px] ${isInbound ? "text-slate-500" : "text-blue-200"}`}>
+                                  {Math.round(fileAttachment.sizeBytes / 1024)} KB
+                                </p>
+                              )}
+                              <a
+                                href={fileAttachment.url || "#"}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`text-[11px] font-bold underline mt-1 block ${
+                                  isInbound ? "text-[#0068FF] hover:text-blue-700" : "text-white hover:text-blue-100"
+                                }`}
+                              >
+                                View / Download CV
+                              </a>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="whitespace-pre-wrap break-words">{m.text}</div>
+                        )}
+                        {m.rawPayload?.reactions && m.rawPayload.reactions.length > 0 && (
+                          <div className={`flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-xs w-fit shadow-xs ${
+                            isInbound
+                              ? "bg-gray-50 border border-gray-150 text-slate-600"
+                              : "bg-blue-700 text-blue-100"
+                          }`}>
+                            {m.rawPayload.reactions.map((r: any, idx: number) => {
+                              let emojiChar = "❤️";
+                              if (r.emoji === "/-strong") emojiChar = "👍";
+                              else if (r.emoji === ":>") emojiChar = "😂";
+                              else if (r.emoji === ":o") emojiChar = "😮";
+                              else if (r.emoji === ":-((") emojiChar = "😢";
+                              else if (r.emoji === ":-h") emojiChar = "😡";
+                              else if (r.emoji === "/-heart") emojiChar = "❤️";
+                              else emojiChar = r.emoji;
+                              return <span key={idx} title={r.emoji}>{emojiChar}</span>;
+                            })}
+                          </div>
+                        )}
                         <div className={`flex items-center justify-end gap-1.5 mt-1 text-[10px] select-none ${
                           isInbound ? "text-gray-400" : "text-blue-100"
                         }`}>
@@ -684,6 +980,11 @@ function Dashboard() {
                           )}
                         </div>
                       </div>
+                      {isInbound && (
+                        <div className="opacity-0 group-hover/msg:opacity-100 transition-opacity flex gap-1.5 flex-shrink-0">
+                          {renderActionButtons(m)}
+                        </div>
+                      )}
                     </div>
                   );
                 } else {
@@ -787,7 +1088,27 @@ function Dashboard() {
 
             {/* Inbound Send Box (Simulates Candidate typing) */}
             <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200 bg-white">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".pdf,.doc,.docx"
+                className="hidden"
+              />
               <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleUploadCvClick}
+                  disabled={isUploadingCv}
+                  className="bg-gray-100 hover:bg-gray-200 active:bg-gray-300 disabled:bg-gray-50 text-slate-600 px-3.5 rounded-xl flex items-center justify-center transition border border-gray-200"
+                  title="Attach CV File"
+                >
+                  {isUploadingCv ? (
+                    <div className="w-4 h-4 border-2 border-slate-600 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Paperclip className="w-4 h-4" />
+                  )}
+                </button>
                 <input
                   type="text"
                   placeholder="Type a simulated message bubble as Candidate..."

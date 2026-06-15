@@ -6,6 +6,7 @@ import { loadApiEnv } from "@platform/config";
 import { InboxQueryService } from "../services/inbox-query.service.js";
 import { PostgresService } from "../services/postgres.service.js";
 import { SseService } from "../services/sse.service.js";
+import { QueueService } from "../services/queue.service.js";
 
 const ConversationsQuerySchema = z.object({
   tenantId: z.string().uuid(),
@@ -38,6 +39,7 @@ export class InternalInboxController {
     @Inject(InboxQueryService) private readonly inboxQueryService: InboxQueryService,
     @Inject(PostgresService) private readonly postgres: PostgresService,
     @Inject(SseService) private readonly sseService: SseService,
+    @Inject(QueueService) private readonly queueService: QueueService,
   ) {}
 
   @Sse("/internal/sse")
@@ -183,6 +185,52 @@ export class InternalInboxController {
       { id: "openrouter/owl-alpha", name: "OpenRouter Owl Alpha (Default)" }
     ];
     return { ok: true, models };
+  }
+
+  @Post("/internal/conversations/:conversationId/messages/:messageId/ai-react")
+  async aiReact(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("conversationId") conversationId: string,
+    @Param("messageId") messageId: string,
+    @Body() body: any,
+  ) {
+    assertAuthorized(authorization);
+    const conversation = await this.postgres.repos.conversations.findById(conversationId);
+    if (!conversation) {
+      throw new Error(`Conversation not found: ${conversationId}`);
+    }
+    const idempotencyKey = `ai-react:${conversationId}:${messageId}:${Date.now()}`;
+    await this.queueService.enqueueMessageReceived({
+      tenantId: conversation.tenant_id,
+      conversationId,
+      idempotencyKey,
+      action: "ai-react",
+      targetMessageId: messageId,
+      reaction: body?.reaction,
+    });
+    return { ok: true, enqueued: true };
+  }
+
+  @Post("/internal/conversations/:conversationId/messages/:messageId/ai-reply")
+  async aiReply(
+    @Headers("authorization") authorization: string | undefined,
+    @Param("conversationId") conversationId: string,
+    @Param("messageId") messageId: string,
+  ) {
+    assertAuthorized(authorization);
+    const conversation = await this.postgres.repos.conversations.findById(conversationId);
+    if (!conversation) {
+      throw new Error(`Conversation not found: ${conversationId}`);
+    }
+    const idempotencyKey = `ai-reply:${conversationId}:${messageId}:${Date.now()}`;
+    await this.queueService.enqueueMessageReceived({
+      tenantId: conversation.tenant_id,
+      conversationId,
+      idempotencyKey,
+      action: "ai-reply",
+      targetMessageId: messageId,
+    });
+    return { ok: true, enqueued: true };
   }
 }
 

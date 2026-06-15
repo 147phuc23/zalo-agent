@@ -18,6 +18,7 @@ import { loadApiEnv } from "@platform/config";
 import { InboxQueryService } from "../services/inbox-query.service.js";
 import { PostgresService } from "../services/postgres.service.js";
 import { SseService } from "../services/sse.service.js";
+import { QueueService } from "../services/queue.service.js";
 const ConversationsQuerySchema = z.object({
     tenantId: z.string().uuid(),
     limit: z.coerce.number().int().positive().max(100).default(20),
@@ -42,10 +43,12 @@ let InternalInboxController = class InternalInboxController {
     inboxQueryService;
     postgres;
     sseService;
-    constructor(inboxQueryService, postgres, sseService) {
+    queueService;
+    constructor(inboxQueryService, postgres, sseService, queueService) {
         this.inboxQueryService = inboxQueryService;
         this.postgres = postgres;
         this.sseService = sseService;
+        this.queueService = queueService;
     }
     streamEvents(authorization) {
         assertAuthorized(authorization);
@@ -144,6 +147,39 @@ let InternalInboxController = class InternalInboxController {
         ];
         return { ok: true, models };
     }
+    async aiReact(authorization, conversationId, messageId, body) {
+        assertAuthorized(authorization);
+        const conversation = await this.postgres.repos.conversations.findById(conversationId);
+        if (!conversation) {
+            throw new Error(`Conversation not found: ${conversationId}`);
+        }
+        const idempotencyKey = `ai-react:${conversationId}:${messageId}:${Date.now()}`;
+        await this.queueService.enqueueMessageReceived({
+            tenantId: conversation.tenant_id,
+            conversationId,
+            idempotencyKey,
+            action: "ai-react",
+            targetMessageId: messageId,
+            reaction: body?.reaction,
+        });
+        return { ok: true, enqueued: true };
+    }
+    async aiReply(authorization, conversationId, messageId) {
+        assertAuthorized(authorization);
+        const conversation = await this.postgres.repos.conversations.findById(conversationId);
+        if (!conversation) {
+            throw new Error(`Conversation not found: ${conversationId}`);
+        }
+        const idempotencyKey = `ai-reply:${conversationId}:${messageId}:${Date.now()}`;
+        await this.queueService.enqueueMessageReceived({
+            tenantId: conversation.tenant_id,
+            conversationId,
+            idempotencyKey,
+            action: "ai-reply",
+            targetMessageId: messageId,
+        });
+        return { ok: true, enqueued: true };
+    }
 };
 __decorate([
     Sse("/internal/sse"),
@@ -209,14 +245,35 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], InternalInboxController.prototype, "listModels", null);
+__decorate([
+    Post("/internal/conversations/:conversationId/messages/:messageId/ai-react"),
+    __param(0, Headers("authorization")),
+    __param(1, Param("conversationId")),
+    __param(2, Param("messageId")),
+    __param(3, Body()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String, Object]),
+    __metadata("design:returntype", Promise)
+], InternalInboxController.prototype, "aiReact", null);
+__decorate([
+    Post("/internal/conversations/:conversationId/messages/:messageId/ai-reply"),
+    __param(0, Headers("authorization")),
+    __param(1, Param("conversationId")),
+    __param(2, Param("messageId")),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:returntype", Promise)
+], InternalInboxController.prototype, "aiReply", null);
 InternalInboxController = __decorate([
     Controller(),
     __param(0, Inject(InboxQueryService)),
     __param(1, Inject(PostgresService)),
     __param(2, Inject(SseService)),
+    __param(3, Inject(QueueService)),
     __metadata("design:paramtypes", [InboxQueryService,
         PostgresService,
-        SseService])
+        SseService,
+        QueueService])
 ], InternalInboxController);
 export { InternalInboxController };
 function assertAuthorized(value) {

@@ -32,9 +32,11 @@ export function createLoadJobsTool() {
             })
                 .filter((job) => job.score > 0)
                 .sort((a, b) => b.score - a.score);
+            // Strip salary fields so the LLM cannot leak them
+            const redactedJobs = matches.map(({ salaryMaxVnd: _max, salaryMinVnd: _min, ...rest }) => rest);
             return {
                 filtersApplied: filters,
-                jobs: matches,
+                jobs: redactedJobs,
             };
         },
     });

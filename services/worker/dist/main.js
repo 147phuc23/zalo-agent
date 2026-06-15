@@ -6,11 +6,19 @@ import { z } from "zod";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runHrAgentScenario } from "./agent/core/runner.js";
+import { classifyIntent, generateChitchatReply } from "./agent/core/router.js";
+import { startCvWorker } from "./agent/core/cv-extractor.js";
+import { startOutreachCampaignWorkers } from "./agent/core/outreach-engine.js";
 import { Redis } from "ioredis";
+import { generateText } from "ai";
+import { createOpenRouterChatModel } from "@platform/ai-client";
 const JobPayloadSchema = z.object({
     tenantId: z.string().min(1),
     conversationId: z.string().min(1),
     idempotencyKey: z.string().min(1),
+    action: z.enum(["draft", "ai-react", "ai-reply"]).optional(),
+    targetMessageId: z.string().uuid().optional(),
+    reaction: z.string().optional(),
 });
 loadRepoEnv();
 const env = loadWorkerEnv();
@@ -28,12 +36,30 @@ async function publishSseEvent(event) {
 const messageSendQueue = new Queue("message.send", {
     connection: { url: env.REDIS_URL },
 });
+const cvUploadedQueue = new Queue("cv.uploaded", {
+    connection: { url: env.REDIS_URL },
+});
 const sessionCache = new Map();
 const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 const latestJobForConversation = new Map();
 const activeAbortControllers = new Map();
 const worker = new Worker("message.received", async (job) => {
     const payload = JobPayloadSchema.parse(job.data);
+    const action = payload.action ?? "draft";
+    if (action === "ai-react") {
+        if (!payload.targetMessageId) {
+            throw new Error("Missing targetMessageId for ai-react action");
+        }
+        await handleAiReact(payload.tenantId, payload.conversationId, payload.targetMessageId, payload.reaction);
+        return { ok: true, action: "ai-react-completed" };
+    }
+    if (action === "ai-reply") {
+        if (!payload.targetMessageId) {
+            throw new Error("Missing targetMessageId for ai-reply action");
+        }
+        await handleAiReply(payload.tenantId, payload.conversationId, payload.targetMessageId);
+        return { ok: true, action: "ai-reply-completed" };
+    }
     latestJobForConversation.set(payload.conversationId, job.id);
     const existingController = activeAbortControllers.get(payload.conversationId);
     if (existingController) {
@@ -98,6 +124,37 @@ worker.on("failed", (job, err) => {
     console.error("[worker] failed", job?.id, err);
 });
 console.log("[worker] started");
+const cvWorker = startCvWorker({
+    redisUrl: env.REDIS_URL,
+    repos,
+    redisPublisher,
+    messageSendQueue,
+});
+cvWorker.on("completed", (job) => {
+    console.log("[cv-worker] completed", job.id);
+});
+cvWorker.on("failed", (job, err) => {
+    console.error("[cv-worker] failed", job?.id, err);
+});
+const outreachWorkers = startOutreachCampaignWorkers({
+    redisUrl: env.REDIS_URL,
+    db,
+    repos,
+    redisPublisher,
+    messageSendQueue,
+});
+outreachWorkers.followupWorker.on("completed", (job) => {
+    console.log("[outreach-followup-worker] completed", job.id);
+});
+outreachWorkers.followupWorker.on("failed", (job, err) => {
+    console.error("[outreach-followup-worker] failed", job?.id, err);
+});
+outreachWorkers.campaignWorker.on("completed", (job) => {
+    console.log("[outreach-campaign-worker] completed", job.id);
+});
+outreachWorkers.campaignWorker.on("failed", (job, err) => {
+    console.error("[outreach-campaign-worker] failed", job?.id, err);
+});
 function loadRepoEnv() {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
@@ -124,7 +181,7 @@ async function createHumanTask(tenantId, conversationId, type, payload) {
         payload,
     });
 }
-async function generateDraftReply(tenantId, conversationId, abortSignal) {
+async function generateDraftReply(tenantId, conversationId, abortSignal, targetMessage) {
     const now = Date.now();
     const cached = sessionCache.get(conversationId);
     let messages;
@@ -165,6 +222,127 @@ async function generateDraftReply(tenantId, conversationId, abortSignal) {
     const overrideModel = conversation.override_model;
     const defaultModel = (await resolveDefaultModel(tenantId)) ?? "openrouter/owl-alpha";
     const model = overrideModel || defaultModel;
+    const classifierModel = (await resolveClassifierModel(tenantId)) ?? "openrouter/owl-alpha";
+    const routerMessages = messages.map((m) => ({
+        role: m.direction === "inbound" ? "user" : "assistant",
+        content: m.text ?? "",
+    }));
+    const classification = await classifyIntent(routerMessages, classifierModel);
+    console.log(`[worker] classification result for conversation ${conversationId}: ${classification.category} (reason: ${classification.reason})`);
+    if (classification.category === "CHITCHAT") {
+        const chitchatText = await generateChitchatReply(routerMessages, classifierModel);
+        const responses = parseDraftResponses(chitchatText);
+        const batchId = `draft:${tenantId}:${conversationId}:${Date.now()}`;
+        for (const [index, response] of responses.entries()) {
+            const idempotencyKey = `${batchId}:${index + 1}`;
+            const msgRow = await repos.messages.createOutbound({
+                tenantId,
+                conversationId,
+                messageType: "text",
+                text: response,
+                externalMessageId: null,
+                idempotencyKey,
+                rawPayload: {
+                    kind: "chitchat",
+                    model: classifierModel,
+                    responseIndex: index + 1,
+                    responseCount: responses.length,
+                    originalText: chitchatText,
+                    quote: targetMessage ? {
+                        msg: targetMessage.text,
+                        externalMessageId: targetMessage.external_message_id,
+                        id: targetMessage.id,
+                        data: targetMessage.raw_payload?.data
+                    } : undefined
+                },
+            });
+            await publishSseEvent({
+                type: "message_created",
+                payload: {
+                    conversationId,
+                    message: {
+                        id: msgRow.id,
+                        tenantId: msgRow.tenant_id,
+                        conversationId: msgRow.conversation_id,
+                        direction: msgRow.direction,
+                        messageType: msgRow.message_type,
+                        text: msgRow.text,
+                        externalMessageId: msgRow.external_message_id,
+                        idempotencyKey: msgRow.idempotency_key,
+                        isRead: msgRow.is_read,
+                        readAt: msgRow.read_at ? new Date(msgRow.read_at).toISOString() : null,
+                        createdAt: new Date(msgRow.created_at).toISOString(),
+                        rawPayload: msgRow.raw_payload,
+                    },
+                },
+            });
+            await enqueueZaloMessage({
+                tenantId,
+                threadId: conversation.external_thread_id,
+                text: response,
+                idempotencyKey,
+                quote: targetMessage ? targetMessage.raw_payload?.data : undefined
+            });
+        }
+        return { text: chitchatText, model: classifierModel, responses };
+    }
+    // Check if latest message is a file/resume upload
+    const latestMessage = messages[messages.length - 1];
+    const isFile = latestMessage?.message_type === "file";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const attachments = latestMessage?.raw_payload?.attachments || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fileAttachment = attachments.find((a) => a.type === "file");
+    if (isFile && fileAttachment) {
+        console.log(`[worker] detected file upload in conversation ${conversationId}. Enqueueing to cv.uploaded...`);
+        await cvUploadedQueue.add("cv.extract", {
+            tenantId,
+            conversationId,
+            externalUserId,
+            fileUrl: fileAttachment.url,
+            fileName: fileAttachment.name,
+            mimeType: fileAttachment.mimeType,
+            sizeBytes: fileAttachment.sizeBytes,
+        });
+        const ackText = "Mình đã nhận được CV của bạn. Hệ thống đang tiến hành xử lý và trích xuất thông tin. Mình sẽ phản hồi lại ngay sau khi hoàn tất nhé! ⏳";
+        const batchId = `cv_ack:${tenantId}:${conversationId}:${Date.now()}`;
+        const idempotencyKey = `${batchId}:1`;
+        const msgRow = await repos.messages.createOutbound({
+            tenantId,
+            conversationId,
+            messageType: "text",
+            text: ackText,
+            externalMessageId: null,
+            idempotencyKey,
+            rawPayload: { kind: "cv_ack" },
+        });
+        await publishSseEvent({
+            type: "message_created",
+            payload: {
+                conversationId,
+                message: {
+                    id: msgRow.id,
+                    tenantId: msgRow.tenant_id,
+                    conversationId: msgRow.conversation_id,
+                    direction: msgRow.direction,
+                    messageType: msgRow.message_type,
+                    text: msgRow.text,
+                    externalMessageId: msgRow.external_message_id,
+                    idempotencyKey: msgRow.idempotency_key,
+                    isRead: msgRow.is_read,
+                    readAt: msgRow.read_at ? new Date(msgRow.read_at).toISOString() : null,
+                    createdAt: new Date(msgRow.created_at).toISOString(),
+                },
+            },
+        });
+        await enqueueZaloMessage({
+            tenantId,
+            threadId: conversation.external_thread_id,
+            text: ackText,
+            idempotencyKey,
+        });
+        return { text: ackText, model: "system", responses: [ackText] };
+    }
     let systemPromptOverride;
     const dbPrompt = await repos.prompts.findActive({ tenantId, key: "assistant" });
     if (dbPrompt) {
@@ -177,6 +355,9 @@ async function generateDraftReply(tenantId, conversationId, abortSignal) {
         for (const [k, v] of Object.entries(variables)) {
             systemPromptOverride = systemPromptOverride.replaceAll(`{{${k}}}`, v);
         }
+    }
+    if (targetMessage) {
+        systemPromptOverride = (systemPromptOverride || "") + `\n\nIMPORTANT: The candidate has sent a message that you are replying to: "${targetMessage.text}". Make sure your response specifically and directly replies to/quotes this message.`;
     }
     // Format messages for the tool-calling agent runner
     const formattedMessages = messages.map((m) => ({
@@ -253,6 +434,12 @@ async function generateDraftReply(tenantId, conversationId, abortSignal) {
                 responseIndex: index + 1,
                 responseCount: responses.length,
                 originalText: agentResult.assistantText,
+                quote: targetMessage ? {
+                    msg: targetMessage.text,
+                    externalMessageId: targetMessage.external_message_id,
+                    id: targetMessage.id,
+                    data: targetMessage.raw_payload?.data
+                } : undefined
             },
         });
         await publishSseEvent({
@@ -271,6 +458,7 @@ async function generateDraftReply(tenantId, conversationId, abortSignal) {
                     isRead: msgRow.is_read,
                     readAt: msgRow.read_at ? new Date(msgRow.read_at).toISOString() : null,
                     createdAt: new Date(msgRow.created_at).toISOString(),
+                    rawPayload: msgRow.raw_payload,
                 },
             },
         });
@@ -279,6 +467,7 @@ async function generateDraftReply(tenantId, conversationId, abortSignal) {
             threadId: conversation.external_thread_id,
             text: response,
             idempotencyKey,
+            quote: targetMessage ? targetMessage.raw_payload?.data : undefined
         });
     }
     return { text: agentResult.assistantText, model, responses };
@@ -328,6 +517,7 @@ async function enqueueZaloMessage(input) {
         threadId: input.threadId,
         text: input.text,
         idempotencyKey: input.idempotencyKey,
+        quote: input.quote,
     }, { jobId });
 }
 const DraftResponsesSchema = z.union([
@@ -339,6 +529,10 @@ const DraftResponsesSchema = z.union([
 async function resolveDefaultModel(tenantId) {
     const workflow = await repos.workflows.findLatestByTenant(tenantId);
     return workflow?.default_model ?? null;
+}
+async function resolveClassifierModel(tenantId) {
+    const workflow = await repos.workflows.findLatestByTenant(tenantId);
+    return workflow?.classifier_model ?? null;
 }
 async function appendAudit(tenantId, conversationId, toolName, output) {
     const auditRow = await repos.audits.append({
@@ -375,4 +569,112 @@ async function appendAuditError(tenantId, conversationId, toolName, output) {
             audit: auditRow,
         },
     });
+}
+async function handleAiReact(tenantId, conversationId, messageId, manualReaction) {
+    // 1. Fetch target message
+    const messagesList = await repos.messages.listByConversation({ conversationId, limit: 100 });
+    const targetMessage = messagesList.find((m) => m.id === messageId);
+    if (!targetMessage) {
+        throw new Error(`Target message not found: ${messageId}`);
+    }
+    // 2. Load conversation
+    const conversation = await repos.conversations.findById(conversationId);
+    if (!conversation) {
+        throw new Error(`Conversation not found: ${conversationId}`);
+    }
+    let reactionCode = "";
+    if (manualReaction) {
+        reactionCode = manualReaction;
+    }
+    else {
+        // 3. Prompt LLM to choose reaction
+        const model = conversation.override_model || (await resolveDefaultModel(tenantId)) || "google/gemini-2.5-flash";
+        const messagesContext = messagesList
+            .slice(-10) // last 10 messages for context
+            .map((m) => `${m.direction === "inbound" ? "Candidate" : "Agent"}: ${m.text}`)
+            .join("\n");
+        const prompt = `You are a conversation reaction helper. Based on the following chat conversation history, select the single most appropriate reaction emoji for the final message.
+  
+Conversation History:
+${messagesContext}
+
+Target Message to react to:
+"${targetMessage.text}"
+
+Select exactly ONE emoji reaction from this list:
+- HEART (love, care, heart emoji)
+- LIKE (thumbs up, agreement)
+- HAHA (funny, laugh)
+- WOW (surprised, amazed)
+- CRY (sad, sorry)
+- ANGRY (mad, frustrated)
+
+Response format:
+Respond with ONLY the exact reaction name in uppercase, e.g. "HEART" or "LIKE". Do not include any other text, punctuation, or markdown formatting.`;
+        console.log(`[worker] generating reaction for message ${messageId} using model ${model}`);
+        const modelInstance = createOpenRouterChatModel({ model });
+        const result = await generateText({
+            model: modelInstance,
+            prompt,
+            maxTokens: 10,
+            temperature: 0.1,
+        });
+        const responseText = result.text.trim().toUpperCase();
+        console.log(`[worker] reaction response text: ${responseText}`);
+        // Map to Reactions enum
+        if (responseText.includes("HEART"))
+            reactionCode = "/-heart";
+        else if (responseText.includes("LIKE"))
+            reactionCode = "/-strong";
+        else if (responseText.includes("HAHA"))
+            reactionCode = ":>";
+        else if (responseText.includes("WOW"))
+            reactionCode = ":o";
+        else if (responseText.includes("CRY"))
+            reactionCode = ":-((";
+        else if (responseText.includes("ANGRY"))
+            reactionCode = ":-h";
+        else
+            reactionCode = "/-strong"; // default
+    }
+    // 4. Update database raw_payload
+    const rawPayload = targetMessage.raw_payload || {};
+    rawPayload.reactions = [
+        {
+            emoji: reactionCode,
+            sender: "agent",
+            createdAt: new Date().toISOString(),
+        }
+    ];
+    await repos.messages.updateRawPayload(messageId, rawPayload);
+    // 5. Publish SSE message_updated event
+    await publishSseEvent({
+        type: "message_updated",
+        payload: {
+            conversationId,
+            messageId,
+            rawPayload,
+        },
+    });
+    // 6. Enqueue reaction to message.send for Zalo
+    if (targetMessage.external_message_id) {
+        await messageSendQueue.add("message.send", {
+            tenantId,
+            channel: "zalo",
+            threadId: conversation.external_thread_id,
+            reaction: reactionCode,
+            targetExternalMessageId: targetMessage.external_message_id,
+            targetExternalCliMessageId: rawPayload.data?.cliMsgId || rawPayload.data?.msgId || targetMessage.external_message_id,
+        });
+    }
+}
+async function handleAiReply(tenantId, conversationId, messageId) {
+    // 1. Fetch target message
+    const messagesList = await repos.messages.listByConversation({ conversationId, limit: 100 });
+    const targetMessage = messagesList.find((m) => m.id === messageId);
+    if (!targetMessage) {
+        throw new Error(`Target message not found: ${messageId}`);
+    }
+    // 2. Call generateDraftReply with targetMessage
+    await generateDraftReply(tenantId, conversationId, undefined, targetMessage);
 }

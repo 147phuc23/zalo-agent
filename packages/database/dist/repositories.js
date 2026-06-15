@@ -142,6 +142,18 @@ export function createMessageRepository(client) {
         async markAsRead(conversationId) {
             await client.query("UPDATE messages SET is_read = true, read_at = NOW() WHERE conversation_id = $1 AND direction = 'inbound' AND is_read = false", [conversationId]);
         },
+        async findById(id) {
+            const res = await client.query(`SELECT id, tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, raw_payload, is_read, read_at, created_at 
+         FROM messages 
+         WHERE id = $1 
+         LIMIT 1`, [id]);
+            return res.rows[0] || null;
+        },
+        async updateRawPayload(id, rawPayload) {
+            await client.query(`UPDATE messages 
+         SET raw_payload = $1 
+         WHERE id = $2`, [JSON.stringify(rawPayload), id]);
+        },
     };
 }
 export function createDeliveryRepository(client) {

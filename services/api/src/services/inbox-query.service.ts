@@ -46,6 +46,7 @@ export class InboxQueryService {
       text: message.text,
       externalMessageId: message.external_message_id,
       idempotencyKey: message.idempotency_key,
+      rawPayload: message.raw_payload,
       isRead: message.is_read,
       readAt: message.read_at,
       createdAt: message.created_at,

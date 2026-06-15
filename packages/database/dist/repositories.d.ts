@@ -201,6 +201,8 @@ export declare function createMessageRepository(client: DatabaseClient): {
         rawPayload: Record<string, unknown>;
     }): Promise<MessageRow>;
     markAsRead(conversationId: string): Promise<void>;
+    findById(id: string): Promise<MessageRow | null>;
+    updateRawPayload(id: string, rawPayload: Record<string, unknown>): Promise<void>;
 };
 export declare function createDeliveryRepository(client: DatabaseClient): {
     create(input: {
@@ -334,6 +336,8 @@ export declare function createRepositorySet(client: DatabaseClient): {
             rawPayload: Record<string, unknown>;
         }): Promise<MessageRow>;
         markAsRead(conversationId: string): Promise<void>;
+        findById(id: string): Promise<MessageRow | null>;
+        updateRawPayload(id: string, rawPayload: Record<string, unknown>): Promise<void>;
     };
     deliveries: {
         create(input: {

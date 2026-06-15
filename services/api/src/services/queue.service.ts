@@ -46,6 +46,9 @@ export class QueueService {
     tenantId: string;
     conversationId: string;
     idempotencyKey: string;
+    action?: "draft" | "ai-react" | "ai-reply";
+    targetMessageId?: string;
+    reaction?: string;
   }) {
     const queueJobId = payload.idempotencyKey.replaceAll(":", "_");
 
