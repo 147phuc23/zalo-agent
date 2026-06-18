@@ -3,7 +3,7 @@ import { z } from "zod";
 const SharedSchema = z.object({
   NODE_ENV: z.string().optional(),
   PLATFORM_DB_URL: z.string().min(1),
-  REDIS_URL: z.string().min(1).default("redis://127.0.0.1:7379"),
+  REDIS_URL: z.string().optional(),
   OPENROUTER_API_KEY: z.string().min(20).optional(),
 });
 
