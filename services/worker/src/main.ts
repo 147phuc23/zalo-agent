@@ -26,6 +26,11 @@ const JobPayloadSchema = z.object({
 
 loadRepoEnv();
 const env = loadWorkerEnv();
+if (!env.REDIS_URL) {
+  throw new Error(
+    "[worker] REDIS_URL is required to run the worker. The serverless/Vercel deployment runs without a worker; set REDIS_URL only when running the queue-backed worker.",
+  );
+}
 const db = createDatabaseClient(env);
 const repos = createRepositorySet(db);
 const redisPublisher = new Redis(env.REDIS_URL);

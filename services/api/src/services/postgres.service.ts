@@ -15,6 +15,11 @@ export class PostgresService implements OnModuleInit {
   }
 
   async onModuleInit() {
+    const env = loadApiEnv();
+    if (env.DISABLE_DB_MIGRATIONS === "true") {
+      console.log("[postgres] DISABLE_DB_MIGRATIONS=true — skipping migrations on boot");
+      return;
+    }
     await runMigrations(this.client);
   }
 }

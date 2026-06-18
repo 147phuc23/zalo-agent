@@ -5,6 +5,9 @@ const SharedSchema = z.object({
   PLATFORM_DB_URL: z.string().min(1),
   REDIS_URL: z.string().optional(),
   OPENROUTER_API_KEY: z.string().min(20).optional(),
+  // Set to "true" to skip auto-running migrations on boot (e.g. serverless/Vercel,
+  // where migrations are applied separately via `pnpm db:migrate`).
+  DISABLE_DB_MIGRATIONS: z.string().optional(),
 });
 
 const ApiSchema = SharedSchema.extend({

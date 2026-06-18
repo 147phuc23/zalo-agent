@@ -3,11 +3,17 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type pg from "pg";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const MIGRATIONS_DIR = path.resolve(__dirname, "../migrations");
+// Resolve the migrations directory lazily, inside the function — computing it at
+// module top-level breaks when this file is bundled to CJS (import.meta.url is empty),
+// even if migrations are disabled. MIGRATIONS_DIR env var overrides the default.
+function resolveMigrationsDir(): string {
+  if (process.env.MIGRATIONS_DIR) return process.env.MIGRATIONS_DIR;
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return path.resolve(here, "../migrations");
+}
 
 export async function runMigrations(pool: pg.Pool) {
+  const MIGRATIONS_DIR = resolveMigrationsDir();
   console.log(`[migrator] running migrations from ${MIGRATIONS_DIR}...`);
 
   // Ensure migrations metadata table exists

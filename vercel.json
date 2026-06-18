@@ -1,8 +1,9 @@
 {
-  "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @platform/api build",
+  "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @platform/api build:vercel",
   "functions": {
     "api/index.ts": {
-      "maxDuration": 30
+      "maxDuration": 30,
+      "includeFiles": "services/api/dist/serverless.cjs"
     }
   },
   "rewrites": [

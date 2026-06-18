@@ -11,12 +11,14 @@
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --passWithNoTests",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "migrate": "tsx src/migrate-cli.ts"
   },
   "dependencies": {
     "@platform/config": "workspace:*",
     "@platform/shared": "workspace:*",
-    "pg": "^8.13.3"
+    "pg": "^8.13.3",
+    "dotenv": "^16.6.1"
   },
   "devDependencies": {
     "@types/pg": "^8.11.11",

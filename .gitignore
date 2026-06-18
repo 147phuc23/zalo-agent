@@ -5,3 +5,6 @@ services/zalo-connector/data/
 credentials.json
 qr.png
 logs/hr-chat/
+
+# Build output (rebuilt by Vercel buildCommand / tsc / esbuild)
+dist/
