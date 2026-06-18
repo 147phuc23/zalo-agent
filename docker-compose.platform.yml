@@ -1,0 +1,60 @@
+name: platform
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: ["--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    restart: always
+    ports:
+      - "7010:7010"
+    environment:
+      PLATFORM_DB_URL: ${PLATFORM_DB_URL}
+      REDIS_URL: redis://redis:6379
+      APP_PORT: 7010
+      INTERNAL_INGEST_TOKEN: ${INTERNAL_INGEST_TOKEN}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    restart: always
+    environment:
+      PLATFORM_DB_URL: ${PLATFORM_DB_URL}
+      REDIS_URL: redis://redis:6379
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      TWENTY_BASE_URL: ${TWENTY_BASE_URL:-}
+      TWENTY_API_KEY: ${TWENTY_API_KEY:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      API_BASE_URL: http://api:7010
+      INTERNAL_INGEST_TOKEN: ${INTERNAL_INGEST_TOKEN}
+      TENANT_ID: ${TENANT_ID}
+    depends_on:
+      - api
