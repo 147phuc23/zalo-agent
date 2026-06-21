@@ -16,8 +16,11 @@ export class PostgresService implements OnModuleInit {
 
   async onModuleInit() {
     const env = loadApiEnv();
-    if (env.DISABLE_DB_MIGRATIONS === "true") {
-      console.log("[postgres] DISABLE_DB_MIGRATIONS=true — skipping migrations on boot");
+    // Never run migrations on boot in serverless (Vercel): the migration files
+    // aren't deployed, and running DDL on every cold start is wrong. Apply them
+    // out-of-band with `pnpm --filter @platform/database migrate`.
+    if (env.DISABLE_DB_MIGRATIONS === "true" || process.env.VERCEL) {
+      console.log("[postgres] skipping migrations on boot (serverless or DISABLE_DB_MIGRATIONS=true)");
       return;
     }
     await runMigrations(this.client);
