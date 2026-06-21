@@ -36,5 +36,8 @@ export function createDatabaseClient(input: {
 }) {
   return new pg.Pool({
     connectionString: input.PLATFORM_DB_URL,
+    // Serverless: each instance handles one request at a time, so a single
+    // connection is enough. Keeps us well under Neon's connection limit.
+    max: 1,
   });
 }
