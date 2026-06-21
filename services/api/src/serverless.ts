@@ -20,6 +20,7 @@ export async function bootstrapServer() {
       new ValidationPipe({ transform: true, whitelist: true, forbidUnknownValues: false }),
     );
     app.useGlobalFilters(new AllExceptionsFilter());
+    app.setGlobalPrefix('api');
     await app.init();
     // platform-express: the underlying instance is a callable (req, res) handler
     const instance = app.getHttpAdapter().getInstance() as (
@@ -35,6 +36,12 @@ export async function bootstrapServer() {
 
 // Vercel Node serverless handler — forwards the request into the NestJS/Express app.
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
-  const instance = await bootstrapServer();
-  instance(req, res);
+  try {
+    const instance = await bootstrapServer();
+    instance(req, res);
+  } catch (err) {
+    console.error("[serverless] bootstrap failed:", err);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: false, error: String(err) }));
+  }
 }
