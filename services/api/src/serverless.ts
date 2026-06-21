@@ -20,7 +20,6 @@ export async function bootstrapServer() {
       new ValidationPipe({ transform: true, whitelist: true, forbidUnknownValues: false }),
     );
     app.useGlobalFilters(new AllExceptionsFilter());
-    app.setGlobalPrefix('api');
     await app.init();
     // platform-express: the underlying instance is a callable (req, res) handler
     const instance = app.getHttpAdapter().getInstance() as (

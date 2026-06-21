@@ -15,7 +15,21 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**"]
+      "outputs": ["dist/**", ".next/**"],
+      "env": [
+        "DATABASE_URL",
+        "PLATFORM_DB_URL",
+        "REDIS_URL",
+        "INTERNAL_INGEST_TOKEN",
+        "APP_PORT",
+        "API_BASE_URL",
+        "OPENROUTER_API_KEY",
+        "OPENROUTER_BASE_URL",
+        "HR_AGENT_MODEL",
+        "TWENTY_BASE_URL",
+        "TWENTY_API_KEY",
+        "HR_SKILL_MODE"
+      ]
     },
     "lint": {
       "dependsOn": ["^lint"]
