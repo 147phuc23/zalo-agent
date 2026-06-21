@@ -15,9 +15,10 @@ export class SseService implements OnModuleDestroy {
       return;
     }
 
-    import("ioredis").then(({ default: Redis }) => {
-      this.subClient = new Redis(env.REDIS_URL!);
-      this.pubClient = new Redis(env.REDIS_URL!);
+    import("ioredis").then((mod) => {
+      const Redis = mod.default ?? mod;
+      this.subClient = new (Redis as any)(env.REDIS_URL!);
+      this.pubClient = new (Redis as any)(env.REDIS_URL!);
 
       this.subClient.subscribe("platform:sse", (err?: Error | null) => {
         if (err) console.error("[SseService] Failed to subscribe:", err);
