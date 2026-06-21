@@ -245,6 +245,21 @@ function Dashboard() {
     fetchConversations();
   }, []);
 
+  // Poll conversations, messages, and audits every 10 seconds (visibility-gated)
+  useEffect(() => {
+    const handlePoll = () => {
+      if (document.hidden) return;
+      fetchConversations();
+      if (selectedId) {
+        fetchMessages(selectedId, true);
+        fetchAudits(selectedId);
+      }
+    };
+
+    const interval = setInterval(handlePoll, 10000);
+    return () => clearInterval(interval);
+  }, [selectedId]);
+
   // Fetch messages and audits when conversation changes
   useEffect(() => {
     if (selectedId) {

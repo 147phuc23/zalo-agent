@@ -15,6 +15,7 @@
     "@nestjs/core": "^11.1.3",
     "@nestjs/platform-express": "^11.1.3",
     "@platform/config": "workspace:*",
+    "@platform/core": "workspace:*",
     "@platform/database": "workspace:*",
     "@platform/shared": "workspace:*",
     "bullmq": "^5.58.5",
