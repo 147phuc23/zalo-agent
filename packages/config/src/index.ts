@@ -17,17 +17,32 @@ const ApiSchema = SharedSchema.extend({
 
 const WorkerSchema = SharedSchema;
 
-export type ApiEnv = z.infer<typeof ApiSchema>;
-export type WorkerEnv = z.infer<typeof WorkerSchema>;
+export interface ApiEnv {
+  NODE_ENV?: string;
+  PLATFORM_DB_URL: string;
+  REDIS_URL?: string;
+  OPENROUTER_API_KEY?: string;
+  DISABLE_DB_MIGRATIONS?: string;
+  APP_PORT: number;
+  INTERNAL_INGEST_TOKEN: string;
+}
+
+export interface WorkerEnv {
+  NODE_ENV?: string;
+  PLATFORM_DB_URL: string;
+  REDIS_URL?: string;
+  OPENROUTER_API_KEY?: string;
+  DISABLE_DB_MIGRATIONS?: string;
+}
 
 export function loadApiEnv(input: NodeJS.ProcessEnv = process.env): ApiEnv {
   const parsed = ApiSchema.safeParse(input);
   if (!parsed.success) throw new Error(`Invalid API environment: ${parsed.error.message}`);
-  return parsed.data;
+  return parsed.data as unknown as ApiEnv;
 }
 
 export function loadWorkerEnv(input: NodeJS.ProcessEnv = process.env): WorkerEnv {
   const parsed = WorkerSchema.safeParse(input);
   if (!parsed.success) throw new Error(`Invalid worker environment: ${parsed.error.message}`);
-  return parsed.data;
+  return parsed.data as unknown as WorkerEnv;
 }
