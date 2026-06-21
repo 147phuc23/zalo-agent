@@ -19,7 +19,14 @@ export class InternalOutboundController {
   ) {
     assertAuthorized(authorization);
     const parsed = OutboundSendSchema.parse(body);
-    await this.queueService.enqueueMessageSend(parsed);
+    await this.queueService.enqueueMessageSend({
+      tenantId: parsed.tenantId as string,
+      channel: parsed.channel as "zalo",
+      threadId: parsed.threadId as string,
+      text: parsed.text as string,
+      externalContactId: parsed.externalContactId as string | undefined,
+      idempotencyKey: parsed.idempotencyKey as string | undefined,
+    });
     return { ok: true, enqueued: true };
   }
 }
