@@ -1,51 +1,58 @@
 import { NextResponse } from "next/server";
+import { ingestInboundMessage, generateAndSaveReply } from "@platform/core";
+import { getRepos } from "@/lib/db";
+
+export const runtime = "nodejs";
+export const maxDuration = 60; // agent reply can take a while
 
 export async function POST(req: Request) {
-  const apiBaseUrl = process.env.API_BASE_URL;
-  const token = process.env.INTERNAL_INGEST_TOKEN;
   const tenantId = process.env.TENANT_ID;
-
-  if (!apiBaseUrl || !token || !tenantId) {
-    return NextResponse.json(
-      { ok: false, error: "missing env API_BASE_URL/INTERNAL_INGEST_TOKEN/TENANT_ID" },
-      { status: 500 },
-    );
+  if (!tenantId) {
+    return NextResponse.json({ ok: false, error: "missing env TENANT_ID" }, { status: 500 });
   }
 
   try {
     const body = await req.json();
-    const url = new URL("/internal/events", apiBaseUrl);
-
-    // Use frontend idempotency key if provided, otherwise create a unique one
+    const repos = getRepos();
     const idempotencyKey = body.idempotencyKey ?? `${body.threadId}:${Date.now()}`;
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        events: [
-          {
-            kind: "message.received",
-            tenantId,
-            channel: body.channel ?? "zalo",
-            threadId: body.threadId,
-            senderExternalId: body.senderExternalId ?? "zalo-candidate-frontend",
-            messageType: "text",
-            text: body.text,
-            receivedAt: new Date().toISOString(),
-            idempotencyKey,
-            rawPayload: { source: "zalo-simulator", context: body.context ?? {} },
-          },
-        ],
-      }),
+    const ingest = await ingestInboundMessage(repos, {
+      tenantId,
+      channel: body.channel ?? "zalo",
+      threadId: body.threadId,
+      senderExternalId: body.senderExternalId ?? "zalo-candidate-frontend",
+      messageType: "text",
+      text: body.text,
+      idempotencyKey,
+      rawPayload: { source: "zalo-simulator", context: body.context ?? {} },
+      receivedAt: new Date().toISOString(),
     });
 
-    const resBody = await res.json();
-    return NextResponse.json(resBody, { status: res.status });
+    if (ingest.status === "duplicate") {
+      return NextResponse.json({ ok: true, status: "duplicate", conversationId: ingest.conversationId });
+    }
+
+    // Generate the agent reply inline (best-effort — a reply failure must not fail ingest).
+    let drafts;
+    try {
+      drafts = await generateAndSaveReply(repos, {
+        tenantId,
+        conversationId: ingest.conversationId,
+        targetMessageId: ingest.messageId,
+      });
+    } catch (replyErr: any) {
+      console.error("[api/events] reply generation failed:", replyErr?.stack ?? replyErr);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      status: "stored",
+      conversationId: ingest.conversationId,
+      messageId: ingest.messageId,
+      drafts,
+    });
   } catch (err: any) {
-    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+    console.error("[api/events] failed:", err?.stack ?? err);
+    return NextResponse.json({ ok: false, error: err?.message ?? String(err) }, { status: 500 });
   }
 }
