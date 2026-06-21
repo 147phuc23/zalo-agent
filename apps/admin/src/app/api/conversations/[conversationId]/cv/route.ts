@@ -49,6 +49,10 @@ export async function POST(
     });
     
     if (!convsRes.ok) {
+      const errText = await convsRes.text();
+      console.error(
+        `[api/conversations/cv] fetch conversations failed ${convsRes.status} from ${convsUrl.toString()}: ${errText}`,
+      );
       return NextResponse.json(
         { ok: false, error: `Failed to fetch conversations: ${convsRes.statusText}` },
         { status: convsRes.status }
@@ -118,6 +122,9 @@ export async function POST(
 
     if (!eventRes.ok) {
       const errorText = await eventRes.text();
+      console.error(
+        `[api/conversations/cv] ingest event failed ${eventRes.status} from ${eventsUrl.toString()}: ${errorText}`,
+      );
       return NextResponse.json(
         { ok: false, error: `Failed to ingest event: ${errorText}` },
         { status: eventRes.status }
@@ -132,6 +139,10 @@ export async function POST(
       eventResult: eventData,
     });
   } catch (err: any) {
+    console.error(
+      `[api/conversations/cv] upload failed for conversation ${conversationId}:`,
+      err?.stack ?? err?.message ?? err,
+    );
     return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
   }
 }
