@@ -6,15 +6,16 @@
  * Usage (from repo root):
  *   pnpm --filter @platform/worker twenty:schema
  */
-import { loadTwentyEnv } from "../../src/agent/twenty/twenty-env.js";
-import { TwentyHttpError, twentyHttpJson } from "../../src/agent/twenty/twenty-http.js";
-import { extractMetadataRows } from "../../src/agent/twenty/twenty-rest-parsers.js";
 import {
+  loadTwentyEnv,
+  TwentyHttpError,
+  twentyHttpJson,
+  extractMetadataRows,
   RECRUITING_JOB_APPLICATION_FIELDS,
   RECRUITING_JOB_POSTING_FIELDS,
   RECRUITING_OBJECTS,
   RECRUITING_PERSON_FIELDS,
-} from "../../src/agent/twenty/recruiting-schema-constants.js";
+} from "@platform/agent/twenty";
 import { loadRepoEnvLocal } from "./load-repo-env.js";
 
 type MetadataRow = Record<string, unknown>;

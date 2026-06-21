@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./twenty": "./src/twenty/index.ts",
     "./cv-extractor": "./src/core/cv-extractor.ts",
     "./outreach-engine": "./src/core/outreach-engine.ts"
   },

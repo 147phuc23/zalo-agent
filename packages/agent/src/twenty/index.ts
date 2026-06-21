@@ -1,6 +1,11 @@
 export { loadTwentyEnv, normalizeTwentyBaseUrl, type TwentyEnv } from "./twenty-env.js";
 export { TwentyHttpError, twentyHttpJson } from "./twenty-http.js";
 export {
+  extractCoreManyRecords,
+  extractMetadataRows,
+  pickFirstRecord,
+} from "./twenty-rest-parsers.js";
+export {
   createTwentyRecruitingClientFromEnv,
   IN_PROGRESS_APPLICATION_STAGES,
   TwentyRecruitingClient,

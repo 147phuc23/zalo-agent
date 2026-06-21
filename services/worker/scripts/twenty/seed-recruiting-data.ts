@@ -7,18 +7,16 @@
  * Usage:
  *   pnpm --filter @platform/worker twenty:seed
  */
-import { loadTwentyEnv } from "../../src/agent/twenty/twenty-env.js";
-import { twentyHttpJson } from "../../src/agent/twenty/twenty-http.js";
 import {
+  loadTwentyEnv,
+  twentyHttpJson,
   extractCoreManyRecords,
   pickFirstRecord,
-} from "../../src/agent/twenty/twenty-rest-parsers.js";
-import {
   RECRUITING_JOB_APPLICATION_FIELDS,
   RECRUITING_JOB_POSTING_FIELDS,
   RECRUITING_OBJECTS,
   RECRUITING_PERSON_FIELDS,
-} from "../../src/agent/twenty/recruiting-schema-constants.js";
+} from "@platform/agent/twenty";
 import { loadRepoEnvLocal } from "./load-repo-env.js";
 
 // ── Candidate seed data ────────────────────────────────────────────────────────
