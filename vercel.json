@@ -1,0 +1,10 @@
+{
+  "buildCommand": "pnpm install --frozen-lockfile && pnpm --filter @platform/api build:vercel",
+  "outputDirectory": "public",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/[...path]"
+    }
+  ]
+}
