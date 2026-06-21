@@ -37,6 +37,7 @@ type Conversation = {
   overrideModel: string | null;
   lastActivityAt: string;
   createdAt: string;
+
   contact: { displayName: string | null; externalUserId: string } | null;
 };
 
@@ -126,19 +127,19 @@ function Dashboard() {
   const [audits, setAudits] = useState<Audit[]>([]);
   const [selectedAuditForModal, setSelectedAuditForModal] = useState<Audit | null>(null);
   const [expandedAudits, setExpandedAudits] = useState<Record<string, boolean>>({});
-  
+
   // Prompt State
   const [promptContent, setPromptContent] = useState("");
   const [promptVersions, setPromptVersions] = useState<PromptVersion[]>([]);
   const [availableModels, setAvailableModels] = useState<Array<{ id: string; name: string }>>(AVAILABLE_MODELS);
-  
+
   // UI States
   const [activeTab, setActiveTab] = useState<"debugger" | "prompt">("debugger");
   const [inputText, setInputText] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // New Chat Form State
   const [newThreadId, setNewThreadId] = useState("");
   const [newUserId, setNewUserId] = useState("");
@@ -420,9 +421,8 @@ function Dashboard() {
 
           {activeReactionPickerMessageId === m.id && (
             <div
-              className={`absolute bottom-full mb-2 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 flex items-center gap-1.5 ${
-                m.direction === "inbound" ? "left-0" : "right-0"
-              }`}
+              className={`absolute bottom-full mb-2 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-1.5 flex items-center gap-1.5 ${m.direction === "inbound" ? "left-0" : "right-0"
+                }`}
               onClick={(e) => e.stopPropagation()}
             >
               {EMOJI_OPTIONS.map((opt) => (
@@ -805,16 +805,15 @@ function Dashboard() {
           {filteredConversations.map((c) => {
             const isSelected = c.id === selectedId;
             const displayName = c.contact?.displayName ?? c.contact?.externalUserId ?? "Unknown User";
-            
+
             return (
               <button
                 key={c.id}
                 onClick={() => setSelectedId(c.id)}
-                className={`w-full text-left p-3.5 rounded-2xl flex items-center justify-between gap-3 transition ${
-                  isSelected
+                className={`w-full text-left p-3.5 rounded-2xl flex items-center justify-between gap-3 transition ${isSelected
                     ? "bg-blue-50 border border-blue-200/50 text-blue-755 font-semibold"
                     : "bg-transparent border border-transparent text-slate-500 hover:bg-gray-50 hover:text-slate-800"
-                }`}
+                  }`}
               >
                 <div className="min-w-0">
                   <div className={`font-semibold truncate text-sm ${isSelected ? "text-blue-600" : "text-slate-800"}`}>
@@ -900,18 +899,16 @@ function Dashboard() {
                         </div>
                       )}
                       <div
-                        className={`max-w-[70%] rounded-2xl p-3 px-4 shadow-sm leading-relaxed text-sm relative ${
-                          isInbound
+                        className={`max-w-[70%] rounded-2xl p-3 px-4 shadow-sm leading-relaxed text-sm relative ${isInbound
                             ? "bg-white border border-gray-200 text-slate-800 rounded-tl-sm"
                             : "bg-[#0068FF] text-white rounded-tr-sm"
-                        }`}
+                          }`}
                       >
                         {m.rawPayload?.quote && (
-                          <div className={`p-2 mb-2 text-xs rounded border-l-4 font-normal ${
-                            isInbound
+                          <div className={`p-2 mb-2 text-xs rounded border-l-4 font-normal ${isInbound
                               ? "bg-gray-105 bg-gray-100 border-gray-400 text-slate-650"
                               : "bg-blue-600/50 border-white text-blue-100"
-                          }`}>
+                            }`}>
                             <div className="font-semibold text-[10px] uppercase">Replying to:</div>
                             <div className="truncate">{m.rawPayload.quote.msg || m.rawPayload.quote.text}</div>
                           </div>
@@ -932,9 +929,8 @@ function Dashboard() {
                                 href={fileAttachment.url || "#"}
                                 target="_blank"
                                 rel="noreferrer"
-                                className={`text-[11px] font-bold underline mt-1 block ${
-                                  isInbound ? "text-[#0068FF] hover:text-blue-700" : "text-white hover:text-blue-100"
-                                }`}
+                                className={`text-[11px] font-bold underline mt-1 block ${isInbound ? "text-[#0068FF] hover:text-blue-700" : "text-white hover:text-blue-100"
+                                  }`}
                               >
                                 View / Download CV
                               </a>
@@ -944,11 +940,10 @@ function Dashboard() {
                           <div className="whitespace-pre-wrap break-words">{m.text}</div>
                         )}
                         {m.rawPayload?.reactions && m.rawPayload.reactions.length > 0 && (
-                          <div className={`flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-xs w-fit shadow-xs ${
-                            isInbound
+                          <div className={`flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-xs w-fit shadow-xs ${isInbound
                               ? "bg-gray-50 border border-gray-150 text-slate-600"
                               : "bg-blue-700 text-blue-100"
-                          }`}>
+                            }`}>
                             {m.rawPayload.reactions.map((r: any, idx: number) => {
                               let emojiChar = "❤️";
                               if (r.emoji === "/-strong") emojiChar = "👍";
@@ -962,9 +957,8 @@ function Dashboard() {
                             })}
                           </div>
                         )}
-                        <div className={`flex items-center justify-end gap-1.5 mt-1 text-[10px] select-none ${
-                          isInbound ? "text-gray-400" : "text-blue-100"
-                        }`}>
+                        <div className={`flex items-center justify-end gap-1.5 mt-1 text-[10px] select-none ${isInbound ? "text-gray-400" : "text-blue-100"
+                          }`}>
                           <span>
                             {new Date(m.createdAt).toLocaleTimeString([], {
                               hour: "2-digit",
@@ -1020,11 +1014,10 @@ function Dashboard() {
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                             <span
-                              className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase border ${
-                                a.status === "ok"
+                              className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase border ${a.status === "ok"
                                   ? "bg-emerald-50 text-emerald-600 border-emerald-100"
                                   : "bg-red-50 text-red-650 border-red-100"
-                              }`}
+                                }`}
                             >
                               {a.status}
                             </span>
@@ -1142,22 +1135,20 @@ function Dashboard() {
         <div className="flex border-b border-gray-200 text-sm">
           <button
             onClick={() => setActiveTab("debugger")}
-            className={`flex-1 py-3 text-center font-medium border-b-2 transition ${
-              activeTab === "debugger"
+            className={`flex-1 py-3 text-center font-medium border-b-2 transition ${activeTab === "debugger"
                 ? "border-blue-600 text-blue-600 bg-blue-50/20"
                 : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
+              }`}
           >
             <Terminal className="w-4 h-4 inline mr-2" />
             Agentic Inspector
           </button>
           <button
             onClick={() => setActiveTab("prompt")}
-            className={`flex-1 py-3 text-center font-medium border-b-2 transition ${
-              activeTab === "prompt"
+            className={`flex-1 py-3 text-center font-medium border-b-2 transition ${activeTab === "prompt"
                 ? "border-blue-600 text-blue-600 bg-blue-50/20"
                 : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
+              }`}
           >
             <Settings className="w-4 h-4 inline mr-2" />
             Prompts Manager
@@ -1188,9 +1179,8 @@ function Dashboard() {
                 {audits.map((a) => (
                   <div
                     key={a.id}
-                    className={`rounded-xl border p-3 bg-gray-50 ${
-                      a.status === "ok" ? "border-gray-200" : "border-red-200"
-                    }`}
+                    className={`rounded-xl border p-3 bg-gray-50 ${a.status === "ok" ? "border-gray-200" : "border-red-200"
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-1.5">
@@ -1200,11 +1190,10 @@ function Dashboard() {
                         </span>
                       </div>
                       <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                          a.status === "ok"
+                        className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${a.status === "ok"
                             ? "bg-emerald-50 text-emerald-600"
                             : "bg-red-50 text-red-650"
-                        }`}
+                          }`}
                       >
                         {a.status}
                       </span>
@@ -1279,11 +1268,10 @@ function Dashboard() {
                     <button
                       key={v.id}
                       onClick={() => handleSelectPromptVersion(v)}
-                      className={`w-full text-left p-3 rounded-xl border text-xs flex items-center justify-between gap-3 transition ${
-                        v.is_active
+                      className={`w-full text-left p-3 rounded-xl border text-xs flex items-center justify-between gap-3 transition ${v.is_active
                           ? "bg-blue-50 border-blue-200/50 text-blue-700 font-semibold"
                           : "bg-gray-50 border-gray-150 text-slate-500 hover:bg-gray-100 hover:text-slate-700"
-                      }`}
+                        }`}
                     >
                       <div className="min-w-0">
                         <div className="font-medium text-slate-800">
@@ -1336,11 +1324,10 @@ function Dashboard() {
                     key={p.userId}
                     type="button"
                     onClick={() => handlePresetSelect(idx)}
-                    className={`w-full text-left p-3 rounded-2xl border text-xs flex items-center justify-between transition ${
-                      selectedPresetIndex === idx
+                    className={`w-full text-left p-3 rounded-2xl border text-xs flex items-center justify-between transition ${selectedPresetIndex === idx
                         ? "bg-blue-50 border-blue-200/50 text-blue-750 font-semibold"
                         : "bg-gray-50 border border-gray-150 text-slate-500 hover:bg-gray-100 hover:text-slate-800"
-                    }`}
+                      }`}
                   >
                     <div>
                       <div className="font-semibold text-slate-800">{p.name}</div>
