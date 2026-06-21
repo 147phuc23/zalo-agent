@@ -12,9 +12,10 @@ export async function POST(req: Request) {
     );
   }
 
+  const url = new URL("/internal/conversations/new", apiBaseUrl);
+
   try {
     const body = await req.json();
-    const url = new URL("/internal/conversations/new", apiBaseUrl);
 
     const res = await fetch(url, {
       method: "POST",
@@ -31,9 +32,28 @@ export async function POST(req: Request) {
       }),
     });
 
-    const resBody = await res.json();
+    // Read as text first — upstream may return non-JSON (e.g. a 500 crash page).
+    const raw = await res.text();
+    let resBody: unknown;
+    try {
+      resBody = JSON.parse(raw);
+    } catch {
+      resBody = { ok: false, error: "upstream returned non-JSON response", raw };
+    }
+
+    if (!res.ok) {
+      console.error(
+        `[api/conversations/new] upstream ${res.status} ${res.statusText} from ${url.toString()}:`,
+        raw,
+      );
+    }
+
     return NextResponse.json(resBody, { status: res.status });
   } catch (err: any) {
-    return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
+    console.error(
+      `[api/conversations/new] request to ${url.toString()} failed:`,
+      err?.stack ?? err?.message ?? err,
+    );
+    return NextResponse.json({ ok: false, error: err?.message ?? String(err) }, { status: 500 });
   }
 }
