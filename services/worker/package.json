@@ -15,8 +15,10 @@
     "lint": "eslint src"
   },
   "dependencies": {
+    "@platform/agent": "workspace:*",
     "@platform/ai-client": "workspace:*",
     "@platform/config": "workspace:*",
+    "@platform/core": "workspace:*",
     "@platform/database": "workspace:*",
     "ai": "^4.3.16",
     "bullmq": "^5.58.5",

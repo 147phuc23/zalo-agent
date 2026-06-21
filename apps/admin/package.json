@@ -11,6 +11,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@platform/agent": "workspace:*",
     "@platform/core": "workspace:*",
     "@platform/database": "workspace:*",
     "next": "16.2.4",

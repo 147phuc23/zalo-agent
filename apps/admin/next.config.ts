@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@platform/core", "@platform/database", "@platform/shared"],
+  transpilePackages: ["@platform/agent", "@platform/ai-client", "@platform/core", "@platform/database", "@platform/shared"],
   webpack: (config) => {
     config.resolve.extensionAlias = {
       ".js": [".ts", ".tsx", ".js", ".jsx"],

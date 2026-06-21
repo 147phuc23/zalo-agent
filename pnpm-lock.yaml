@@ -35,6 +35,9 @@ importers:
 
   apps/admin:
     dependencies:
+      '@platform/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@platform/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -88,6 +91,24 @@ importers:
         specifier: ^3.1.4
         version: 3.2.6(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)
 
+  packages/agent:
+    dependencies:
+      '@platform/ai-client':
+        specifier: workspace:*
+        version: link:../ai-client
+      '@platform/database':
+        specifier: workspace:*
+        version: link:../database
+      ai:
+        specifier: ^4.3.16
+        version: 4.3.19(react@19.2.4)(zod@3.25.76)
+      bullmq:
+        specifier: ^5.58.5
+        version: 5.78.0
+      zod:
+        specifier: ^3.25.28
+        version: 3.25.76
+
   packages/ai-client:
     dependencies:
       '@ai-sdk/openai-compatible':
@@ -128,9 +149,25 @@ importers:
 
   packages/core:
     dependencies:
+      '@platform/agent':
+        specifier: workspace:*
+        version: link:../agent
+      '@platform/ai-client':
+        specifier: workspace:*
+        version: link:../ai-client
       '@platform/database':
         specifier: workspace:*
         version: link:../database
+      ai:
+        specifier: ^4.3.16
+        version: 4.3.19(react@19.2.4)(zod@3.25.76)
+      zod:
+        specifier: ^3.25.28
+        version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: ^5.8.3
+        version: 5.9.3
 
   packages/database:
     dependencies:
@@ -261,12 +298,18 @@ importers:
 
   services/worker:
     dependencies:
+      '@platform/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@platform/ai-client':
         specifier: workspace:*
         version: link:../../packages/ai-client
       '@platform/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@platform/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@platform/database':
         specifier: workspace:*
         version: link:../../packages/database

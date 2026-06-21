@@ -1,0 +1,17 @@
+{
+  "name": "@platform/agent",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cv-extractor": "./src/core/cv-extractor.ts",
+    "./outreach-engine": "./src/core/outreach-engine.ts"
+  },
+  "dependencies": {
+    "@platform/ai-client": "workspace:*",
+    "@platform/database": "workspace:*",
+    "ai": "^4.3.16",
+    "bullmq": "^5.58.5",
+    "zod": "^3.25.28"
+  }
+}

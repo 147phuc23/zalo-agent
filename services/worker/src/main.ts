@@ -6,11 +6,14 @@ import type { MessageRow, ConversationRow } from "@platform/database";
 import { z } from "zod";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { runHrAgentScenario } from "./agent/core/runner.js";
-import { classifyIntent, generateChitchatReply } from "./agent/core/router.js";
-import { startCvWorker } from "./agent/core/cv-extractor.js";
-import { startOutreachCampaignWorkers } from "./agent/core/outreach-engine.js";
-import type { MockZaloPayload, HrSkillMode } from "./agent/types.js";
+import {
+  runHrAgentScenario,
+  classifyIntent,
+  generateChitchatReply,
+} from "@platform/agent";
+import { startCvWorker } from "@platform/agent/cv-extractor";
+import { startOutreachCampaignWorkers } from "@platform/agent/outreach-engine";
+import type { MockZaloPayload, HrSkillMode } from "@platform/agent";
 import { Redis } from "ioredis";
 import { generateText } from "ai";
 import { createOpenRouterChatModel } from "@platform/ai-client";
