@@ -270,67 +270,31 @@ function Dashboard() {
   }, [selectedId]);
 
   // Connect to SSE stream
+  // Polling replaces SSE: serverless can't hold a live event stream, so we pull on an
+  // interval instead. Paused while the tab is hidden to avoid wasted requests / DB load.
   useEffect(() => {
-    const eventSource = new EventSource("/api/sse");
+    const POLL_MS = 5000;
 
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("[SSE] Received event:", data);
-
-        if (data.type === "message_created") {
-          if (data.payload.conversationId === selectedId) {
-            setMessages((prev) => {
-              const hasMessage = prev.some(
-                (m) =>
-                  m.id === data.payload.message.id ||
-                  (m.idempotencyKey && m.idempotencyKey === data.payload.message.idempotencyKey)
-              );
-              if (hasMessage) {
-                return prev.map((m) =>
-                  (m.idempotencyKey === data.payload.message.idempotencyKey || m.id === data.payload.message.id)
-                    ? data.payload.message
-                    : m
-                );
-              }
-              return [...prev, data.payload.message];
-            });
-            scrollToBottom();
-          }
-          fetchConversations();
-        } else if (data.type === "audit_created") {
-          if (data.payload.conversationId === selectedId) {
-            setAudits((prev) => {
-              if (prev.some((a) => a.id === data.payload.audit.id)) {
-                return prev;
-              }
-              return [...prev, data.payload.audit];
-            });
-          }
-        } else if (data.type === "message_updated") {
-          if (data.payload.conversationId === selectedId) {
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === data.payload.messageId
-                  ? { ...m, rawPayload: data.payload.rawPayload }
-                  : m
-              )
-            );
-          }
-        } else if (data.type === "conversation_updated") {
-          fetchConversations();
-        }
-      } catch (err) {
-        console.error("[SSE] Failed to parse event data", err);
+    const poll = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      fetchConversations();
+      if (selectedId) {
+        fetchMessages(selectedId, true); // silent: don't force-scroll on every poll
+        fetchAudits(selectedId);
       }
     };
 
-    eventSource.onerror = (err) => {
-      console.error("[SSE] EventSource connection error, will auto-reconnect", err);
+    const interval = setInterval(poll, POLL_MS);
+
+    // Refresh immediately when the tab regains focus.
+    const onVisible = () => {
+      if (!document.hidden) poll();
     };
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
-      eventSource.close();
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [selectedId]);
 
