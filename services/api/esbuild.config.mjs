@@ -20,11 +20,11 @@ const externalizeNodeModules = {
 
 await build({
   entryPoints: ["src/serverless.ts"],
-  outfile: "dist/serverless.cjs",
+  outfile: "dist/serverless.mjs",
   bundle: true,
   platform: "node",
   target: "node22",
-  format: "cjs",
+  format: "esm",
   sourcemap: false,
   // NestJS uses legacy decorators; explicit @Inject() tokens mean no metadata is needed.
   tsconfig: "tsconfig.json",
@@ -32,4 +32,4 @@ await build({
   logLevel: "info",
 });
 
-console.log("[esbuild] bundled services/api/dist/serverless.cjs");
+console.log("[esbuild] bundled services/api/dist/serverless.mjs");
