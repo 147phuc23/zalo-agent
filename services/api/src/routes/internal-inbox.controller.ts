@@ -58,7 +58,7 @@ export class InternalInboxController {
     @Query() query: Record<string, string | string[] | undefined>,
   ) {
     assertAuthorized(authorization);
-    const parsed = ConversationsQuerySchema.parse(query);
+    const parsed = ConversationsQuerySchema.parse(query) as z.output<typeof ConversationsQuerySchema>;
     const conversations = await this.inboxQueryService.listConversations(parsed);
     return { ok: true, conversations };
   }
