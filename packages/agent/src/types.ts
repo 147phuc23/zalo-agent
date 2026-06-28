@@ -124,6 +124,7 @@ export type HrAgentRunOptions = {
   mockLlm: boolean;
   skillMode: HrSkillMode;
   systemPromptOverride?: string;
+  knownFacts?: string;
   abortSignal?: AbortSignal;
   onStepFinish?: (step: {
     text?: string;

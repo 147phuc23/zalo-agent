@@ -8,7 +8,6 @@ import { createTwentyUpdateCandidateProfileTool } from "./update-candidate-profi
 import { createTwentySkillLoadTool, createTwentySkillSearchTool } from "./skills-meta/handler.js";
 
 import { createGatherRequirementTool } from "../gather-requirement/handler.js";
-import { createSaveHistoryTool } from "../save-history/handler.js";
 import { createSaveInteractionIntentTool } from "../save-interaction-intent/handler.js";
 
 export function createTwentyAgentTools(skills: SkillDefinition[]) {
@@ -22,7 +21,6 @@ export function createTwentyAgentTools(skills: SkillDefinition[]) {
     twenty_listInProgressApplications: createTwentyListInProgressApplicationsTool(),
     twenty_computeJobMatches: createTwentyComputeJobMatchesTool(),
     hr_gatherRequirement: createGatherRequirementTool(),
-    history_saveMessage: createSaveHistoryTool(),
     memory_saveInteractionIntent: createSaveInteractionIntentTool(),
   };
 }

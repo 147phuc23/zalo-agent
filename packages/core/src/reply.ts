@@ -4,6 +4,7 @@ import type { MockZaloPayload, HrSkillMode } from "@platform/agent";
 import { createOpenRouterChatModel } from "@platform/ai-client";
 import { generateText } from "ai";
 import { z } from "zod";
+import { buildKnownFacts } from "./known-facts.js";
 
 type Repos = ReturnType<typeof createRepositorySet>;
 
@@ -48,11 +49,13 @@ export async function generateAndSaveReply(
     targetMessage = messages.find((m) => m.id === input.targetMessageId);
   }
 
-  const classification = await classifyIntent(routerMessages, classifierModel);
+  const knownFacts = await buildKnownFacts(repos, input.conversationId);
+
+  const classification = await classifyIntent(routerMessages, classifierModel, knownFacts);
   console.log(`[core:reply] classification result for conversation ${input.conversationId}: ${classification.category} (reason: ${classification.reason})`);
 
   if (classification.category === "CHITCHAT") {
-    const chitchatText = await generateChitchatReply(routerMessages, classifierModel);
+    const chitchatText = await generateChitchatReply(routerMessages, classifierModel, knownFacts);
     const responses = parseDraftResponses(chitchatText);
     const batchId = `draft:${input.tenantId}:${input.conversationId}:${Date.now()}`;
     const savedMessages: MessageRow[] = [];
@@ -137,6 +140,7 @@ export async function generateAndSaveReply(
     mockLlm: false,
     skillMode: (process.env.HR_SKILL_MODE as HrSkillMode) || "default",
     systemPromptOverride,
+    knownFacts,
     onStepFinish: async (step: any) => {
       if (!step.toolCalls || step.toolCalls.length === 0) return;
       for (const call of step.toolCalls) {

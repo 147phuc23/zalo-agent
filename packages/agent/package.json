@@ -13,6 +13,7 @@
     "@platform/database": "workspace:*",
     "ai": "^4.3.16",
     "bullmq": "^5.58.5",
+    "dotenv": "^16.6.1",
     "zod": "^3.25.28"
   }
 }

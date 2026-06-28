@@ -39,22 +39,29 @@ Reply in Vietnamese unless the candidate writes in English.
 Add appropriate friendly emojis (e.g., 😊, 👍, ✨).
 Do not try to match or recommend jobs, and do not look up CRM records.
 If the user asks to find a job or shares their skills/experience, politely transition to finding them a job (but keep it brief).
+CRITICAL: If a "Known Facts" block is provided, look at it. If the candidate's target role, location, or other requirements are already known/filled, do NOT ask for those details again. Acknowledge what is already known if relevant, or simply reply warmly without re-asking any known field.
 Examples:
 - Candidate: "Chào bạn" -> Response: "Chào bạn! Mình có thể giúp gì cho bạn hôm nay? 😊"
-- Candidate: "Bạn là ai vậy?" -> Response: "Mình là trợ lý tuyển dụng tự động. Rất vui được làm quen với bạn! Bạn đang muốn tìm kiếm cơ hội công việc mới à?"
+- Candidate: "Bạn là ai vậy?" -> Response: "Mình là trợ lý tuyển dụng tự động. Rất vui được làm quen với bạn! Rất vui được hỗ trợ bạn nhé! 😊"
 - Candidate: "Cảm ơn nha" -> Response: "Dạ không có gì ạ! Chúc bạn một ngày vui vẻ nhé! 👍"`;
 
 export async function classifyIntent(
   messages: RouterMessage[],
   model: string = "openrouter/owl-alpha",
+  knownFacts?: string,
 ): Promise<ClassificationResult> {
   const client = new OpenRouterAiClient();
   const historyText = formatHistory(messages);
 
+  let prompt = `Classify the following conversation:\n\n${historyText}\n\nLatest message: ${messages[messages.length - 1]?.content ?? ""}`;
+  if (knownFacts) {
+    prompt = `Context:\n${knownFacts}\n\n${prompt}`;
+  }
+
   const response = await client.generate({
     model,
     system: CLASSIFIER_SYSTEM_PROMPT,
-    prompt: `Classify the following conversation:\n\n${historyText}\n\nLatest message: ${messages[messages.length - 1]?.content ?? ""}`,
+    prompt,
     temperature: 0.1,
     responseFormat: { type: "json_object" },
   });
@@ -84,14 +91,20 @@ export async function classifyIntent(
 export async function generateChitchatReply(
   messages: RouterMessage[],
   model: string = "openrouter/owl-alpha",
+  knownFacts?: string,
 ): Promise<string> {
   const client = new OpenRouterAiClient();
   const historyText = formatHistory(messages);
 
+  let prompt = `Generate the next friendly recruiter reply for this conversation:\n\n${historyText}`;
+  if (knownFacts) {
+    prompt = `Context:\n${knownFacts}\n\n${prompt}`;
+  }
+
   const response = await client.generate({
     model,
     system: CHITCHAT_SYSTEM_PROMPT,
-    prompt: `Generate the next friendly recruiter reply for this conversation:\n\n${historyText}`,
+    prompt,
     temperature: 0.7,
   });
 
@@ -99,7 +112,7 @@ export async function generateChitchatReply(
 }
 
 function formatHistory(messages: RouterMessage[]): string {
-  const recent = messages.slice(-5); // Use last 5 messages for quick context
+  const recent = messages.slice(-15); // Use last 15 messages for quick context
   return recent.map((m) => `[${m.role.toUpperCase()}]: ${m.content}`).join("\n");
 }
 

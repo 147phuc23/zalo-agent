@@ -47,7 +47,7 @@ async function run() {
   const twentySkills: SkillDefinition[] = [];
   
   const entries = await fs.readdir(skillsDir, { withFileTypes: true });
-  const SKIP_DIRS = new Set(["global", "twenty"]);
+  const SKIP_DIRS = new Set(["global", "twenty", "save-history"]);
 
   // Load default skills
   for (const entry of entries) {

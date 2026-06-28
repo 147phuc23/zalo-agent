@@ -40,13 +40,6 @@ export const DEFAULT_SKILLS: SkillDefinition[] = [
     "filePath": "src/skills/load-jobs/SKILL.md"
   },
   {
-    "id": "save-history",
-    "name": "Save History",
-    "description": "Save user, assistant, or tool interaction history in the in-memory DB-shaped store.",
-    "content": "# Save History\nDescription: Save user, assistant, or tool interaction history in the in-memory DB-shaped store.\n\nUse this skill whenever important user messages, assistant replies, or tool results should be auditable.\n\nInput contract:\n- `tenantId`: tenant id.\n- `threadId`: Zalo thread id.\n- `entries`: role/content/metadata records.\n\nOutput contract:\n- Count of newly stored and total records for the thread.",
-    "filePath": "src/skills/save-history/SKILL.md"
-  },
-  {
     "id": "save-interaction-intent",
     "name": "Save Interaction Intent",
     "description": "Save the current candidate intent and merged requirement state in memory.",

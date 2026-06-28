@@ -62,7 +62,7 @@ for (const testCase of cases) {
       useLocalCache: true,
       forceProfileReload: false,
       printCache: false,
-      mockLlm: false,
+      mockLlm: !process.env.OPENROUTER_API_KEY,
       skillMode: "mock",
     });
 

@@ -78,6 +78,7 @@ export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<Hr
     loadedSkills: [],
     customerProfile: profileCache.profile,
     state,
+    knownFacts: options.knownFacts,
   });
 
   if (options.mockLlm) {
@@ -121,7 +122,7 @@ export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<Hr
       enablePromptCaching: providerCache.enableProviderPromptCaching,
     }) as unknown as LanguageModel,
     system: options.systemPromptOverride || promptContext.system,
-    prompt: promptContext.prompt,
+    messages: promptContext.messages,
     tools,
     maxSteps: 8,
     maxTokens: 2000,
@@ -139,19 +140,7 @@ export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<Hr
     },
   });
 
-  const savedIntent = getIntent({
-    tenantId: options.scenario.tenantId,
-    threadId: options.scenario.threadId,
-  });
 
-  const history = getHistory({
-    tenantId: options.scenario.tenantId,
-    threadId: options.scenario.threadId,
-  });
-
-  state.intent = savedIntent?.intent ?? state.intent;
-  state.requirement = savedIntent?.requirement ?? state.requirement;
-  state.history = history.length > 0 ? history : state.history;
 
   return {
     scenarioId: options.scenario.id,

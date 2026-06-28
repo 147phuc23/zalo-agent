@@ -17,6 +17,7 @@ import type { MockZaloPayload, HrSkillMode } from "@platform/agent";
 import { Redis } from "ioredis";
 import { generateText } from "ai";
 import { createOpenRouterChatModel } from "@platform/ai-client";
+import { buildKnownFacts } from "@platform/core";
 
 const JobPayloadSchema = z.object({
   tenantId: z.string().min(1),
@@ -304,11 +305,13 @@ async function generateDraftReply(
     content: m.text ?? "",
   }));
 
-  const classification = await classifyIntent(routerMessages, classifierModel);
+  const knownFacts = await buildKnownFacts(repos, conversationId);
+
+  const classification = await classifyIntent(routerMessages, classifierModel, knownFacts);
   console.log(`[worker] classification result for conversation ${conversationId}: ${classification.category} (reason: ${classification.reason})`);
 
   if (classification.category === "CHITCHAT") {
-    const chitchatText = await generateChitchatReply(routerMessages, classifierModel);
+    const chitchatText = await generateChitchatReply(routerMessages, classifierModel, knownFacts);
     const responses = parseDraftResponses(chitchatText);
     const batchId = `draft:${tenantId}:${conversationId}:${Date.now()}`;
 
@@ -482,6 +485,7 @@ async function generateDraftReply(
     mockLlm: false,
     skillMode: (process.env.HR_SKILL_MODE as HrSkillMode) || "default",
     systemPromptOverride,
+    knownFacts,
     abortSignal,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onStepFinish: async (step: any) => {
