@@ -12,6 +12,7 @@ export {
   createTenantRepository,
   createWorkflowConfigRepository,
   createPromptTemplateRepository,
+  createJobPostingRepository,
 } from "./repositories.js";
 
 export type {
@@ -27,6 +28,7 @@ export type {
   ToolCallAuditRow,
   HumanTaskRow,
   PromptTemplateRow,
+  JobPostingRow,
 } from "./repositories.js";
 
 export type DatabaseClient = pg.Pool;

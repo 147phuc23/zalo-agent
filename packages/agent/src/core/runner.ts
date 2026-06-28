@@ -13,7 +13,38 @@ import {
 import { createAgentTools } from "../skills/registry.js";
 import { createTwentyAgentTools } from "../skills/twenty/registry.js";
 import { createTwentyRecruitingClientFromEnv } from "../twenty/recruiting-client.js";
-import type { HrAgentRunOptions, HrAgentRunResult, HrAgentState, SkillCacheResult } from "../types.js";
+import { createDatabaseClient, createJobPostingRepository, type JobPostingRow } from "@platform/database";
+import type { HrAgentRunOptions, HrAgentRunResult, HrAgentState, JobPosting, SkillCacheResult } from "../types.js";
+
+// Lazily-created, reused jobs repo backed by PLATFORM_DB_URL (Neon). Null when unset,
+// in which case load-jobs falls back to the in-code mock list.
+let jobsRepoSingleton: ReturnType<typeof createJobPostingRepository> | null = null;
+function getJobsRepo() {
+  if (jobsRepoSingleton) return jobsRepoSingleton;
+  const url = process.env.PLATFORM_DB_URL;
+  if (!url) return null;
+  jobsRepoSingleton = createJobPostingRepository(createDatabaseClient({ PLATFORM_DB_URL: url }));
+  return jobsRepoSingleton;
+}
+
+function jobRowToPosting(row: JobPostingRow): JobPosting {
+  return {
+    id: row.external_id ?? row.id,
+    title: row.title,
+    company: row.company,
+    location: row.location,
+    workMode: row.work_mode,
+    salaryMinVnd: Number(row.salary_min_vnd),
+    salaryMaxVnd: Number(row.salary_max_vnd),
+    seniority: row.seniority,
+    requiredSkills: row.required_skills ?? [],
+    description: row.description,
+    jobType: (row.job_type as JobPosting["jobType"]) ?? undefined,
+    experienceRequiredYears: row.experience_required_years ?? undefined,
+    benefits: row.benefits ?? undefined,
+    educationRequired: row.education_required ?? undefined,
+  };
+}
 
 const customerProfileCache = new CustomerProfileCache();
 
@@ -69,10 +100,20 @@ export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<Hr
     enabled: true,
   });
 
+  const jobsRepo = getJobsRepo();
   const tools =
     options.skillMode === "twenty"
       ? createTwentyAgentTools(skillCache.skills)
-      : createAgentTools(skillCache.skills);
+      : createAgentTools(skillCache.skills, {
+          loadJobs: jobsRepo
+            ? {
+                listJobs: async () => {
+                  const rows = await jobsRepo.listActive({ tenantId: options.scenario.tenantId });
+                  return rows.map(jobRowToPosting);
+                },
+              }
+            : undefined,
+        });
 
   const result = await generateText({
     model: createOpenRouterChatModel({

@@ -5,11 +5,15 @@ import { createCrmAddCandidateProfileNoteTool } from "./crm-add-candidate-profil
 import { createCrmGetCandidateProfileTool } from "./crm-get-candidate-profile/handler.js";
 import { createCrmUpdateCandidateProfileTool } from "./crm-update-candidate-profile/handler.js";
 import { createGatherRequirementTool } from "./gather-requirement/handler.js";
-import { createLoadJobsTool } from "./load-jobs/handler.js";
+import { createLoadJobsTool, type LoadJobsContext } from "./load-jobs/handler.js";
 import { createSaveHistoryTool } from "./save-history/handler.js";
 import { createSaveInteractionIntentTool } from "./save-interaction-intent/handler.js";
 
-export function createAgentTools(skills: SkillDefinition[]) {
+export interface AgentToolsContext {
+  loadJobs?: LoadJobsContext;
+}
+
+export function createAgentTools(skills: SkillDefinition[], ctx?: AgentToolsContext) {
   return {
     skills_search: createSkillSearchTool(skills),
     skills_load: createSkillLoadTool(skills),
@@ -19,7 +23,7 @@ export function createAgentTools(skills: SkillDefinition[]) {
     hr_gatherRequirement: createGatherRequirementTool(),
     history_saveMessage: createSaveHistoryTool(),
     memory_saveInteractionIntent: createSaveInteractionIntentTool(),
-    jobs_search: createLoadJobsTool(),
+    jobs_search: createLoadJobsTool(ctx?.loadJobs),
   };
 }
 

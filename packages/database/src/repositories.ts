@@ -531,6 +531,95 @@ export function createPromptTemplateRepository(client: DatabaseClient) {
   };
 }
 
+export interface JobPostingRow {
+  id: string;
+  tenant_id: string;
+  external_id: string | null;
+  title: string;
+  company: string;
+  location: string;
+  work_mode: "remote" | "hybrid" | "onsite";
+  salary_min_vnd: number;
+  salary_max_vnd: number;
+  seniority: string;
+  required_skills: string[];
+  description: string;
+  job_type: string | null;
+  experience_required_years: number | null;
+  benefits: string | null;
+  education_required: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export function createJobPostingRepository(client: DatabaseClient) {
+  return {
+    async listActive(input: { tenantId: string; limit?: number }) {
+      const res = await client.query(
+        `SELECT * FROM job_postings
+         WHERE tenant_id = $1 AND is_active = true
+         ORDER BY created_at DESC
+         LIMIT $2`,
+        [input.tenantId, input.limit ?? 500],
+      );
+      return res.rows as JobPostingRow[];
+    },
+    async count(input: { tenantId: string }) {
+      const res = await client.query(
+        "SELECT COUNT(*)::int AS n FROM job_postings WHERE tenant_id = $1 AND is_active = true",
+        [input.tenantId],
+      );
+      return (res.rows[0]?.n as number) ?? 0;
+    },
+    async bulkInsert(input: {
+      tenantId: string;
+      jobs: Array<{
+        externalId?: string | null;
+        title: string;
+        company: string;
+        location: string;
+        workMode: "remote" | "hybrid" | "onsite";
+        salaryMinVnd: number;
+        salaryMaxVnd: number;
+        seniority: string;
+        requiredSkills: string[];
+        description: string;
+        jobType?: string | null;
+        experienceRequiredYears?: number | null;
+        benefits?: string | null;
+        educationRequired?: string | null;
+      }>;
+    }) {
+      let inserted = 0;
+      for (const j of input.jobs) {
+        await client.query(
+          `INSERT INTO job_postings
+             (tenant_id, external_id, title, company, location, work_mode,
+              salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
+              job_type, experience_required_years, benefits, education_required)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+           ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
+           DO UPDATE SET
+             title = EXCLUDED.title, company = EXCLUDED.company, location = EXCLUDED.location,
+             work_mode = EXCLUDED.work_mode, salary_min_vnd = EXCLUDED.salary_min_vnd,
+             salary_max_vnd = EXCLUDED.salary_max_vnd, seniority = EXCLUDED.seniority,
+             required_skills = EXCLUDED.required_skills, description = EXCLUDED.description,
+             job_type = EXCLUDED.job_type, experience_required_years = EXCLUDED.experience_required_years,
+             benefits = EXCLUDED.benefits, education_required = EXCLUDED.education_required,
+             is_active = true`,
+          [
+            input.tenantId, j.externalId ?? null, j.title, j.company, j.location, j.workMode,
+            j.salaryMinVnd, j.salaryMaxVnd, j.seniority, j.requiredSkills, j.description,
+            j.jobType ?? null, j.experienceRequiredYears ?? null, j.benefits ?? null, j.educationRequired ?? null,
+          ],
+        );
+        inserted += 1;
+      }
+      return { inserted };
+    },
+  };
+}
+
 export function createRepositorySet(client: DatabaseClient) {
   return {
     tenants: createTenantRepository(client),
@@ -542,5 +631,6 @@ export function createRepositorySet(client: DatabaseClient) {
     tasks: createHumanTaskRepository(client),
     audits: createAuditRepository(client),
     prompts: createPromptTemplateRepository(client),
+    jobs: createJobPostingRepository(client),
   };
 }

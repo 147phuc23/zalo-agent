@@ -1,10 +1,16 @@
 import { tool } from "ai";
 import { z } from "zod";
+import type { JobPosting } from "../../types.js";
 import { mockJobs } from "./mock-data.js";
 
-export function createLoadJobsTool() {
+export interface LoadJobsContext {
+  // Returns the candidate job set (e.g. from Neon). Empty/undefined → fall back to mock.
+  listJobs?: () => Promise<JobPosting[]>;
+}
+
+export function createLoadJobsTool(ctx?: LoadJobsContext) {
   return tool({
-    description: "Search mocked HR job postings by candidate requirement fields.",
+    description: "Search HR job postings by candidate requirement fields.",
     parameters: z.object({
       role: z.string().optional(),
       location: z.string().optional(),
@@ -13,8 +19,18 @@ export function createLoadJobsTool() {
       skills: z.array(z.string()).optional(),
     }),
     execute: async (filters) => {
+      let source: JobPosting[] = mockJobs;
+      if (ctx?.listJobs) {
+        try {
+          const fromDb = await ctx.listJobs();
+          if (fromDb.length > 0) source = fromDb;
+        } catch (err) {
+          console.error("[load-jobs] DB lookup failed, falling back to mock:", err);
+        }
+      }
+
       const skills = new Set((filters.skills ?? []).map((skill) => skill.toLowerCase()));
-      const matches = mockJobs
+      const matches = source
         .map((job) => {
           let score = 0;
           if (filters.role && job.title.toLowerCase().includes(filters.role.toLowerCase())) score += 4;
