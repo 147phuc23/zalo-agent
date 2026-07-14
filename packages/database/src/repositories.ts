@@ -286,15 +286,19 @@ export function createConversationRepository(client: DatabaseClient) {
 
 export function createMessageRepository(client: DatabaseClient) {
   return {
-    async listByConversation(input: { conversationId: string; limit: number }) {
-      const res = await client.query(
-        `SELECT id, tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, raw_payload, is_read, read_at, created_at 
+    async listByConversation(input: { conversationId: string; limit: number; after?: string | Date }) {
+      let query = `SELECT id, tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, raw_payload, is_read, read_at, created_at 
          FROM messages 
-         WHERE conversation_id = $1 
-         ORDER BY created_at DESC 
-         LIMIT $2`,
-        [input.conversationId, input.limit]
-      );
+         WHERE conversation_id = $1`;
+      const params: any[] = [input.conversationId];
+      if (input.after) {
+        query += ` AND created_at > $2 ORDER BY created_at DESC LIMIT $3`;
+        params.push(input.after, input.limit);
+      } else {
+        query += ` ORDER BY created_at DESC LIMIT $2`;
+        params.push(input.limit);
+      }
+      const res = await client.query(query, params);
       return (res.rows as MessageRow[]).reverse();
     },
     async findLatestByExternalMessageId(input: { tenantId: string; externalMessageId: string }) {
@@ -480,14 +484,17 @@ export function createAuditRepository(client: DatabaseClient) {
       );
       return res.rows[0] as ToolCallAuditRow;
     },
-    async listByConversation(conversationId: string) {
-      const res = await client.query(
-        `SELECT id, tenant_id, conversation_id, run_id, tool_name, input, output, status, created_at 
+    async listByConversation(conversationId: string, after?: string | Date) {
+      let query = `SELECT id, tenant_id, conversation_id, run_id, tool_name, input, output, status, created_at 
          FROM tool_call_audits 
-         WHERE conversation_id = $1 
-         ORDER BY created_at ASC`,
-        [conversationId]
-      );
+         WHERE conversation_id = $1`;
+      const params: any[] = [conversationId];
+      if (after) {
+        query += ` AND created_at > $2`;
+        params.push(after);
+      }
+      query += ` ORDER BY created_at ASC`;
+      const res = await client.query(query, params);
       return res.rows as ToolCallAuditRow[];
     },
   };
@@ -620,6 +627,129 @@ export function createJobPostingRepository(client: DatabaseClient) {
   };
 }
 
+
+export interface GuestAccessRow {
+  id: string;
+  tenant_id: string;
+  invite_code: string;
+  status: "pending" | "claimed" | "revoked";
+  password_hash: string | null;
+  display_name: string | null;
+  profile: Record<string, unknown>;
+  contact_id: string | null;
+  conversation_id: string | null;
+  session_token_hash: string | null;
+  created_at: string;
+  claimed_at: string | null;
+  last_seen_at: string | null;
+}
+
+export function createGuestAccessRepository(client: DatabaseClient) {
+  return {
+    async findById(id: string) {
+      const res = await client.query(
+        `SELECT id, tenant_id, invite_code, status, password_hash, display_name, profile, contact_id, conversation_id, session_token_hash, created_at, claimed_at, last_seen_at
+         FROM public.guest_access
+         WHERE id = $1
+         LIMIT 1`,
+        [id]
+      );
+      return (res.rows[0] as GuestAccessRow) || null;
+    },
+    async findByInviteCode(inviteCode: string) {
+      const res = await client.query(
+        `SELECT id, tenant_id, invite_code, status, password_hash, display_name, profile, contact_id, conversation_id, session_token_hash, created_at, claimed_at, last_seen_at
+         FROM public.guest_access
+         WHERE invite_code = $1
+         LIMIT 1`,
+        [inviteCode]
+      );
+      return (res.rows[0] as GuestAccessRow) || null;
+    },
+    async create(input: { tenantId: string; inviteCode: string }) {
+      const res = await client.query(
+        `INSERT INTO public.guest_access (tenant_id, invite_code, status, profile)
+         VALUES ($1, $2, 'pending', '{}'::jsonb)
+         RETURNING id, tenant_id, invite_code, status, password_hash, display_name, profile, contact_id, conversation_id, session_token_hash, created_at, claimed_at, last_seen_at`,
+        [input.tenantId, input.inviteCode]
+      );
+      return res.rows[0] as GuestAccessRow;
+    },
+    async updateClaim(input: {
+      inviteCode: string;
+      passwordHash: string;
+      displayName: string;
+      profile: Record<string, unknown>;
+      contactId: string;
+      conversationId: string;
+      sessionTokenHash: string;
+    }) {
+      const res = await client.query(
+        `UPDATE public.guest_access
+         SET status = 'claimed',
+             password_hash = $1,
+             display_name = $2,
+             profile = $3,
+             contact_id = $4,
+             conversation_id = $5,
+             session_token_hash = $6,
+             claimed_at = now()
+         WHERE invite_code = $7 AND status = 'pending'
+         RETURNING id, tenant_id, invite_code, status, password_hash, display_name, profile, contact_id, conversation_id, session_token_hash, created_at, claimed_at, last_seen_at`,
+        [
+          input.passwordHash,
+          input.displayName,
+          JSON.stringify(input.profile),
+          input.contactId,
+          input.conversationId,
+          input.sessionTokenHash,
+          input.inviteCode,
+        ]
+      );
+      return (res.rows[0] as GuestAccessRow) || null;
+    },
+    async updateSessionToken(input: { inviteCode: string; sessionTokenHash: string }) {
+      const res = await client.query(
+        `UPDATE public.guest_access
+         SET session_token_hash = $1
+         WHERE invite_code = $2
+         RETURNING id, tenant_id, invite_code, status, password_hash, display_name, profile, contact_id, conversation_id, session_token_hash, created_at, claimed_at, last_seen_at`,
+        [input.sessionTokenHash, input.inviteCode]
+      );
+      return (res.rows[0] as GuestAccessRow) || null;
+    },
+    async updateLastSeen(inviteCode: string) {
+      await client.query(
+        `UPDATE public.guest_access
+         SET last_seen_at = now()
+         WHERE invite_code = $1`,
+        [inviteCode]
+      );
+    },
+    async listByTenant(input: { tenantId: string; limit?: number }) {
+      const res = await client.query(
+        `SELECT id, tenant_id, invite_code, status, password_hash, display_name, profile, contact_id, conversation_id, session_token_hash, created_at, claimed_at, last_seen_at
+         FROM public.guest_access
+         WHERE tenant_id = $1
+         ORDER BY created_at DESC
+         LIMIT $2`,
+        [input.tenantId, input.limit ?? 100]
+      );
+      return res.rows as GuestAccessRow[];
+    },
+    async revoke(id: string) {
+      const res = await client.query(
+        `UPDATE public.guest_access
+         SET status = 'revoked'
+         WHERE id = $1
+         RETURNING id, tenant_id, invite_code, status, password_hash, display_name, profile, contact_id, conversation_id, session_token_hash, created_at, claimed_at, last_seen_at`,
+        [id]
+      );
+      return (res.rows[0] as GuestAccessRow) || null;
+    },
+  };
+}
+
 export function createRepositorySet(client: DatabaseClient) {
   return {
     tenants: createTenantRepository(client),
@@ -632,5 +762,6 @@ export function createRepositorySet(client: DatabaseClient) {
     audits: createAuditRepository(client),
     prompts: createPromptTemplateRepository(client),
     jobs: createJobPostingRepository(client),
+    guestAccess: createGuestAccessRepository(client),
   };
 }

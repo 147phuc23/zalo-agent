@@ -13,6 +13,7 @@ export {
   createWorkflowConfigRepository,
   createPromptTemplateRepository,
   createJobPostingRepository,
+  createGuestAccessRepository,
 } from "./repositories.js";
 
 export type {
@@ -29,6 +30,7 @@ export type {
   HumanTaskRow,
   PromptTemplateRow,
   JobPostingRow,
+  GuestAccessRow,
 } from "./repositories.js";
 
 export type DatabaseClient = pg.Pool;

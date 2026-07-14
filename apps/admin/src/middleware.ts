@@ -10,7 +10,12 @@ function unauthorized(message: string) {
   });
 }
 
-export function proxy(request: NextRequest) {
+export function middleware(request: NextRequest) {
+  const publicPrefixes = ["/guest/", "/api/guest/"];
+  if (publicPrefixes.some((p) => request.nextUrl.pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
+
   const expected = process.env.ADMIN_BASIC_AUTH;
 
   if (!expected) {

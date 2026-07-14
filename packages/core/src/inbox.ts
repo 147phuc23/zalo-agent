@@ -31,7 +31,7 @@ export async function listConversations(repos: Repos, input: { tenantId: string;
   }));
 }
 
-export async function listMessages(repos: Repos, input: { conversationId: string; limit: number }) {
+export async function listMessages(repos: Repos, input: { conversationId: string; limit: number; after?: string | Date }) {
   const messages = await repos.messages.listByConversation(input);
   return messages.map((m) => ({
     id: m.id,
