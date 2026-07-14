@@ -1,5 +1,10 @@
 import type { createRepositorySet, MessageRow } from "@platform/database";
-import { runHrAgentScenario, classifyIntent, generateChitchatReply, resolveHrSkillMode } from "@platform/agent";
+import {
+  runHrAgentScenario,
+  classifyIntent,
+  generateChitchatReply,
+  resolveHrSkillMode,
+} from "@platform/agent";
 import type { MockZaloPayload } from "@platform/agent";
 import { createOpenRouterChatModel } from "@platform/ai-client";
 import { generateText } from "ai";
@@ -21,9 +26,12 @@ export async function generateAndSaveReply(
     tenantId: string;
     conversationId: string;
     targetMessageId?: string;
-  }
+  },
 ): Promise<MessageRow[]> {
-  const messages = await repos.messages.listByConversation({ conversationId: input.conversationId, limit: 100 });
+  const messages = await repos.messages.listByConversation({
+    conversationId: input.conversationId,
+    limit: 100,
+  });
   const conversation = await repos.conversations.findById(input.conversationId);
   if (!conversation) {
     throw new Error(`Conversation not found: ${input.conversationId}`);
@@ -35,10 +43,12 @@ export async function generateAndSaveReply(
   const externalUserId = contact?.external_user_id ?? "unknown";
 
   const overrideModel = conversation.override_model;
-  const defaultModel = (await resolveDefaultModel(repos, input.tenantId)) ?? "openrouter/owl-alpha";
+  const defaultModel =
+    (await resolveDefaultModel(repos, input.tenantId)) ?? "tencent/hy3:free";
   const model = overrideModel || defaultModel;
 
-  const classifierModel = (await resolveClassifierModel(repos, input.tenantId)) ?? "openrouter/owl-alpha";
+  const classifierModel =
+    (await resolveClassifierModel(repos, input.tenantId)) ?? "tencent/hy3:free";
   const routerMessages = messages.map((m) => ({
     role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
     content: m.text ?? "",
@@ -51,11 +61,21 @@ export async function generateAndSaveReply(
 
   const knownFacts = await buildKnownFacts(repos, input.conversationId);
 
-  const classification = await classifyIntent(routerMessages, classifierModel, knownFacts);
-  console.log(`[core:reply] classification result for conversation ${input.conversationId}: ${classification.category} (reason: ${classification.reason})`);
+  const classification = await classifyIntent(
+    routerMessages,
+    classifierModel,
+    knownFacts,
+  );
+  console.log(
+    `[core:reply] classification result for conversation ${input.conversationId}: ${classification.category} (reason: ${classification.reason})`,
+  );
 
   if (classification.category === "CHITCHAT") {
-    const chitchatText = await generateChitchatReply(routerMessages, classifierModel, knownFacts);
+    const chitchatText = await generateChitchatReply(
+      routerMessages,
+      classifierModel,
+      knownFacts,
+    );
     const responses = parseDraftResponses(chitchatText);
     const batchId = `draft:${input.tenantId}:${input.conversationId}:${Date.now()}`;
     const savedMessages: MessageRow[] = [];
@@ -75,12 +95,14 @@ export async function generateAndSaveReply(
           responseIndex: index + 1,
           responseCount: responses.length,
           originalText: chitchatText,
-          quote: targetMessage ? {
-            msg: targetMessage.text,
-            externalMessageId: targetMessage.external_message_id,
-            id: targetMessage.id,
-            data: (targetMessage.raw_payload as any)?.data
-          } : undefined
+          quote: targetMessage
+            ? {
+                msg: targetMessage.text,
+                externalMessageId: targetMessage.external_message_id,
+                id: targetMessage.id,
+                data: (targetMessage.raw_payload as any)?.data,
+              }
+            : undefined,
         },
       });
       savedMessages.push(msgRow);
@@ -90,7 +112,10 @@ export async function generateAndSaveReply(
   }
 
   let systemPromptOverride: string | undefined;
-  const dbPrompt = await repos.prompts.findActive({ tenantId: input.tenantId, key: "assistant" });
+  const dbPrompt = await repos.prompts.findActive({
+    tenantId: input.tenantId,
+    key: "assistant",
+  });
   if (dbPrompt) {
     systemPromptOverride = dbPrompt.content;
     // Replace placeholders using {{key}}
@@ -104,7 +129,9 @@ export async function generateAndSaveReply(
   }
 
   if (targetMessage) {
-    systemPromptOverride = (systemPromptOverride || "") + `\n\nIMPORTANT: The candidate has sent a message that you are replying to: "${targetMessage.text}". Make sure your response specifically and directly replies to/quotes this message.`;
+    systemPromptOverride =
+      (systemPromptOverride || "") +
+      `\n\nIMPORTANT: The candidate has sent a message that you are replying to: "${targetMessage.text}". Make sure your response specifically and directly replies to/quotes this message.`;
   }
 
   // Format messages for the tool-calling agent runner
@@ -144,7 +171,9 @@ export async function generateAndSaveReply(
     onStepFinish: async (step: any) => {
       if (!step.toolCalls || step.toolCalls.length === 0) return;
       for (const call of step.toolCalls) {
-        const matchingResult = step.toolResults?.find((r: any) => r.toolCallId === call.toolCallId);
+        const matchingResult = step.toolResults?.find(
+          (r: any) => r.toolCallId === call.toolCallId,
+        );
         await repos.audits.append({
           tenantId: input.tenantId,
           conversationId: input.conversationId,
@@ -186,12 +215,18 @@ export async function generateAndSaveReply(
   return savedMessages;
 }
 
-async function resolveDefaultModel(repos: Repos, tenantId: string): Promise<string | null> {
+async function resolveDefaultModel(
+  repos: Repos,
+  tenantId: string,
+): Promise<string | null> {
   const workflow = await repos.workflows.findLatestByTenant(tenantId);
   return workflow?.default_model ?? null;
 }
 
-async function resolveClassifierModel(repos: Repos, tenantId: string): Promise<string | null> {
+async function resolveClassifierModel(
+  repos: Repos,
+  tenantId: string,
+): Promise<string | null> {
   const workflow = await repos.workflows.findLatestByTenant(tenantId);
   return workflow?.classifier_model ?? null;
 }
@@ -199,13 +234,13 @@ async function resolveClassifierModel(repos: Repos, tenantId: string): Promise<s
 function parseDraftResponses(text: string): string[] {
   const parsed = DraftResponsesSchema.safeParse(parseJsonLike(text));
   if (parsed.success) {
-    return normalizeResponses(Array.isArray(parsed.data) ? parsed.data : parsed.data.responses);
+    return normalizeResponses(
+      Array.isArray(parsed.data) ? parsed.data : parsed.data.responses,
+    );
   }
 
   return normalizeResponses(
-    text
-      .split(/\n+/)
-      .map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/, "")),
+    text.split(/\n+/).map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/, "")),
   );
 }
 
@@ -246,9 +281,12 @@ export async function generateAndSaveReaction(
     conversationId: string;
     targetMessageId: string;
     reaction?: string;
-  }
+  },
 ): Promise<MessageRow> {
-  const messagesList = await repos.messages.listByConversation({ conversationId: input.conversationId, limit: 100 });
+  const messagesList = await repos.messages.listByConversation({
+    conversationId: input.conversationId,
+    limit: 100,
+  });
   const targetMessage = messagesList.find((m) => m.id === input.targetMessageId);
   if (!targetMessage) {
     throw new Error(`Target message not found: ${input.targetMessageId}`);
@@ -264,7 +302,10 @@ export async function generateAndSaveReaction(
   if (input.reaction) {
     reactionCode = input.reaction;
   } else {
-    const model = conversation.override_model || (await resolveDefaultModel(repos, input.tenantId)) || "google/gemini-2.5-flash";
+    const model =
+      conversation.override_model ||
+      (await resolveDefaultModel(repos, input.tenantId)) ||
+      "google/gemini-2.5-flash";
     const messagesContext = messagesList
       .slice(-10) // last 10 messages for context
       .map((m) => `${m.direction === "inbound" ? "Candidate" : "Agent"}: ${m.text}`)
@@ -289,7 +330,9 @@ Select exactly ONE emoji reaction from this list:
 Response format:
 Respond with ONLY the exact reaction name in uppercase, e.g. "HEART" or "LIKE". Do not include any other text, punctuation, or markdown formatting.`;
 
-    console.log(`[core:reply] generating reaction for message ${input.targetMessageId} using model ${model}`);
+    console.log(
+      `[core:reply] generating reaction for message ${input.targetMessageId} using model ${model}`,
+    );
     const modelInstance = createOpenRouterChatModel({ model });
     const result = await generateText({
       model: modelInstance as any,
@@ -316,7 +359,7 @@ Respond with ONLY the exact reaction name in uppercase, e.g. "HEART" or "LIKE". 
       emoji: reactionCode,
       sender: "agent",
       createdAt: new Date().toISOString(),
-    }
+    },
   ];
   await repos.messages.updateRawPayload(input.targetMessageId, rawPayload);
 
@@ -326,4 +369,3 @@ Respond with ONLY the exact reaction name in uppercase, e.g. "HEART" or "LIKE". 
   }
   return updatedMessage;
 }
-

@@ -25,6 +25,8 @@ import {
   Smile,
   CornerUpLeft,
   Loader2,
+  ChevronLeft,
+  X,
 } from "lucide-react";
 
 type Conversation = {
@@ -103,7 +105,7 @@ const AVAILABLE_MODELS = [
   { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
   { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro" },
   { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
-  { id: "openrouter/owl-alpha", name: "OpenRouter Owl Alpha (Default)" },
+  { id: "tencent/hy3:free", name: "OpenRouter Owl Alpha (Default)" },
 ];
 
 const EMOJI_OPTIONS = [
@@ -139,6 +141,14 @@ function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showInspector, setShowInspector] = useState(false);
+
+  // Open inspector by default on wide screens (desktop)
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth >= 1024) {
+      setShowInspector(true);
+    }
+  }, []);
 
   // New Chat Form State
   const [newThreadId, setNewThreadId] = useState("");
@@ -752,7 +762,8 @@ function Dashboard() {
   return (
     <div className="flex h-screen bg-[#F0F2F5] font-sans text-slate-800 overflow-hidden">
       {/* 1. Left Sidebar: Chat Sessions List */}
-      <div className="w-80 border-r border-gray-200 bg-white flex flex-col h-full">
+      <div className={`w-full md:w-80 border-r border-gray-200 bg-white flex flex-col h-full flex-shrink-0 ${selectedId ? "hidden md:flex" : "flex"
+        }`}>
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-blue-600" />
@@ -790,8 +801,8 @@ function Dashboard() {
                 key={c.id}
                 onClick={() => setSelectedId(c.id)}
                 className={`w-full text-left p-3.5 rounded-2xl flex items-center justify-between gap-3 transition ${isSelected
-                    ? "bg-blue-50 border border-blue-200/50 text-blue-755 font-semibold"
-                    : "bg-transparent border border-transparent text-slate-500 hover:bg-gray-50 hover:text-slate-800"
+                  ? "bg-blue-50 border border-blue-200/50 text-blue-755 font-semibold"
+                  : "bg-transparent border border-transparent text-slate-500 hover:bg-gray-50 hover:text-slate-800"
                   }`}
               >
                 <div className="min-w-0">
@@ -826,35 +837,63 @@ function Dashboard() {
       </div>
 
       {/* 2. Middle Pane: Chat Simulator View */}
-      <div className="flex-1 min-w-0 flex flex-col h-full bg-[#F4F5F7] relative">
+      <div className={`flex-1 min-w-0 flex flex-col h-full bg-[#F4F5F7] relative ${
+        selectedId ? "flex" : "hidden md:flex"
+      }`}>
         {activeConversation ? (
           <>
             {/* Conversation Header */}
             <div className="p-4 border-b border-gray-200 bg-white flex items-center justify-between gap-4">
-              <div>
-                <h3 className="font-bold text-slate-800 text-base">
-                  {activeConversation.contact?.displayName ?? activeConversation.contact?.externalUserId}
-                </h3>
-                <span className="text-xs text-slate-500">
-                  Zalo Thread: {activeConversation.externalThreadId}
-                </span>
+              <div className="flex items-center gap-2 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(null)}
+                  className="md:hidden p-1.5 rounded-lg hover:bg-gray-100 text-slate-600 transition"
+                  title="Back to Sessions"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-slate-800 text-base truncate">
+                    {activeConversation.contact?.displayName ?? activeConversation.contact?.externalUserId}
+                  </h3>
+                  <span className="text-xs text-slate-500 truncate block">
+                    Zalo Thread: {activeConversation.externalThreadId}
+                  </span>
+                </div>
               </div>
 
-              {/* Model selection dropdown */}
-              <div className="flex items-center gap-2">
-                <Cpu className="w-4 h-4 text-slate-400" />
-                <select
-                  value={activeConversation.overrideModel ?? "default"}
-                  onChange={(e) => handleUpdateModel(e.target.value === "default" ? null : e.target.value)}
-                  className="bg-white border border-gray-200 rounded-lg text-xs py-1.5 px-3 text-slate-700 focus:outline-none focus:border-blue-600"
+              {/* Model selection dropdown & Inspector Toggle */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="hidden sm:flex items-center gap-2">
+                  <Cpu className="w-4 h-4 text-slate-400" />
+                  <select
+                    value={activeConversation.overrideModel ?? "default"}
+                    onChange={(e) => handleUpdateModel(e.target.value === "default" ? null : e.target.value)}
+                    className="bg-white border border-gray-200 rounded-lg text-xs py-1.5 px-3 text-slate-700 focus:outline-none focus:border-blue-600"
+                  >
+                    <option value="default">Default Model</option>
+                    {availableModels.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowInspector(!showInspector)}
+                  className={`p-2 rounded-xl border transition flex items-center gap-1.5 text-xs font-semibold ${
+                    showInspector
+                      ? "bg-blue-50 border-blue-200/50 text-blue-650"
+                      : "bg-white border-gray-200 text-slate-600 hover:bg-gray-50"
+                  }`}
+                  title="Toggle Inspector"
                 >
-                  <option value="default">Default Model</option>
-                  {availableModels.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name}
-                    </option>
-                  ))}
-                </select>
+                  <Terminal className="w-4 h-4" />
+                  <span className="hidden md:inline">Inspector</span>
+                </button>
               </div>
             </div>
 
@@ -879,14 +918,14 @@ function Dashboard() {
                       )}
                       <div
                         className={`max-w-[70%] rounded-2xl p-3 px-4 shadow-sm leading-relaxed text-sm relative ${isInbound
-                            ? "bg-white border border-gray-200 text-slate-800 rounded-tl-sm"
-                            : "bg-[#0068FF] text-white rounded-tr-sm"
+                          ? "bg-white border border-gray-200 text-slate-800 rounded-tl-sm"
+                          : "bg-[#0068FF] text-white rounded-tr-sm"
                           }`}
                       >
                         {m.rawPayload?.quote && (
                           <div className={`p-2 mb-2 text-xs rounded border-l-4 font-normal ${isInbound
-                              ? "bg-gray-105 bg-gray-100 border-gray-400 text-slate-650"
-                              : "bg-blue-600/50 border-white text-blue-100"
+                            ? "bg-gray-105 bg-gray-100 border-gray-400 text-slate-650"
+                            : "bg-blue-600/50 border-white text-blue-100"
                             }`}>
                             <div className="font-semibold text-[10px] uppercase">Replying to:</div>
                             <div className="truncate">{m.rawPayload.quote.msg || m.rawPayload.quote.text}</div>
@@ -920,8 +959,8 @@ function Dashboard() {
                         )}
                         {m.rawPayload?.reactions && m.rawPayload.reactions.length > 0 && (
                           <div className={`flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-xs w-fit shadow-xs ${isInbound
-                              ? "bg-gray-50 border border-gray-150 text-slate-600"
-                              : "bg-blue-700 text-blue-100"
+                            ? "bg-gray-50 border border-gray-150 text-slate-600"
+                            : "bg-blue-700 text-blue-100"
                             }`}>
                             {m.rawPayload.reactions.map((r: any, idx: number) => {
                               let emojiChar = "❤️";
@@ -994,8 +1033,8 @@ function Dashboard() {
                           <div className="flex items-center gap-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                             <span
                               className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase border ${a.status === "ok"
-                                  ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                                  : "bg-red-50 text-red-650 border-red-100"
+                                ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                : "bg-red-50 text-red-650 border-red-100"
                                 }`}
                             >
                               {a.status}
@@ -1109,28 +1148,45 @@ function Dashboard() {
       </div>
 
       {/* 3. Right Pane: Debugger Inspector & Prompts panel */}
-      <div className="w-96 border-l border-gray-200 bg-white flex flex-col h-full">
+      <div
+        className={`border-gray-200 bg-white flex flex-col h-full transition-all duration-300 ${
+          showInspector
+            ? "fixed inset-y-0 right-0 z-40 w-full sm:w-96 border-l shadow-2xl lg:shadow-none lg:static lg:w-96 lg:flex"
+            : "hidden"
+        }`}
+      >
         {/* Tab Header */}
-        <div className="flex border-b border-gray-200 text-sm">
-          <button
-            onClick={() => setActiveTab("debugger")}
-            className={`flex-1 py-3 text-center font-medium border-b-2 transition ${activeTab === "debugger"
+        <div className="flex items-center border-b border-gray-200 text-sm">
+          <div className="flex flex-1">
+            <button
+              onClick={() => setActiveTab("debugger")}
+              className={`flex-1 py-3 text-center font-medium border-b-2 transition ${activeTab === "debugger"
                 ? "border-blue-600 text-blue-600 bg-blue-50/20"
                 : "border-transparent text-slate-500 hover:text-slate-800"
-              }`}
-          >
-            <Terminal className="w-4 h-4 inline mr-2" />
-            Agentic Inspector
-          </button>
-          <button
-            onClick={() => setActiveTab("prompt")}
-            className={`flex-1 py-3 text-center font-medium border-b-2 transition ${activeTab === "prompt"
+                }`}
+            >
+              <Terminal className="w-4 h-4 inline mr-2" />
+              Agentic Inspector
+            </button>
+            <button
+              onClick={() => setActiveTab("prompt")}
+              className={`flex-1 py-3 text-center font-medium border-b-2 transition ${activeTab === "prompt"
                 ? "border-blue-600 text-blue-600 bg-blue-50/20"
                 : "border-transparent text-slate-500 hover:text-slate-800"
-              }`}
+                }`}
+            >
+              <Settings className="w-4 h-4 inline mr-2" />
+              Prompts Manager
+            </button>
+          </div>
+
+          {/* Mobile Close Button */}
+          <button
+            onClick={() => setShowInspector(false)}
+            className="lg:hidden p-3 border-l border-gray-200 text-slate-400 hover:text-slate-650 transition"
+            title="Close Inspector"
           >
-            <Settings className="w-4 h-4 inline mr-2" />
-            Prompts Manager
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -1170,8 +1226,8 @@ function Dashboard() {
                       </div>
                       <span
                         className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${a.status === "ok"
-                            ? "bg-emerald-50 text-emerald-600"
-                            : "bg-red-50 text-red-650"
+                          ? "bg-emerald-50 text-emerald-600"
+                          : "bg-red-50 text-red-650"
                           }`}
                       >
                         {a.status}
@@ -1248,8 +1304,8 @@ function Dashboard() {
                       key={v.id}
                       onClick={() => handleSelectPromptVersion(v)}
                       className={`w-full text-left p-3 rounded-xl border text-xs flex items-center justify-between gap-3 transition ${v.is_active
-                          ? "bg-blue-50 border-blue-200/50 text-blue-700 font-semibold"
-                          : "bg-gray-50 border-gray-150 text-slate-500 hover:bg-gray-100 hover:text-slate-700"
+                        ? "bg-blue-50 border-blue-200/50 text-blue-700 font-semibold"
+                        : "bg-gray-50 border-gray-150 text-slate-500 hover:bg-gray-100 hover:text-slate-700"
                         }`}
                     >
                       <div className="min-w-0">
@@ -1278,6 +1334,14 @@ function Dashboard() {
         </div>
       </div>
 
+      {/* Inspector Backdrop (Mobile/Tablet) */}
+      {showInspector && (
+        <div
+          className="fixed inset-0 bg-black/40 z-30 lg:hidden"
+          onClick={() => setShowInspector(false)}
+        />
+      )}
+
       {/* 4. New Chat Modal Dialog */}
       {isNewChatOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1304,8 +1368,8 @@ function Dashboard() {
                     type="button"
                     onClick={() => handlePresetSelect(idx)}
                     className={`w-full text-left p-3 rounded-2xl border text-xs flex items-center justify-between transition ${selectedPresetIndex === idx
-                        ? "bg-blue-50 border-blue-200/50 text-blue-750 font-semibold"
-                        : "bg-gray-50 border border-gray-150 text-slate-500 hover:bg-gray-100 hover:text-slate-800"
+                      ? "bg-blue-50 border-blue-200/50 text-blue-750 font-semibold"
+                      : "bg-gray-50 border border-gray-150 text-slate-500 hover:bg-gray-100 hover:text-slate-800"
                       }`}
                   >
                     <div>
@@ -1319,7 +1383,7 @@ function Dashboard() {
             </div>
 
             <form onSubmit={handleCreateChat} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                     External Thread ID

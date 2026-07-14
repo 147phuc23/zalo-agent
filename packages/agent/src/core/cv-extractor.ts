@@ -35,7 +35,7 @@ Only respond with the JSON object. Do not include markdown blocks or other text.
 export async function extractCvData(
   fileName: string,
   fileUrl: string,
-  model: string = "openrouter/owl-alpha",
+  model: string = "tencent/hy3:free",
 ): Promise<Partial<CandidateProfile>> {
   // Mock fallback for typical files in development/testing
   if (fileName.toLowerCase().includes("frontend") || fileUrl.includes("frontend")) {
@@ -82,7 +82,12 @@ export async function extractCvData(
     const parsed = JSON.parse(response.text.trim());
     return parsed;
   } catch (err) {
-    console.error("[cv-extractor] Failed to parse CV extraction JSON:", err, "Raw response:", response.text);
+    console.error(
+      "[cv-extractor] Failed to parse CV extraction JSON:",
+      err,
+      "Raw response:",
+      response.text,
+    );
     return {
       displayName: "Unknown Candidate",
       skills: [],
@@ -103,7 +108,9 @@ export function startCvWorker(input: {
     "cv.uploaded",
     async (job) => {
       const data = job.data as CvJobPayload;
-      console.log(`[cv-worker] Processing job ${job.id} for candidate ${data.externalUserId} in conversation ${data.conversationId}`);
+      console.log(
+        `[cv-worker] Processing job ${job.id} for candidate ${data.externalUserId} in conversation ${data.conversationId}`,
+      );
 
       // 1. Extract CV data
       const extractedProfile = await extractCvData(data.fileName, data.fileUrl);
@@ -116,7 +123,9 @@ export function startCvWorker(input: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         patch: extractedProfile as any,
       });
-      console.log(`[cv-worker] CRM Profile updated successfully for ${data.externalUserId}`);
+      console.log(
+        `[cv-worker] CRM Profile updated successfully for ${data.externalUserId}`,
+      );
 
       // 3. Load updated profile and perform job matching
       const profile = await recruitingClient.loadCandidateProfile({
@@ -181,7 +190,7 @@ export function startCvWorker(input: {
               createdAt: new Date(msgRow.created_at).toISOString(),
             },
           },
-        })
+        }),
       );
 
       const sendJobId = idempotencyKey.replaceAll(":", "_");
@@ -194,12 +203,12 @@ export function startCvWorker(input: {
           text: replyText,
           idempotencyKey,
         },
-        { jobId: sendJobId }
+        { jobId: sendJobId },
       );
 
       return { ok: true, matchesCount: topMatches.length };
     },
-    { connection: { url: input.redisUrl } }
+    { connection: { url: input.redisUrl } },
   );
 
   return cvWorker;

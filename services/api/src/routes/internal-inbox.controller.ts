@@ -1,4 +1,16 @@
-import { Controller, Get, Headers, Inject, Param, Query, Post, Body, UnauthorizedException, Sse, MessageEvent } from "@nestjs/common";
+import {
+  Controller,
+  Get,
+  Headers,
+  Inject,
+  Param,
+  Query,
+  Post,
+  Body,
+  UnauthorizedException,
+  Sse,
+  MessageEvent,
+} from "@nestjs/common";
 import { z } from "zod";
 import { Observable } from "rxjs";
 import { map } from "rxjs/operators";
@@ -47,9 +59,9 @@ export class InternalInboxController {
     @Headers("authorization") authorization: string | undefined,
   ): Observable<MessageEvent> {
     assertAuthorized(authorization);
-    return this.sseService.getEventStream().pipe(
-      map((event) => ({ data: event } as MessageEvent)),
-    );
+    return this.sseService
+      .getEventStream()
+      .pipe(map((event) => ({ data: event }) as MessageEvent));
   }
 
   @Get("/internal/conversations")
@@ -73,7 +85,7 @@ export class InternalInboxController {
   ) {
     assertAuthorized(authorization);
     const parsed = CreateConversationSchema.parse(body);
-    
+
     // Ensure tenant exists
     await this.postgres.repos.tenants.ensureExists({
       tenantId: parsed.tenantId,
@@ -143,7 +155,9 @@ export class InternalInboxController {
   ) {
     assertAuthorized(authorization);
     const parsedParams = ConversationParamsSchema.parse(params);
-    const audits = await this.postgres.repos.audits.listByConversation(parsedParams.conversationId);
+    const audits = await this.postgres.repos.audits.listByConversation(
+      parsedParams.conversationId,
+    );
     return { ok: true, audits };
   }
 
@@ -169,7 +183,7 @@ export class InternalInboxController {
     const parsedBody = UpdateModelSchema.parse(body);
     await this.postgres.repos.conversations.updateOverrideModel(
       parsedParams.conversationId,
-      parsedBody.model
+      parsedBody.model,
     );
     await this.sseService.publish({
       type: "conversation_updated",
@@ -185,7 +199,7 @@ export class InternalInboxController {
       { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
       { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro" },
       { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
-      { id: "openrouter/owl-alpha", name: "OpenRouter Owl Alpha (Default)" }
+      { id: "tencent/hy3:free", name: "OpenRouter Owl Alpha (Default)" },
     ];
     return { ok: true, models };
   }

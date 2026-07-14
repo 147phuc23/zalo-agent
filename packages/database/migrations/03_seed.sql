@@ -48,8 +48,8 @@ values
   (
     '11111111-1111-1111-1111-111111111111',
     'auto',
-    'openrouter/owl-alpha',
-    'openrouter/owl-alpha',
+    'tencent/hy3:free',
+    'tencent/hy3:free',
     'text-embedding-3-small',
     6,
     0.2,
@@ -60,8 +60,8 @@ values
   (
     '22222222-2222-2222-2222-222222222222',
     'approval',
-    'openrouter/owl-alpha',
-    'openrouter/owl-alpha',
+    'tencent/hy3:free',
+    'tencent/hy3:free',
     'text-embedding-3-small',
     4,
     0.15,
@@ -72,8 +72,8 @@ values
   (
     '33333333-3333-3333-3333-333333333333',
     'manual',
-    'openrouter/owl-alpha',
-    'openrouter/owl-alpha',
+    'tencent/hy3:free',
+    'tencent/hy3:free',
     'text-embedding-3-small',
     5,
     0.1,

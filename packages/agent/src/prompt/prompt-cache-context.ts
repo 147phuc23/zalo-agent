@@ -30,6 +30,7 @@ export type PromptCacheContext = {
   system: string;
   prompt: string;
   stablePrefix: string;
+  dynamicContext: string;
   messages: CoreMessage[];
   diagnostics: PromptCacheDiagnostics;
 };
@@ -90,6 +91,7 @@ export function buildPromptCacheContext(input: {
   return {
     stablePrefix,
     system,
+    dynamicContext,
     prompt: "", // Native multi-turn messages array is used instead of prompt string
     messages,
     diagnostics: buildDiagnostics({

@@ -1,0 +1,11 @@
+.turbo
+.next
+dist
+logs
+docs
+credentials.json
+qr.png
+*.pdf
+services/zalo-connector/data
+apps/admin/public/uploads
+apps/admin/tsconfig.tsbuildinfo

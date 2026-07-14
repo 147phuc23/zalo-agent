@@ -47,7 +47,7 @@ Examples:
 
 export async function classifyIntent(
   messages: RouterMessage[],
-  model: string = "openrouter/owl-alpha",
+  model: string = "tencent/hy3:free",
   knownFacts?: string,
 ): Promise<ClassificationResult> {
   const client = new OpenRouterAiClient();
@@ -78,7 +78,12 @@ export async function classifyIntent(
       }
     }
   } catch (err) {
-    console.error("[router] Failed to parse classification JSON:", err, "Raw text:", response.text);
+    console.error(
+      "[router] Failed to parse classification JSON:",
+      err,
+      "Raw text:",
+      response.text,
+    );
   }
 
   // Fallback default
@@ -90,7 +95,7 @@ export async function classifyIntent(
 
 export async function generateChitchatReply(
   messages: RouterMessage[],
-  model: string = "openrouter/owl-alpha",
+  model: string = "tencent/hy3:free",
   knownFacts?: string,
 ): Promise<string> {
   const client = new OpenRouterAiClient();

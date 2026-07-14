@@ -5,7 +5,7 @@ export async function GET() {
     { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
     { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro" },
     { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
-    { id: "openrouter/owl-alpha", name: "OpenRouter Owl Alpha (Default)" }
+    { id: "tencent/hy3:free", name: "OpenRouter Owl Alpha (Default)" },
   ];
   return NextResponse.json({ ok: true, models });
 }

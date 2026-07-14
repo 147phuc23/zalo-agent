@@ -24,7 +24,7 @@ Reply in Vietnamese with friendly emojis.`;
 export async function generateFollowUpMessage(
   candidateName: string,
   roleName: string,
-  model: string = "openrouter/owl-alpha",
+  model: string = "tencent/hy3:free",
 ): Promise<string> {
   const client = new OpenRouterAiClient();
   const response = await client.generate({
@@ -40,7 +40,7 @@ export async function generateJobOutreachMessage(
   candidateName: string,
   jobTitle: string,
   company: string,
-  model: string = "openrouter/owl-alpha",
+  model: string = "tencent/hy3:free",
 ): Promise<string> {
   const client = new OpenRouterAiClient();
   const response = await client.generate({
@@ -56,7 +56,7 @@ export async function generateUrgentOutreachMessage(
   candidateName: string,
   jobTitle: string,
   company: string,
-  model: string = "openrouter/owl-alpha",
+  model: string = "tencent/hy3:free",
 ): Promise<string> {
   const client = new OpenRouterAiClient();
   const response = await client.generate({
@@ -84,9 +84,9 @@ export async function runPipelineFollowUpsCampaign(input: {
   const res = await input.db.query(
     `SELECT c.id, c.tenant_id, c.external_thread_id, c.contact_id, c.last_activity_at 
      FROM conversations c 
-     WHERE c.status = 'open'`
+     WHERE c.status = 'open'`,
   );
-  
+
   let processedCount = 0;
 
   for (const conv of res.rows) {
@@ -97,9 +97,15 @@ export async function runPipelineFollowUpsCampaign(input: {
     const externalUserId = contact.external_user_id;
 
     // 2. Query candidates stuck in Screening/Interviewing from CRM
-    const crmStatus = await recruitingClient.getCandidateRecruitingStatus({ externalUserId });
-    
-    if (crmStatus.personFound && (crmStatus.pipelineStage === "screening" || crmStatus.pipelineStage === "interviewing")) {
+    const crmStatus = await recruitingClient.getCandidateRecruitingStatus({
+      externalUserId,
+    });
+
+    if (
+      crmStatus.personFound &&
+      (crmStatus.pipelineStage === "screening" ||
+        crmStatus.pipelineStage === "interviewing")
+    ) {
       // Find the applications to get the role name
       const apps = await recruitingClient.listInProgressApplications({ externalUserId });
       const activeApp = apps[0];
@@ -139,7 +145,9 @@ export async function runReverseMatchingCampaign(input: {
   redisPublisher: any;
   messageSendQueue: Queue;
 }): Promise<number> {
-  console.log(`[outreach-engine] Running Reverse Matching Campaign for job "${input.job.title}" at "${input.job.company}"...`);
+  console.log(
+    `[outreach-engine] Running Reverse Matching Campaign for job "${input.job.title}" at "${input.job.company}"...`,
+  );
   const recruitingClient = createTwentyRecruitingClientFromEnv();
 
   // Fetch all contacts/candidates in our tenant
@@ -147,7 +155,7 @@ export async function runReverseMatchingCampaign(input: {
     `SELECT c.id, c.external_user_id, c.display_name 
      FROM contacts c 
      WHERE c.tenant_id = $1`,
-    [input.tenantId]
+    [input.tenantId],
   );
 
   let outreachCount = 0;
@@ -157,18 +165,25 @@ export async function runReverseMatchingCampaign(input: {
 
     // Load candidate CRM profile and compute matching score
     const profile = await recruitingClient.loadCandidateProfile({ externalUserId });
-    const matchScores = await recruitingClient.computeJobMatchScores({ profile, jobs: [input.job] });
+    const matchScores = await recruitingClient.computeJobMatchScores({
+      profile,
+      jobs: [input.job],
+    });
     const match = matchScores[0];
 
     // High match score (> 8) triggers outreach
     if (match && match.score >= 8) {
       const candidateName = contactRow.display_name || "bạn";
-      const messageText = await generateJobOutreachMessage(candidateName, input.job.title, input.job.company);
+      const messageText = await generateJobOutreachMessage(
+        candidateName,
+        input.job.title,
+        input.job.company,
+      );
 
       // Find an active conversation to send message to
       const convRes = await input.db.query(
         `SELECT id, external_thread_id FROM conversations WHERE contact_id = $1 LIMIT 1`,
-        [contactRow.id]
+        [contactRow.id],
       );
       const conv = convRes.rows[0];
       if (!conv) continue;
@@ -202,14 +217,16 @@ export async function runUrgentJobCampaign(input: {
   redisPublisher: any;
   messageSendQueue: Queue;
 }): Promise<number> {
-  console.log(`[outreach-engine] Running Urgent Campaign for high-priority job "${input.job.title}"...`);
+  console.log(
+    `[outreach-engine] Running Urgent Campaign for high-priority job "${input.job.title}"...`,
+  );
   const recruitingClient = createTwentyRecruitingClientFromEnv();
 
   const res = await input.db.query(
     `SELECT c.id, c.external_user_id, c.display_name 
      FROM contacts c 
      WHERE c.tenant_id = $1`,
-    [input.tenantId]
+    [input.tenantId],
   );
 
   let outreachCount = 0;
@@ -217,18 +234,25 @@ export async function runUrgentJobCampaign(input: {
   for (const contactRow of res.rows) {
     const externalUserId = contactRow.external_user_id;
     const profile = await recruitingClient.loadCandidateProfile({ externalUserId });
-    
+
     // For urgent jobs, relax matching criteria (score >= 6)
-    const matchScores = await recruitingClient.computeJobMatchScores({ profile, jobs: [input.job] });
+    const matchScores = await recruitingClient.computeJobMatchScores({
+      profile,
+      jobs: [input.job],
+    });
     const match = matchScores[0];
 
     if (match && match.score >= 6) {
       const candidateName = contactRow.display_name || "bạn";
-      const messageText = await generateUrgentOutreachMessage(candidateName, input.job.title, input.job.company);
+      const messageText = await generateUrgentOutreachMessage(
+        candidateName,
+        input.job.title,
+        input.job.company,
+      );
 
       const convRes = await input.db.query(
         `SELECT id, external_thread_id FROM conversations WHERE contact_id = $1 LIMIT 1`,
-        [contactRow.id]
+        [contactRow.id],
       );
       const conv = convRes.rows[0];
       if (!conv) continue;
@@ -296,7 +320,7 @@ async function sendOutboundMessage(input: {
           createdAt: new Date(msgRow.created_at).toISOString(),
         },
       },
-    })
+    }),
   );
 
   const sendJobId = idempotencyKey.replaceAll(":", "_");
@@ -309,7 +333,7 @@ async function sendOutboundMessage(input: {
       text: input.text,
       idempotencyKey,
     },
-    { jobId: sendJobId }
+    { jobId: sendJobId },
   );
 }
 
@@ -336,7 +360,7 @@ export function startOutreachCampaignWorkers(input: {
       });
       return { ok: true, processedCount: count };
     },
-    { connection: { url: input.redisUrl } }
+    { connection: { url: input.redisUrl } },
   );
 
   // 2. Job Campaign Queue Worker (for new jobs & urgent job pushing)
@@ -348,9 +372,11 @@ export function startOutreachCampaignWorkers(input: {
         tenantId: string;
         campaignType: "reverse_match" | "urgent";
       };
-      
-      console.log(`[outreach-worker] Running job campaign job ${job.id} type ${data.campaignType}`);
-      
+
+      console.log(
+        `[outreach-worker] Running job campaign job ${job.id} type ${data.campaignType}`,
+      );
+
       let count = 0;
       if (data.campaignType === "urgent") {
         count = await runUrgentJobCampaign({
@@ -374,7 +400,7 @@ export function startOutreachCampaignWorkers(input: {
 
       return { ok: true, outreachCount: count };
     },
-    { connection: { url: input.redisUrl } }
+    { connection: { url: input.redisUrl } },
   );
 
   return { followupWorker, campaignWorker };

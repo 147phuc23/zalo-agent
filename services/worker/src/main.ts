@@ -83,7 +83,12 @@ const worker = new Worker(
       if (!payload.targetMessageId) {
         throw new Error("Missing targetMessageId for ai-react action");
       }
-      await handleAiReact(payload.tenantId, payload.conversationId, payload.targetMessageId, payload.reaction);
+      await handleAiReact(
+        payload.tenantId,
+        payload.conversationId,
+        payload.targetMessageId,
+        payload.reaction,
+      );
       return { ok: true, action: "ai-react-completed" };
     }
 
@@ -91,14 +96,20 @@ const worker = new Worker(
       if (!payload.targetMessageId) {
         throw new Error("Missing targetMessageId for ai-reply action");
       }
-      await handleAiReply(payload.tenantId, payload.conversationId, payload.targetMessageId);
+      await handleAiReply(
+        payload.tenantId,
+        payload.conversationId,
+        payload.targetMessageId,
+      );
       return { ok: true, action: "ai-reply-completed" };
     }
     latestJobForConversation.set(payload.conversationId, job.id!);
 
     const existingController = activeAbortControllers.get(payload.conversationId);
     if (existingController) {
-      console.log(`[worker] aborting previous job for conversation ${payload.conversationId} because a newer message arrived`);
+      console.log(
+        `[worker] aborting previous job for conversation ${payload.conversationId} because a newer message arrived`,
+      );
       existingController.abort();
     }
 
@@ -106,7 +117,9 @@ const worker = new Worker(
     await new Promise((resolve) => setTimeout(resolve, 10000));
 
     if (latestJobForConversation.get(payload.conversationId) !== job.id) {
-      console.log(`[worker] debounced job ${job.id} for conversation ${payload.conversationId} (newer job received)`);
+      console.log(
+        `[worker] debounced job ${job.id} for conversation ${payload.conversationId} (newer job received)`,
+      );
       return { ok: true, action: "debounced" };
     }
 
@@ -115,28 +128,43 @@ const worker = new Worker(
       try {
         const controller = new AbortController();
         activeAbortControllers.set(payload.conversationId, controller);
-        
-        const draft = await generateDraftReply(payload.tenantId, payload.conversationId, controller.signal);
-        
+
+        const draft = await generateDraftReply(
+          payload.tenantId,
+          payload.conversationId,
+          controller.signal,
+        );
+
         activeAbortControllers.delete(payload.conversationId);
 
         await appendAudit(payload.tenantId, payload.conversationId, "ai.generateDraft", {
           model: draft.model,
           responseCount: draft.responses.length,
         });
-        return { ok: true, action: "auto->drafts-enqueued", responseCount: draft.responses.length };
+        return {
+          ok: true,
+          action: "auto->drafts-enqueued",
+          responseCount: draft.responses.length,
+        };
       } catch (err) {
         activeAbortControllers.delete(payload.conversationId);
         const message = err instanceof Error ? err.message : String(err);
-        
+
         if (err instanceof Error && err.name === "AbortError") {
-          console.log(`[worker] job ${job.id} aborted mid-flight for conversation ${payload.conversationId}`);
+          console.log(
+            `[worker] job ${job.id} aborted mid-flight for conversation ${payload.conversationId}`,
+          );
           return { ok: true, action: "aborted" };
         }
 
-        await appendAuditError(payload.tenantId, payload.conversationId, "ai.generateDraft", {
-          error: message,
-        });
+        await appendAuditError(
+          payload.tenantId,
+          payload.conversationId,
+          "ai.generateDraft",
+          {
+            error: message,
+          },
+        );
         await createHumanTask(payload.tenantId, payload.conversationId, "approval", {
           reason: "ai-error-fallback",
           error: message,
@@ -227,7 +255,9 @@ function loadRepoEnv() {
   dotenv.config({ path: path.join(repoRoot, ".env.local") });
 }
 
-async function resolveMode(tenantId: string): Promise<"auto" | "approval" | "manual" | "blocked"> {
+async function resolveMode(
+  tenantId: string,
+): Promise<"auto" | "approval" | "manual" | "blocked"> {
   const workflow = await repos.workflows.findLatestByTenant(tenantId);
 
   if (!workflow?.mode) {
@@ -268,11 +298,14 @@ async function generateDraftReply(
   let messages: MessageRow[];
   let conversation: ConversationRow;
 
-  if (cached && (now - cached.lastUpdated) < CACHE_TTL_MS) {
+  if (cached && now - cached.lastUpdated < CACHE_TTL_MS) {
     conversation = cached.conversation;
     // Fetch only the latest 10 messages from the database to find new ones
-    const latestDbMessages = await repos.messages.listByConversation({ conversationId, limit: 10 });
-    
+    const latestDbMessages = await repos.messages.listByConversation({
+      conversationId,
+      limit: 10,
+    });
+
     // Merge latest messages with the cache, avoiding duplicates
     const cachedMap = new Map(cached.messages.map((m) => [m.id, m]));
     for (const msg of latestDbMessages) {
@@ -281,7 +314,7 @@ async function generateDraftReply(
 
     // Sort chronologically and limit to last 100 messages
     const merged = Array.from(cachedMap.values()).sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
     );
 
     messages = merged.slice(-100);
@@ -308,10 +341,10 @@ async function generateDraftReply(
   const externalUserId = contact?.external_user_id ?? "unknown";
 
   const overrideModel = conversation.override_model;
-  const defaultModel = (await resolveDefaultModel(tenantId)) ?? "openrouter/owl-alpha";
+  const defaultModel = (await resolveDefaultModel(tenantId)) ?? "tencent/hy3:free";
   const model = overrideModel || defaultModel;
 
-  const classifierModel = (await resolveClassifierModel(tenantId)) ?? "openrouter/owl-alpha";
+  const classifierModel = (await resolveClassifierModel(tenantId)) ?? "tencent/hy3:free";
   const routerMessages = messages.map((m) => ({
     role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
     content: m.text ?? "",
@@ -319,11 +352,21 @@ async function generateDraftReply(
 
   const knownFacts = await buildKnownFacts(repos, conversationId);
 
-  const classification = await classifyIntent(routerMessages, classifierModel, knownFacts);
-  console.log(`[worker] classification result for conversation ${conversationId}: ${classification.category} (reason: ${classification.reason})`);
+  const classification = await classifyIntent(
+    routerMessages,
+    classifierModel,
+    knownFacts,
+  );
+  console.log(
+    `[worker] classification result for conversation ${conversationId}: ${classification.category} (reason: ${classification.reason})`,
+  );
 
   if (classification.category === "CHITCHAT") {
-    const chitchatText = await generateChitchatReply(routerMessages, classifierModel, knownFacts);
+    const chitchatText = await generateChitchatReply(
+      routerMessages,
+      classifierModel,
+      knownFacts,
+    );
     const responses = parseDraftResponses(chitchatText);
     const batchId = `draft:${tenantId}:${conversationId}:${Date.now()}`;
 
@@ -342,12 +385,14 @@ async function generateDraftReply(
           responseIndex: index + 1,
           responseCount: responses.length,
           originalText: chitchatText,
-          quote: targetMessage ? {
-            msg: targetMessage.text,
-            externalMessageId: targetMessage.external_message_id,
-            id: targetMessage.id,
-            data: (targetMessage.raw_payload as any)?.data
-          } : undefined
+          quote: targetMessage
+            ? {
+                msg: targetMessage.text,
+                externalMessageId: targetMessage.external_message_id,
+                id: targetMessage.id,
+                data: (targetMessage.raw_payload as any)?.data,
+              }
+            : undefined,
         },
       });
       await publishSseEvent({
@@ -375,7 +420,7 @@ async function generateDraftReply(
         threadId: conversation.external_thread_id,
         text: response,
         idempotencyKey,
-        quote: targetMessage ? (targetMessage.raw_payload as any)?.data : undefined
+        quote: targetMessage ? (targetMessage.raw_payload as any)?.data : undefined,
       });
     }
 
@@ -393,7 +438,9 @@ async function generateDraftReply(
   if (isFile && fileAttachment) {
     let ackText: string;
     if (twentyRuntimeEnabled) {
-      console.log(`[worker] detected file upload in conversation ${conversationId}. Enqueueing to cv.uploaded...`);
+      console.log(
+        `[worker] detected file upload in conversation ${conversationId}. Enqueueing to cv.uploaded...`,
+      );
       await cvUploadedQueue.add("cv.extract", {
         tenantId,
         conversationId,
@@ -403,10 +450,14 @@ async function generateDraftReply(
         mimeType: fileAttachment.mimeType,
         sizeBytes: fileAttachment.sizeBytes,
       });
-      ackText = "Mình đã nhận được CV của bạn. Hệ thống đang tiến hành xử lý và trích xuất thông tin. Mình sẽ phản hồi lại ngay sau khi hoàn tất nhé! ⏳";
+      ackText =
+        "Mình đã nhận được CV của bạn. Hệ thống đang tiến hành xử lý và trích xuất thông tin. Mình sẽ phản hồi lại ngay sau khi hoàn tất nhé! ⏳";
     } else {
-      console.log(`[worker] detected file upload in conversation ${conversationId}, but CV extraction is disabled (HR_SKILL_MODE=${hrSkillMode}); acknowledging without processing`);
-      ackText = "Mình đã nhận được CV của bạn, cảm ơn bạn nhé! Bạn chia sẻ giúp mình vị trí và mức lương mong muốn để mình tìm công việc phù hợp cho bạn nha.";
+      console.log(
+        `[worker] detected file upload in conversation ${conversationId}, but CV extraction is disabled (HR_SKILL_MODE=${hrSkillMode}); acknowledging without processing`,
+      );
+      ackText =
+        "Mình đã nhận được CV của bạn, cảm ơn bạn nhé! Bạn chia sẻ giúp mình vị trí và mức lương mong muốn để mình tìm công việc phù hợp cho bạn nha.";
     }
     const batchId = `cv_ack:${tenantId}:${conversationId}:${Date.now()}`;
     const idempotencyKey = `${batchId}:1`;
@@ -466,7 +517,9 @@ async function generateDraftReply(
   }
 
   if (targetMessage) {
-    systemPromptOverride = (systemPromptOverride || "") + `\n\nIMPORTANT: The candidate has sent a message that you are replying to: "${targetMessage.text}". Make sure your response specifically and directly replies to/quotes this message.`;
+    systemPromptOverride =
+      (systemPromptOverride || "") +
+      `\n\nIMPORTANT: The candidate has sent a message that you are replying to: "${targetMessage.text}". Make sure your response specifically and directly replies to/quotes this message.`;
   }
 
   // Format messages for the tool-calling agent runner
@@ -509,7 +562,9 @@ async function generateDraftReply(
       if (!step.toolCalls || step.toolCalls.length === 0) return;
       for (const call of step.toolCalls) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const matchingResult = step.toolResults?.find((r: any) => r.toolCallId === call.toolCallId);
+        const matchingResult = step.toolResults?.find(
+          (r: any) => r.toolCallId === call.toolCallId,
+        );
         const auditRow = await repos.audits.append({
           tenantId,
           conversationId,
@@ -548,12 +603,14 @@ async function generateDraftReply(
         responseIndex: index + 1,
         responseCount: responses.length,
         originalText: agentResult.assistantText,
-        quote: targetMessage ? {
-          msg: targetMessage.text,
-          externalMessageId: targetMessage.external_message_id,
-          id: targetMessage.id,
-          data: (targetMessage.raw_payload as any)?.data
-        } : undefined
+        quote: targetMessage
+          ? {
+              msg: targetMessage.text,
+              externalMessageId: targetMessage.external_message_id,
+              id: targetMessage.id,
+              data: (targetMessage.raw_payload as any)?.data,
+            }
+          : undefined,
       },
     });
     await publishSseEvent({
@@ -581,7 +638,7 @@ async function generateDraftReply(
       threadId: conversation.external_thread_id,
       text: response,
       idempotencyKey,
-      quote: targetMessage ? (targetMessage.raw_payload as any)?.data : undefined
+      quote: targetMessage ? (targetMessage.raw_payload as any)?.data : undefined,
     });
   }
 
@@ -591,13 +648,13 @@ async function generateDraftReply(
 function parseDraftResponses(text: string): string[] {
   const parsed = DraftResponsesSchema.safeParse(parseJsonLike(text));
   if (parsed.success) {
-    return normalizeResponses(Array.isArray(parsed.data) ? parsed.data : parsed.data.responses);
+    return normalizeResponses(
+      Array.isArray(parsed.data) ? parsed.data : parsed.data.responses,
+    );
   }
 
   return normalizeResponses(
-    text
-      .split(/\n+/)
-      .map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/, "")),
+    text.split(/\n+/).map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/, "")),
   );
 }
 
@@ -718,9 +775,17 @@ async function appendAuditError(
   });
 }
 
-async function handleAiReact(tenantId: string, conversationId: string, messageId: string, manualReaction?: string) {
+async function handleAiReact(
+  tenantId: string,
+  conversationId: string,
+  messageId: string,
+  manualReaction?: string,
+) {
   // 1. Fetch target message
-  const messagesList = await repos.messages.listByConversation({ conversationId, limit: 100 });
+  const messagesList = await repos.messages.listByConversation({
+    conversationId,
+    limit: 100,
+  });
   const targetMessage = messagesList.find((m) => m.id === messageId);
   if (!targetMessage) {
     throw new Error(`Target message not found: ${messageId}`);
@@ -738,7 +803,10 @@ async function handleAiReact(tenantId: string, conversationId: string, messageId
     reactionCode = manualReaction;
   } else {
     // 3. Prompt LLM to choose reaction
-    const model = conversation.override_model || (await resolveDefaultModel(tenantId)) || "google/gemini-2.5-flash";
+    const model =
+      conversation.override_model ||
+      (await resolveDefaultModel(tenantId)) ||
+      "google/gemini-2.5-flash";
     const messagesContext = messagesList
       .slice(-10) // last 10 messages for context
       .map((m) => `${m.direction === "inbound" ? "Candidate" : "Agent"}: ${m.text}`)
@@ -763,7 +831,9 @@ Select exactly ONE emoji reaction from this list:
 Response format:
 Respond with ONLY the exact reaction name in uppercase, e.g. "HEART" or "LIKE". Do not include any other text, punctuation, or markdown formatting.`;
 
-    console.log(`[worker] generating reaction for message ${messageId} using model ${model}`);
+    console.log(
+      `[worker] generating reaction for message ${messageId} using model ${model}`,
+    );
     const modelInstance = createOpenRouterChatModel({ model });
     const result = await generateText({
       model: modelInstance as any,
@@ -792,7 +862,7 @@ Respond with ONLY the exact reaction name in uppercase, e.g. "HEART" or "LIKE". 
       emoji: reactionCode,
       sender: "agent",
       createdAt: new Date().toISOString(),
-    }
+    },
   ];
   await repos.messages.updateRawPayload(messageId, rawPayload);
 
@@ -814,14 +884,24 @@ Respond with ONLY the exact reaction name in uppercase, e.g. "HEART" or "LIKE". 
       threadId: conversation.external_thread_id,
       reaction: reactionCode,
       targetExternalMessageId: targetMessage.external_message_id,
-      targetExternalCliMessageId: rawPayload.data?.cliMsgId || rawPayload.data?.msgId || targetMessage.external_message_id,
+      targetExternalCliMessageId:
+        rawPayload.data?.cliMsgId ||
+        rawPayload.data?.msgId ||
+        targetMessage.external_message_id,
     });
   }
 }
 
-async function handleAiReply(tenantId: string, conversationId: string, messageId: string) {
+async function handleAiReply(
+  tenantId: string,
+  conversationId: string,
+  messageId: string,
+) {
   // 1. Fetch target message
-  const messagesList = await repos.messages.listByConversation({ conversationId, limit: 100 });
+  const messagesList = await repos.messages.listByConversation({
+    conversationId,
+    limit: 100,
+  });
   const targetMessage = messagesList.find((m) => m.id === messageId);
   if (!targetMessage) {
     throw new Error(`Target message not found: ${messageId}`);

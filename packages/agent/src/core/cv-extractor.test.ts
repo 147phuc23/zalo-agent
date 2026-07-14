@@ -43,7 +43,10 @@ describe("CV Extractor & Worker", () => {
     });
 
     it("extracts backend mock data based on filename", async () => {
-      const result = await extractCvData("backend_resume.docx", "http://example.com/file");
+      const result = await extractCvData(
+        "backend_resume.docx",
+        "http://example.com/file",
+      );
       expect(result.displayName).toBe("Trần Văn Backend");
       expect(result.skills).toContain("NodeJS");
       expect(mockGenerate).not.toHaveBeenCalled();
@@ -56,7 +59,7 @@ describe("CV Extractor & Worker", () => {
           skills: ["Java", "SQL"],
           preferredRoles: ["Java Developer"],
         }),
-        model: "openrouter/owl-alpha",
+        model: "tencent/hy3:free",
       });
 
       const result = await extractCvData("cv_general.pdf", "http://example.com/file");
@@ -153,13 +156,18 @@ describe("CV Extractor & Worker", () => {
 
       // Verify DB / Messaging calls
       expect(mockRepos.conversations.findById).toHaveBeenCalledWith("conv-1");
-      expect(mockRepos.messages.createOutbound).toHaveBeenCalledWith(expect.objectContaining({
-        tenantId: "tenant-1",
-        conversationId: "conv-1",
-        messageType: "text",
-        text: expect.stringContaining("Nguyễn Văn Frontend"),
-      }));
-      expect(mockRedisPublisher.publish).toHaveBeenCalledWith("platform:sse", expect.any(String));
+      expect(mockRepos.messages.createOutbound).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tenantId: "tenant-1",
+          conversationId: "conv-1",
+          messageType: "text",
+          text: expect.stringContaining("Nguyễn Văn Frontend"),
+        }),
+      );
+      expect(mockRedisPublisher.publish).toHaveBeenCalledWith(
+        "platform:sse",
+        expect.any(String),
+      );
       expect(mockMessageSendQueue.add).toHaveBeenCalledWith(
         "message.send",
         expect.objectContaining({
@@ -167,7 +175,7 @@ describe("CV Extractor & Worker", () => {
           threadId: "thread-123",
           text: expect.stringContaining("Nguyễn Văn Frontend"),
         }),
-        expect.any(Object)
+        expect.any(Object),
       );
 
       // Clean up worker connection to avoid leaving handle open

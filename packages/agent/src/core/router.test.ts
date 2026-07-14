@@ -23,12 +23,10 @@ describe("Router & Classifier Agent", () => {
         category: "CHITCHAT",
         reason: "User said hello",
       }),
-      model: "openrouter/owl-alpha",
+      model: "tencent/hy3:free",
     });
 
-    const result = await classifyIntent([
-      { role: "user", content: "Chào bạn!" },
-    ]);
+    const result = await classifyIntent([{ role: "user", content: "Chào bạn!" }]);
 
     expect(result.category).toBe("CHITCHAT");
     expect(result.reason).toBe("User said hello");
@@ -41,7 +39,7 @@ describe("Router & Classifier Agent", () => {
         category: "HR_SPECIALIST",
         reason: "User wants to find a backend React job",
       }),
-      model: "openrouter/owl-alpha",
+      model: "tencent/hy3:free",
     });
 
     const result = await classifyIntent([
@@ -55,12 +53,10 @@ describe("Router & Classifier Agent", () => {
   it("falls back to HR_SPECIALIST if classifier JSON is invalid", async () => {
     mockGenerate.mockResolvedValue({
       text: "This is not valid JSON",
-      model: "openrouter/owl-alpha",
+      model: "tencent/hy3:free",
     });
 
-    const result = await classifyIntent([
-      { role: "user", content: "Chào" },
-    ]);
+    const result = await classifyIntent([{ role: "user", content: "Chào" }]);
 
     expect(result.category).toBe("HR_SPECIALIST");
     expect(result.reason).toContain("Fallback");
@@ -69,12 +65,10 @@ describe("Router & Classifier Agent", () => {
   it("generates a friendly chitchat reply", async () => {
     mockGenerate.mockResolvedValue({
       text: "Chào bạn! Mình có thể giúp gì cho bạn hôm nay? 😊",
-      model: "openrouter/owl-alpha",
+      model: "tencent/hy3:free",
     });
 
-    const result = await generateChitchatReply([
-      { role: "user", content: "Chào bạn" },
-    ]);
+    const result = await generateChitchatReply([{ role: "user", content: "Chào bạn" }]);
 
     expect(result).toBe("Chào bạn! Mình có thể giúp gì cho bạn hôm nay? 😊");
     expect(mockGenerate).toHaveBeenCalledTimes(1);

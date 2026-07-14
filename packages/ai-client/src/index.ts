@@ -5,6 +5,11 @@ const OpenRouterEnvSchema = z.object({
   OPENROUTER_BASE_URL: z.string().url().default("https://openrouter.ai/api/v1"),
 });
 
+const unsupportedJsonModels = new Set<string>([
+  "tencent/hy3:free",
+  "tencent/hy3",
+]);
+
 export type GenerateInput = {
   model: string;
   system?: string;
@@ -27,6 +32,8 @@ export class OpenRouterAiClient {
   async generate(input: GenerateInput): Promise<GenerateOutput> {
     const env = OpenRouterEnvSchema.parse(process.env);
     const url = `${env.OPENROUTER_BASE_URL}/chat/completions`;
+    const useJson = input.responseFormat?.type === "json_object" && !unsupportedJsonModels.has(input.model);
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -38,12 +45,28 @@ export class OpenRouterAiClient {
         model: input.model,
         messages: buildMessages(input),
         temperature: input.temperature,
-        response_format: input.responseFormat ? { type: input.responseFormat.type } : undefined,
+        response_format: useJson ? { type: "json_object" } : undefined,
       }),
     });
 
     if (!response.ok) {
       const errorBody = await response.text();
+
+      // If the model does not support json_object, retry without it
+      if (
+        response.status === 400 &&
+        input.responseFormat?.type === "json_object" &&
+        useJson &&
+        (errorBody.includes("json_object") || errorBody.includes("response_format") || errorBody.includes("response format"))
+      ) {
+        console.warn(`[ai-client] Model ${input.model} does not support json_object. Caching model and retrying without responseFormat.`);
+        unsupportedJsonModels.add(input.model);
+        return this.generate({
+          ...input,
+          responseFormat: undefined,
+        });
+      }
+
       throw new Error(
         `OpenRouter request failed with status ${response.status}: ${errorBody}`,
       );
@@ -224,7 +247,7 @@ function buildOpenRouterChatBody(input: {
     tool_choice: toOpenRouterToolChoice(input.options.mode?.toolChoice),
   };
 
-  if (input.options.responseFormat?.type === "json") {
+  if (input.options.responseFormat?.type === "json" && !unsupportedJsonModels.has(input.model)) {
     body.response_format = { type: "json_object" };
   }
 
