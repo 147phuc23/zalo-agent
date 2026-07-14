@@ -34,8 +34,8 @@ describe("buildPromptCacheContext", () => {
       state: mockState,
     });
 
-    expect(context.system).toContain("# HR Chat Agent Responsibility");
-    expect(context.system).toContain("You are an HR recruiter chat agent for Zalo conversations.");
+    expect(context.system).toContain("# HR Recruitment Chat Agent System Prompt");
+    expect(context.system).toContain("You are Hoàng Phúc, an AI Recruitment Assistant");
     expect(context.system).toContain("# Customer Profile Snapshot");
     expect(context.system).toContain("- displayName: Test User");
   });
@@ -50,8 +50,8 @@ describe("buildPromptCacheContext", () => {
       systemPromptOverride: targetMsgOverride,
     });
 
-    expect(context.system).toContain("# HR Chat Agent Responsibility");
-    expect(context.system).toContain("You are an HR recruiter chat agent for Zalo conversations.");
+    expect(context.system).toContain("# HR Recruitment Chat Agent System Prompt");
+    expect(context.system).toContain("You are Hoàng Phúc, an AI Recruitment Assistant");
     expect(context.system).toContain("IMPORTANT: The candidate has sent a message that you are replying to: \"hello\"");
     expect(context.system).toContain("# Customer Profile Snapshot");
   });
@@ -66,7 +66,7 @@ describe("buildPromptCacheContext", () => {
       systemPromptOverride: dbPromptOverride,
     });
 
-    expect(context.system).not.toContain("# HR Chat Agent Responsibility");
+    expect(context.system).not.toContain("# HR Recruitment Chat Agent System Prompt");
     expect(context.system).toContain("# Custom DB Prompt");
     expect(context.system).toContain("You are a customized recruiter agent.");
     expect(context.system).toContain("# Customer Profile Snapshot");
@@ -83,7 +83,7 @@ describe("buildPromptCacheContext", () => {
       systemPromptOverride: combinedOverride,
     });
 
-    expect(context.system).not.toContain("# HR Chat Agent Responsibility");
+    expect(context.system).not.toContain("# HR Recruitment Chat Agent System Prompt");
     expect(context.system).toContain("# Custom DB Prompt");
     expect(context.system).toContain("You are a customized recruiter agent.");
     expect(context.system).toContain("IMPORTANT: The candidate has sent a message that you are replying to: \"hello\"");
