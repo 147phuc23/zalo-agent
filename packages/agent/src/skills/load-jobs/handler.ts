@@ -2,6 +2,7 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { JobPosting } from "../../types.js";
 import { mockJobs } from "./mock-data.js";
+import { scoreJob } from "../../core/location-normalizer.js";
 
 export interface LoadJobsContext {
   // Returns the candidate job set (e.g. from Neon). Empty/undefined → fall back to mock.
@@ -29,17 +30,9 @@ export function createLoadJobsTool(ctx?: LoadJobsContext) {
         }
       }
 
-      const skills = new Set((filters.skills ?? []).map((skill) => skill.toLowerCase()));
       const matches = source
         .map((job) => {
-          let score = 0;
-          if (filters.role && job.title.toLowerCase().includes(filters.role.toLowerCase())) score += 4;
-          if (filters.location && job.location.toLowerCase().includes(filters.location.toLowerCase())) score += 2;
-          if (filters.workMode && job.workMode === filters.workMode) score += 2;
-          if (filters.salaryMinVnd && job.salaryMaxVnd >= filters.salaryMinVnd) score += 2;
-          for (const skill of job.requiredSkills) {
-            if (skills.has(skill.toLowerCase())) score += 1;
-          }
+          const { score } = scoreJob(job, filters);
           return { ...job, score };
         })
         .filter((job) => job.score > 0)

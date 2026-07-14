@@ -1,4 +1,5 @@
 import type { CandidateProfile, JobPosting } from "../types.js";
+import { scoreJob, normalizeLocation } from "../core/location-normalizer.js";
 import { loadTwentyEnv, normalizeTwentyBaseUrl } from "./twenty-env.js";
 import { twentyHttpJson } from "./twenty-http.js";
 import {
@@ -338,35 +339,8 @@ function scoreAndSortJobs(jobs: JobPosting[], filters: {
   salaryMinVnd?: number;
   skills?: string[];
 }): JobPosting[] {
-  const skills = new Set((filters.skills ?? []).map((s) => s.toLowerCase()));
-
   const scored = jobs.map((job) => {
-    let score = 0;
-    const reasons: string[] = [];
-
-    if (filters.role && job.title.toLowerCase().includes(filters.role.toLowerCase())) {
-      score += 4;
-      reasons.push("title matches role");
-    }
-    if (filters.location && job.location.toLowerCase().includes(filters.location.toLowerCase())) {
-      score += 2;
-      reasons.push("location matches");
-    }
-    if (filters.workMode && job.workMode === filters.workMode) {
-      score += 2;
-      reasons.push("work mode matches");
-    }
-    if (filters.salaryMinVnd && job.salaryMaxVnd >= filters.salaryMinVnd) {
-      score += 2;
-      reasons.push("compensation range fits minimum");
-    }
-    for (const skill of job.requiredSkills) {
-      if (skills.has(skill.toLowerCase())) {
-        score += 1;
-        reasons.push(`skill ${skill}`);
-      }
-    }
-
+    const { score, reasons } = scoreJob(job, filters);
     return { job, score, reasons };
   });
 
@@ -385,9 +359,23 @@ function scoreJobAgainstProfile(job: JobPosting, profile: CandidateProfile): {
   const reasons: string[] = [];
   const pref = profile.preferredRoles.map((r) => r.toLowerCase());
   for (const role of pref) {
-    if (role && job.title.toLowerCase().includes(role)) {
-      score += 4;
-      reasons.push(`preferred role "${role}" aligns with title`);
+    if (role) {
+      const jobTitleLower = job.title.toLowerCase();
+      if (jobTitleLower.includes(role)) {
+        score += 4;
+        reasons.push(`preferred role "${role}" exact match aligns with title`);
+      } else {
+        const words = role.split(/\s+/).filter(Boolean);
+        if (words.length > 0) {
+          const matched = words.filter((w) => jobTitleLower.includes(w));
+          if (matched.length > 0) {
+            const ratio = matched.length / words.length;
+            const points = Math.round(ratio * 4);
+            score += points;
+            reasons.push(`preferred role "${role}" partial match aligns with title (${matched.join(", ")})`);
+          }
+        }
+      }
     }
   }
 
@@ -398,9 +386,14 @@ function scoreJobAgainstProfile(job: JobPosting, profile: CandidateProfile): {
     }
   }
 
-  if (profile.salaryExpectationVnd && job.salaryMaxVnd >= profile.salaryExpectationVnd) {
-    score += 1;
-    reasons.push("salary band covers expectation");
+  if (profile.salaryExpectationVnd) {
+    if (job.salaryMaxVnd === 0) {
+      score += 1;
+      reasons.push("salary is negotiable/unspecified");
+    } else if (job.salaryMaxVnd >= profile.salaryExpectationVnd) {
+      score += 1;
+      reasons.push("salary band covers expectation");
+    }
   }
 
   if (score === 0) {

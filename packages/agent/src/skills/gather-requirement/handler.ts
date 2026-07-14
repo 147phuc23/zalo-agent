@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { CandidateRequirement } from "../../types.js";
+import { normalizeLocation } from "../../core/location-normalizer.js";
 
 export function createGatherRequirementTool() {
   return tool({
@@ -20,8 +21,14 @@ export function createGatherRequirementTool() {
       if (/data|ai|ml|machine learning/.test(text)) requirement.role = "AI Engineer";
       if (/hr|recruit/.test(text)) requirement.role = "Recruiter";
 
-      if (/hcm|sai gon|saigon|ho chi minh/.test(text)) requirement.location = "Ho Chi Minh City";
-      if (/ha noi|hanoi|hn/.test(text)) requirement.location = "Ha Noi";
+      if (/hcm|sai gon|saigon|ho chi minh|hồ chí minh/i.test(text)) {
+        requirement.location = normalizeLocation("Ho Chi Minh City");
+      } else if (/ha noi|hanoi|hà nội|hn/i.test(text)) {
+        requirement.location = normalizeLocation("Ha Noi");
+      } else if (/da nang|đà nẵng|danang|dn/i.test(text)) {
+        requirement.location = normalizeLocation("Da Nang");
+      }
+
       if (/remote/.test(text)) requirement.workMode = "remote";
       if (/hybrid/.test(text)) requirement.workMode = "hybrid";
       if (/onsite|office/.test(text)) requirement.workMode = "onsite";
