@@ -6,7 +6,6 @@ describe("createTwentyAgentTools", () => {
     const tools = createTwentyAgentTools([]);
     expect(Object.keys(tools).sort()).toEqual(
       [
-        "history_saveMessage",
         "hr_gatherRequirement",
         "memory_saveInteractionIntent",
         "skills_load",

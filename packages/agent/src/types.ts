@@ -1,6 +1,11 @@
 export type Channel = "zalo";
 
-export type HrSkillMode = "mock" | "twenty";
+export type HrSkillMode = "mock" | "default" | "twenty";
+
+export function resolveHrSkillMode(value: string | undefined): HrSkillMode {
+  if (value === "twenty" || value === "mock") return value;
+  return "default";
+}
 
 export type MockZaloPayload = {
   id: string;

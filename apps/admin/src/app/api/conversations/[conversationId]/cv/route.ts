@@ -7,6 +7,15 @@ export async function POST(
   { params }: { params: Promise<{ conversationId: string }> }
 ) {
   const { conversationId } = await params;
+
+  // Writes to public/uploads and proxies to the NestJS API — neither exists on Vercel.
+  if (process.env.VERCEL) {
+    return NextResponse.json(
+      { ok: false, error: "CV upload is disabled on this deployment" },
+      { status: 501 }
+    );
+  }
+
   const apiBaseUrl = process.env.API_BASE_URL;
   const token = process.env.INTERNAL_INGEST_TOKEN;
   const tenantId = process.env.TENANT_ID;

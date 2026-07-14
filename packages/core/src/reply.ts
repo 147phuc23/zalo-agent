@@ -1,6 +1,6 @@
 import type { createRepositorySet, MessageRow } from "@platform/database";
-import { runHrAgentScenario, classifyIntent, generateChitchatReply } from "@platform/agent";
-import type { MockZaloPayload, HrSkillMode } from "@platform/agent";
+import { runHrAgentScenario, classifyIntent, generateChitchatReply, resolveHrSkillMode } from "@platform/agent";
+import type { MockZaloPayload } from "@platform/agent";
 import { createOpenRouterChatModel } from "@platform/ai-client";
 import { generateText } from "ai";
 import { z } from "zod";
@@ -138,7 +138,7 @@ export async function generateAndSaveReply(
     forceProfileReload: false,
     printCache: false,
     mockLlm: false,
-    skillMode: (process.env.HR_SKILL_MODE as HrSkillMode) || "default",
+    skillMode: resolveHrSkillMode(process.env.HR_SKILL_MODE),
     systemPromptOverride,
     knownFacts,
     onStepFinish: async (step: any) => {

@@ -1,10 +1,14 @@
 node_modules/
 .turbo/
+.env
 .env.local
 services/zalo-connector/data/
 credentials.json
 qr.png
-logs/hr-chat/
+logs/
+apps/admin/public/uploads/
+bun.lockb
 
 # Build output (rebuilt by Vercel buildCommand / tsc / esbuild)
 dist/
+.vercel

@@ -10,10 +10,11 @@ import {
   runHrAgentScenario,
   classifyIntent,
   generateChitchatReply,
+  resolveHrSkillMode,
 } from "@platform/agent";
 import { startCvWorker } from "@platform/agent/cv-extractor";
 import { startOutreachCampaignWorkers } from "@platform/agent/outreach-engine";
-import type { MockZaloPayload, HrSkillMode } from "@platform/agent";
+import type { MockZaloPayload } from "@platform/agent";
 import { Redis } from "ioredis";
 import { generateText } from "ai";
 import { createOpenRouterChatModel } from "@platform/ai-client";
@@ -38,6 +39,11 @@ if (!env.REDIS_URL) {
 const db = createDatabaseClient(env);
 const repos = createRepositorySet(db);
 const redisPublisher = new Redis(env.REDIS_URL);
+
+const hrSkillMode = resolveHrSkillMode(process.env.HR_SKILL_MODE);
+// Twenty CRM is only a runtime dependency in "twenty" mode; default mode works
+// entirely off the platform DB (Twenty stays available for schema/seed tooling).
+const twentyRuntimeEnabled = hrSkillMode === "twenty";
 
 async function publishSseEvent(event: { type: string; payload: unknown }) {
   try {
@@ -169,44 +175,50 @@ worker.on("failed", (job, err) => {
 
 console.log("[worker] started");
 
-const cvWorker = startCvWorker({
-  redisUrl: env.REDIS_URL,
-  repos,
-  redisPublisher,
-  messageSendQueue,
-});
+if (twentyRuntimeEnabled) {
+  const cvWorker = startCvWorker({
+    redisUrl: env.REDIS_URL,
+    repos,
+    redisPublisher,
+    messageSendQueue,
+  });
 
-cvWorker.on("completed", (job) => {
-  console.log("[cv-worker] completed", job.id);
-});
+  cvWorker.on("completed", (job) => {
+    console.log("[cv-worker] completed", job.id);
+  });
 
-cvWorker.on("failed", (job, err) => {
-  console.error("[cv-worker] failed", job?.id, err);
-});
+  cvWorker.on("failed", (job, err) => {
+    console.error("[cv-worker] failed", job?.id, err);
+  });
 
-const outreachWorkers = startOutreachCampaignWorkers({
-  redisUrl: env.REDIS_URL,
-  db,
-  repos,
-  redisPublisher,
-  messageSendQueue,
-});
+  const outreachWorkers = startOutreachCampaignWorkers({
+    redisUrl: env.REDIS_URL,
+    db,
+    repos,
+    redisPublisher,
+    messageSendQueue,
+  });
 
-outreachWorkers.followupWorker.on("completed", (job) => {
-  console.log("[outreach-followup-worker] completed", job.id);
-});
+  outreachWorkers.followupWorker.on("completed", (job) => {
+    console.log("[outreach-followup-worker] completed", job.id);
+  });
 
-outreachWorkers.followupWorker.on("failed", (job, err) => {
-  console.error("[outreach-followup-worker] failed", job?.id, err);
-});
+  outreachWorkers.followupWorker.on("failed", (job, err) => {
+    console.error("[outreach-followup-worker] failed", job?.id, err);
+  });
 
-outreachWorkers.campaignWorker.on("completed", (job) => {
-  console.log("[outreach-campaign-worker] completed", job.id);
-});
+  outreachWorkers.campaignWorker.on("completed", (job) => {
+    console.log("[outreach-campaign-worker] completed", job.id);
+  });
 
-outreachWorkers.campaignWorker.on("failed", (job, err) => {
-  console.error("[outreach-campaign-worker] failed", job?.id, err);
-});
+  outreachWorkers.campaignWorker.on("failed", (job, err) => {
+    console.error("[outreach-campaign-worker] failed", job?.id, err);
+  });
+} else {
+  console.log(
+    `[worker] HR_SKILL_MODE=${hrSkillMode}: Twenty-backed CV extraction and outreach workers are disabled`,
+  );
+}
 
 function loadRepoEnv() {
   const __filename = fileURLToPath(import.meta.url);
@@ -379,18 +391,23 @@ async function generateDraftReply(
   const fileAttachment = attachments.find((a: any) => a.type === "file");
 
   if (isFile && fileAttachment) {
-    console.log(`[worker] detected file upload in conversation ${conversationId}. Enqueueing to cv.uploaded...`);
-    await cvUploadedQueue.add("cv.extract", {
-      tenantId,
-      conversationId,
-      externalUserId,
-      fileUrl: fileAttachment.url,
-      fileName: fileAttachment.name,
-      mimeType: fileAttachment.mimeType,
-      sizeBytes: fileAttachment.sizeBytes,
-    });
-
-    const ackText = "Mình đã nhận được CV của bạn. Hệ thống đang tiến hành xử lý và trích xuất thông tin. Mình sẽ phản hồi lại ngay sau khi hoàn tất nhé! ⏳";
+    let ackText: string;
+    if (twentyRuntimeEnabled) {
+      console.log(`[worker] detected file upload in conversation ${conversationId}. Enqueueing to cv.uploaded...`);
+      await cvUploadedQueue.add("cv.extract", {
+        tenantId,
+        conversationId,
+        externalUserId,
+        fileUrl: fileAttachment.url,
+        fileName: fileAttachment.name,
+        mimeType: fileAttachment.mimeType,
+        sizeBytes: fileAttachment.sizeBytes,
+      });
+      ackText = "Mình đã nhận được CV của bạn. Hệ thống đang tiến hành xử lý và trích xuất thông tin. Mình sẽ phản hồi lại ngay sau khi hoàn tất nhé! ⏳";
+    } else {
+      console.log(`[worker] detected file upload in conversation ${conversationId}, but CV extraction is disabled (HR_SKILL_MODE=${hrSkillMode}); acknowledging without processing`);
+      ackText = "Mình đã nhận được CV của bạn, cảm ơn bạn nhé! Bạn chia sẻ giúp mình vị trí và mức lương mong muốn để mình tìm công việc phù hợp cho bạn nha.";
+    }
     const batchId = `cv_ack:${tenantId}:${conversationId}:${Date.now()}`;
     const idempotencyKey = `${batchId}:1`;
 
@@ -483,7 +500,7 @@ async function generateDraftReply(
     forceProfileReload: false,
     printCache: false,
     mockLlm: false,
-    skillMode: (process.env.HR_SKILL_MODE as HrSkillMode) || "default",
+    skillMode: hrSkillMode,
     systemPromptOverride,
     knownFacts,
     abortSignal,
