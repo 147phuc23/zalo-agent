@@ -53,9 +53,27 @@ export function buildPromptCacheContext(input: {
   customerProfile: CandidateProfile;
   state: HrAgentState;
   knownFacts?: string;
+  systemPromptOverride?: string;
 }): PromptCacheContext {
+  let coreInstructions = CORE_HR_AGENT_INSTRUCTIONS;
+  if (input.systemPromptOverride) {
+    const trimmed = input.systemPromptOverride.trim();
+    if (trimmed.includes("IMPORTANT: The candidate has sent a message that you are replying to:")) {
+      const idx = trimmed.indexOf("IMPORTANT:");
+      const targetInstruction = trimmed.slice(idx);
+      const prefix = trimmed.slice(0, idx).trim();
+      if (prefix) {
+        coreInstructions = prefix + "\n\n" + targetInstruction;
+      } else {
+        coreInstructions = CORE_HR_AGENT_INSTRUCTIONS + "\n\n" + targetInstruction;
+      }
+    } else {
+      coreInstructions = input.systemPromptOverride;
+    }
+  }
+
   const stablePrefix = [
-    CORE_HR_AGENT_INSTRUCTIONS,
+    coreInstructions,
     input.skillCache.defaultSkillsPromptBlock,
   ].join("\n\n");
 
@@ -95,7 +113,7 @@ export function buildPromptCacheContext(input: {
     prompt: "", // Native multi-turn messages array is used instead of prompt string
     messages,
     diagnostics: buildDiagnostics({
-      coreInstructions: CORE_HR_AGENT_INSTRUCTIONS,
+      coreInstructions,
       skillIndex: input.skillCache.defaultSkillsPromptBlock,
       loadedSkills: buildLoadedSkillsBlock(input.loadedSkills),
       dynamicContext,

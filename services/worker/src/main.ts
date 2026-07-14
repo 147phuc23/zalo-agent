@@ -503,16 +503,24 @@ async function generateDraftReply(
   }
 
   let systemPromptOverride: string | undefined;
-  const dbPrompt = await repos.prompts.findActive({ tenantId, key: "assistant" });
-  if (dbPrompt) {
-    systemPromptOverride = dbPrompt.content;
-    // Replace placeholders using {{key}}
-    const variables: Record<string, string> = {
-      contact_name: contactName,
-      tenant_id: tenantId,
-    };
-    for (const [k, v] of Object.entries(variables)) {
-      systemPromptOverride = systemPromptOverride.replaceAll(`{{${k}}}`, v);
+  const useDbPrompt =
+    process.env.USE_DB_PROMPT === "true" ||
+    (process.env.USE_DB_PROMPT !== undefined &&
+      process.env.USE_DB_PROMPT !== "false" &&
+      process.env.USE_DB_PROMPT !== "");
+
+  if (useDbPrompt) {
+    const dbPrompt = await repos.prompts.findActive({ tenantId, key: "assistant" });
+    if (dbPrompt) {
+      systemPromptOverride = dbPrompt.content;
+      // Replace placeholders using {{key}}
+      const variables: Record<string, string> = {
+        contact_name: contactName,
+        tenant_id: tenantId,
+      };
+      for (const [k, v] of Object.entries(variables)) {
+        systemPromptOverride = systemPromptOverride.replaceAll(`{{${k}}}`, v);
+      }
     }
   }
 

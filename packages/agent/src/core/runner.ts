@@ -79,6 +79,7 @@ export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<Hr
     customerProfile: profileCache.profile,
     state,
     knownFacts: options.knownFacts,
+    systemPromptOverride: options.systemPromptOverride,
   });
 
   if (options.mockLlm) {
@@ -121,7 +122,7 @@ export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<Hr
       model: options.model,
       enablePromptCaching: providerCache.enableProviderPromptCaching,
     }) as unknown as LanguageModel,
-    system: options.systemPromptOverride || promptContext.system,
+    system: promptContext.system,
     messages: promptContext.messages,
     tools,
     maxSteps: 8,
