@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { CANONICAL_LOCATIONS } from "@platform/shared/locations";
 import { createDatabaseClient } from "./index.js";
 import { createTenantRepository, createJobPostingRepository } from "./repositories.js";
 
@@ -25,7 +26,7 @@ const ROLES = [
   { title: "Engineering Manager", skills: ["Leadership", "System Design", "Agile"] },
 ];
 const COMPANIES = ["Atlas Product Studio", "Northstar HR Cloud", "Signal Recruit", "VietTech Labs", "Saigon Digital", "Hanoi Cloud", "Mekong AI", "FPT Software", "Tiki Engineering", "VNG Studio"];
-const LOCATIONS = ["Ho Chi Minh City", "Ha Noi", "Da Nang", "Remote (VN)"];
+const LOCATIONS = CANONICAL_LOCATIONS.map((loc) => ({ display: loc.englishName, slug: loc.slug }));
 const WORK_MODES = ["remote", "hybrid", "onsite"] as const;
 const SENIORITIES = ["junior", "mid", "mid-senior", "senior", "lead"];
 const JOB_TYPES = ["FULL_TIME", "PART_TIME", "CONTRACT", "INTERNSHIP"] as const;
@@ -36,11 +37,13 @@ function generateJobs(count: number) {
     const role = ROLES[i % ROLES.length];
     const seniority = SENIORITIES[i % SENIORITIES.length];
     const baseSalary = 25_000_000 + (i % 8) * 7_000_000;
+    const location = LOCATIONS[i % LOCATIONS.length];
     jobs.push({
       externalId: `seed-job-${String(i + 1).padStart(3, "0")}`,
       title: `${seniority === "junior" ? "Junior " : seniority === "senior" ? "Senior " : ""}${role.title}`,
       company: COMPANIES[i % COMPANIES.length],
-      location: LOCATIONS[i % LOCATIONS.length],
+      location: location.display,
+      locationSlugs: [location.slug],
       workMode: WORK_MODES[i % WORK_MODES.length],
       salaryMinVnd: baseSalary,
       salaryMaxVnd: baseSalary + 20_000_000,

@@ -544,7 +544,8 @@ export interface JobPostingRow {
   external_id: string | null;
   title: string;
   company: string;
-  location: string;
+  location: string | null;
+  location_slugs: string[];
   work_mode: "remote" | "hybrid" | "onsite";
   salary_min_vnd: number;
   salary_max_vnd: number;
@@ -585,6 +586,7 @@ export function createJobPostingRepository(client: DatabaseClient) {
         title: string;
         company: string;
         location: string;
+        locationSlugs: string[];
         workMode: "remote" | "hybrid" | "onsite";
         salaryMinVnd: number;
         salaryMaxVnd: number;
@@ -601,13 +603,14 @@ export function createJobPostingRepository(client: DatabaseClient) {
       for (const j of input.jobs) {
         await client.query(
           `INSERT INTO job_postings
-             (tenant_id, external_id, title, company, location, work_mode,
+             (tenant_id, external_id, title, company, location, location_slugs, work_mode,
               salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
               job_type, experience_required_years, benefits, education_required)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
            ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
            DO UPDATE SET
              title = EXCLUDED.title, company = EXCLUDED.company, location = EXCLUDED.location,
+             location_slugs = EXCLUDED.location_slugs,
              work_mode = EXCLUDED.work_mode, salary_min_vnd = EXCLUDED.salary_min_vnd,
              salary_max_vnd = EXCLUDED.salary_max_vnd, seniority = EXCLUDED.seniority,
              required_skills = EXCLUDED.required_skills, description = EXCLUDED.description,
@@ -615,7 +618,7 @@ export function createJobPostingRepository(client: DatabaseClient) {
              benefits = EXCLUDED.benefits, education_required = EXCLUDED.education_required,
              is_active = true`,
           [
-            input.tenantId, j.externalId ?? null, j.title, j.company, j.location, j.workMode,
+            input.tenantId, j.externalId ?? null, j.title, j.company, j.location, j.locationSlugs, j.workMode,
             j.salaryMinVnd, j.salaryMaxVnd, j.seniority, j.requiredSkills, j.description,
             j.jobType ?? null, j.experienceRequiredYears ?? null, j.benefits ?? null, j.educationRequired ?? null,
           ],

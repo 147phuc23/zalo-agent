@@ -1,4 +1,4 @@
-import { normalizeLocation } from "../core/location-normalizer.js";
+import { extractLocationSlugs, normalizeLocation } from "../core/location-normalizer.js";
 import type { CandidateProfile, JobPosting } from "../types.js";
 import {
   RECRUITING_JOB_APPLICATION_FIELDS,
@@ -9,32 +9,32 @@ import {
 export function mapTwentyPersonToCandidateProfile(input: {
   record: Record<string, unknown>;
   externalUserId: string;
-  }): CandidateProfile {
-    const raw = input.record;
-  
-    const nameBlock = raw.name as Record<string, unknown> | undefined;
-    const first = typeof nameBlock?.firstName === "string" ? nameBlock.firstName : "";
-    const last = typeof nameBlock?.lastName === "string" ? nameBlock.lastName : "";
-    const joinedName = [first, last].filter(Boolean).join(" ").trim();
-  
-    const displayName =
-      (typeof raw.displayName === "string" && raw.displayName.trim() !== ""
-        ? raw.displayName
-        : undefined) ??
-      (joinedName || "Unknown Zalo Candidate");
-  
-    const skills = splitCommaList(readString(raw, RECRUITING_PERSON_FIELDS.skillsSummary));
-    const preferredRoles = splitCommaList(readString(raw, RECRUITING_PERSON_FIELDS.preferredRolesSummary));
-  
-    const rawLocation = readString(raw, "city") ?? readString(raw, "addressFull") ?? undefined;
-    const location = rawLocation ? normalizeLocation(rawLocation) : undefined;
-  
-    return {
-      externalUserId: input.externalUserId,
-      displayName,
-      phone: readPhone(raw),
-      email: readEmail(raw),
-      location,
+}): CandidateProfile {
+  const raw = input.record;
+
+  const nameBlock = raw.name as Record<string, unknown> | undefined;
+  const first = typeof nameBlock?.firstName === "string" ? nameBlock.firstName : "";
+  const last = typeof nameBlock?.lastName === "string" ? nameBlock.lastName : "";
+  const joinedName = [first, last].filter(Boolean).join(" ").trim();
+
+  const displayName =
+    (typeof raw.displayName === "string" && raw.displayName.trim() !== ""
+      ? raw.displayName
+      : undefined) ??
+    (joinedName || "Unknown Zalo Candidate");
+
+  const skills = splitCommaList(readString(raw, RECRUITING_PERSON_FIELDS.skillsSummary));
+  const preferredRoles = splitCommaList(readString(raw, RECRUITING_PERSON_FIELDS.preferredRolesSummary));
+
+  const rawLocation = readString(raw, "city") ?? readString(raw, "addressFull") ?? undefined;
+  const location = rawLocation ? normalizeLocation(rawLocation) : undefined;
+
+  return {
+    externalUserId: input.externalUserId,
+    displayName,
+    phone: readPhone(raw),
+    email: readEmail(raw),
+    location,
     yearsOfExperience: readNumber(raw, RECRUITING_PERSON_FIELDS.yearsExperience),
     currentTitle: readString(raw, "jobTitle") ?? undefined,
     skills,
@@ -55,12 +55,14 @@ export function mapTwentyJobPostingRecord(raw: Record<string, unknown>): JobPost
     (typeof raw.title === "string" ? raw.title : "Untitled role");
 
   const workMode = normalizeWorkMode(readString(raw, RECRUITING_JOB_POSTING_FIELDS.workMode));
+  const location = readString(raw, RECRUITING_JOB_POSTING_FIELDS.location) ?? "";
 
   return {
     id: typeof raw.id === "string" ? raw.id : "unknown",
     title,
     company: readString(raw, RECRUITING_JOB_POSTING_FIELDS.companyName) ?? "",
-    location: readString(raw, RECRUITING_JOB_POSTING_FIELDS.location) ?? "",
+    location,
+    locationSlugs: extractLocationSlugs(location),
     workMode,
     salaryMinVnd: readNumber(raw, RECRUITING_JOB_POSTING_FIELDS.salaryMinVnd) ?? 0,
     salaryMaxVnd: readNumber(raw, RECRUITING_JOB_POSTING_FIELDS.salaryMaxVnd) ?? 0,

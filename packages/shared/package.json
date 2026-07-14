@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./contracts": "./src/contracts.ts",
-    "./schemas": "./src/schemas.ts"
+    "./schemas": "./src/schemas.ts",
+    "./locations": "./src/locations.ts"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",

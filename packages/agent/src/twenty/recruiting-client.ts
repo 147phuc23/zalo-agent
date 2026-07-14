@@ -1,5 +1,5 @@
 import type { CandidateProfile, JobPosting } from "../types.js";
-import { scoreJob, normalizeLocation } from "../core/location-normalizer.js";
+import { scoreJob, scoreRoleMatch, scoreSalaryMatch } from "../core/location-normalizer.js";
 import { loadTwentyEnv, normalizeTwentyBaseUrl } from "./twenty-env.js";
 import { twentyHttpJson } from "./twenty-http.js";
 import {
@@ -340,7 +340,10 @@ function scoreAndSortJobs(jobs: JobPosting[], filters: {
   skills?: string[];
 }): JobPosting[] {
   const scored = jobs.map((job) => {
-    const { score, reasons } = scoreJob(job, filters);
+    const { score, reasons } = scoreJob(job, {
+      ...filters,
+      locations: filters.location ? [filters.location] : undefined,
+    });
     return { job, score, reasons };
   });
 
@@ -357,25 +360,11 @@ function scoreJobAgainstProfile(job: JobPosting, profile: CandidateProfile): {
 } {
   let score = 0;
   const reasons: string[] = [];
-  const pref = profile.preferredRoles.map((r) => r.toLowerCase());
-  for (const role of pref) {
-    if (role) {
-      const jobTitleLower = job.title.toLowerCase();
-      if (jobTitleLower.includes(role)) {
-        score += 4;
-        reasons.push(`preferred role "${role}" exact match aligns with title`);
-      } else {
-        const words = role.split(/\s+/).filter(Boolean);
-        if (words.length > 0) {
-          const matched = words.filter((w) => jobTitleLower.includes(w));
-          if (matched.length > 0) {
-            const ratio = matched.length / words.length;
-            const points = Math.round(ratio * 4);
-            score += points;
-            reasons.push(`preferred role "${role}" partial match aligns with title (${matched.join(", ")})`);
-          }
-        }
-      }
+  for (const role of profile.preferredRoles) {
+    const roleMatch = scoreRoleMatch(role, job.title);
+    if (roleMatch) {
+      score += roleMatch.score;
+      reasons.push(`preferred ${roleMatch.reason}`);
     }
   }
 
@@ -386,14 +375,10 @@ function scoreJobAgainstProfile(job: JobPosting, profile: CandidateProfile): {
     }
   }
 
-  if (profile.salaryExpectationVnd) {
-    if (job.salaryMaxVnd === 0) {
-      score += 1;
-      reasons.push("salary is negotiable/unspecified");
-    } else if (job.salaryMaxVnd >= profile.salaryExpectationVnd) {
-      score += 1;
-      reasons.push("salary band covers expectation");
-    }
+  const salaryMatch = scoreSalaryMatch(profile.salaryExpectationVnd, job.salaryMaxVnd);
+  if (salaryMatch) {
+    score += salaryMatch.score;
+    reasons.push(salaryMatch.reason);
   }
 
   if (score === 0) {

@@ -14,7 +14,7 @@ export function createLoadJobsTool(ctx?: LoadJobsContext) {
     description: "Search HR job postings by candidate requirement fields.",
     parameters: z.object({
       role: z.string().optional(),
-      location: z.string().optional(),
+      locations: z.array(z.string()).optional().describe("One or more preferred cities (e.g. [\"Ho Chi Minh City\", \"Remote\"]); free text is fine, it gets normalized internally."),
       workMode: z.enum(["remote", "hybrid", "onsite"]).optional(),
       salaryMinVnd: z.number().int().positive().optional().describe("Expected minimum salary in Vietnamese Dong (VND). IMPORTANT: If candidate specifies their salary expectation in USD (e.g., $2000, 2k net, 2k usd), you MUST convert it to VND by multiplying by 25,000 (e.g., 2,000 USD is 50,000,000 VND). DO NOT pass the raw USD number directly!"),
       skills: z.array(z.string()).optional(),

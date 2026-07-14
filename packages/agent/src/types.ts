@@ -39,7 +39,7 @@ export type CandidateProfile = {
 
 export type CandidateRequirement = {
   role?: string;
-  location?: string;
+  locationSlugs?: string[];
   salaryMinVnd?: number;
   salaryMaxVnd?: number;
   yearsOfExperience?: number;
@@ -54,7 +54,9 @@ export type JobPosting = {
   id: string;
   title: string;
   company: string;
+  /** Legacy free-text display value; kept for cities outside the canonical set. */
   location: string;
+  locationSlugs: string[];
   workMode: "remote" | "hybrid" | "onsite";
   salaryMinVnd: number;
   salaryMaxVnd: number;

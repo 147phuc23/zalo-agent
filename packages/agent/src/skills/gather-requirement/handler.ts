@@ -1,7 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { CandidateRequirement } from "../../types.js";
-import { normalizeLocation } from "../../core/location-normalizer.js";
+import { extractLocationSlugs } from "../../core/location-normalizer.js";
 
 export function createGatherRequirementTool() {
   return tool({
@@ -21,12 +21,11 @@ export function createGatherRequirementTool() {
       if (/data|ai|ml|machine learning/.test(text)) requirement.role = "AI Engineer";
       if (/hr|recruit/.test(text)) requirement.role = "Recruiter";
 
-      if (/hcm|sai gon|saigon|ho chi minh|hồ chí minh/i.test(text)) {
-        requirement.location = normalizeLocation("Ho Chi Minh City");
-      } else if (/ha noi|hanoi|hà nội|hn/i.test(text)) {
-        requirement.location = normalizeLocation("Ha Noi");
-      } else if (/da nang|đà nẵng|danang|dn/i.test(text)) {
-        requirement.location = normalizeLocation("Da Nang");
+      const mentionedLocationSlugs = extractLocationSlugs(text);
+      if (mentionedLocationSlugs.length > 0) {
+        requirement.locationSlugs = Array.from(
+          new Set([...(requirement.locationSlugs ?? []), ...mentionedLocationSlugs]),
+        );
       }
 
       if (/remote/.test(text)) requirement.workMode = "remote";
@@ -63,8 +62,9 @@ export function createGatherRequirementTool() {
       if (/english|tiếng anh|ielts/.test(text)) requirement.language = "English";
       if (/immediate|now|ngay/.test(text)) requirement.availability = "immediate";
 
-      const missingFields = ["role", "location", "salaryMinVnd", "yearsOfExperience"]
+      const missingFields = ["role", "salaryMinVnd", "yearsOfExperience"]
         .filter((field) => requirement[field as keyof CandidateRequirement] == null);
+      if ((requirement.locationSlugs?.length ?? 0) === 0) missingFields.push("locationSlugs");
 
       return {
         requirement,
