@@ -61,7 +61,6 @@ export function mapTwentyJobPostingRecord(raw: Record<string, unknown>): JobPost
     id: typeof raw.id === "string" ? raw.id : "unknown",
     title,
     company: readString(raw, RECRUITING_JOB_POSTING_FIELDS.companyName) ?? "",
-    location,
     locationSlugs: extractLocationSlugs(location),
     workMode,
     salaryMinVnd: readNumber(raw, RECRUITING_JOB_POSTING_FIELDS.salaryMinVnd) ?? 0,

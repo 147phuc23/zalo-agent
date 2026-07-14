@@ -83,9 +83,15 @@ describe("Outreach Campaign Engine", () => {
 
       const mockRepos = {
         contacts: {
-          listByIds: vi.fn().mockResolvedValue([
-            { id: "contact-1", external_user_id: "zalo-user-1", display_name: "John Doe" },
-          ]),
+          listByIds: vi
+            .fn()
+            .mockResolvedValue([
+              {
+                id: "contact-1",
+                external_user_id: "zalo-user-1",
+                display_name: "John Doe",
+              },
+            ]),
         },
         messages: {
           createOutbound: vi.fn().mockResolvedValue({
@@ -120,7 +126,9 @@ describe("Outreach Campaign Engine", () => {
           job: { title: "Senior React Engineer" },
         },
       ]);
-      mockGenerate.mockResolvedValue({ text: "Xin chào John Doe! Bạn có cập nhật gì mới không?" });
+      mockGenerate.mockResolvedValue({
+        text: "Xin chào John Doe! Bạn có cập nhật gì mới không?",
+      });
 
       const count = await runPipelineFollowUpsCampaign({
         db: mockDb,
@@ -142,18 +150,21 @@ describe("Outreach Campaign Engine", () => {
   describe("runReverseMatchingCampaign", () => {
     it("outreaches for high match scores", async () => {
       const mockDb = {
-        query: vi.fn()
+        query: vi
+          .fn()
           // First query: fetch tenant contacts
           .mockResolvedValueOnce({
             rows: [
-              { id: "contact-1", external_user_id: "zalo-user-1", display_name: "John Doe" },
+              {
+                id: "contact-1",
+                external_user_id: "zalo-user-1",
+                display_name: "John Doe",
+              },
             ],
           })
           // Second query: fetch conversation for contact
           .mockResolvedValueOnce({
-            rows: [
-              { id: "conv-1", external_thread_id: "thread-123" },
-            ],
+            rows: [{ id: "conv-1", external_thread_id: "thread-123" }],
           }),
       };
 
@@ -185,7 +196,6 @@ describe("Outreach Campaign Engine", () => {
         id: "job-posting-1",
         title: "NodeJS Developer",
         company: "Company X",
-        location: "Hanoi",
         locationSlugs: ["ha-noi"],
         workMode: "remote" as const,
         salaryMinVnd: 40000000,
@@ -209,7 +219,9 @@ describe("Outreach Campaign Engine", () => {
           reasons: ["Strong match"],
         },
       ]);
-      mockGenerate.mockResolvedValue({ text: "Chào John Doe, mình thấy việc này phù hợp với bạn!" });
+      mockGenerate.mockResolvedValue({
+        text: "Chào John Doe, mình thấy việc này phù hợp với bạn!",
+      });
 
       const count = await runReverseMatchingCampaign({
         job: mockJob,
@@ -228,16 +240,15 @@ describe("Outreach Campaign Engine", () => {
   describe("runUrgentJobCampaign", () => {
     it("outreaches for relaxed match scores", async () => {
       const mockDb = {
-        query: vi.fn()
+        query: vi
+          .fn()
           .mockResolvedValueOnce({
             rows: [
               { id: "contact-2", external_user_id: "zalo-user-2", display_name: "Alice" },
             ],
           })
           .mockResolvedValueOnce({
-            rows: [
-              { id: "conv-2", external_thread_id: "thread-456" },
-            ],
+            rows: [{ id: "conv-2", external_thread_id: "thread-456" }],
           }),
       };
 
@@ -269,7 +280,6 @@ describe("Outreach Campaign Engine", () => {
         id: "job-posting-2",
         title: "DevOps Engineer",
         company: "Company Y",
-        location: "HCM",
         locationSlugs: ["ho-chi-minh-city"],
         workMode: "hybrid" as const,
         salaryMinVnd: 50000000,

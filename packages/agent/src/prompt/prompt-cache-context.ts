@@ -6,6 +6,7 @@ import type {
   SkillDefinition,
 } from "../types.js";
 import { CORE_HR_AGENT_INSTRUCTIONS } from "./core-instructions.js";
+import { CANONICAL_LOCATIONS } from "../core/location-normalizer.js";
 
 export type PromptCacheContext = {
   system: string;
@@ -53,8 +54,15 @@ export function buildPromptCacheContext(input: {
     }
   }
 
+  const locationsBlock = [
+    "# Supported Locations",
+    "Use the following canonical location slugs for matching candidate preferences:",
+    ...CANONICAL_LOCATIONS.map((loc) => `- ${loc.englishName} (${loc.vietnameseName}): slug "${loc.slug}" (aliases: ${loc.aliases.join(", ")})`),
+  ].join("\n");
+
   const stablePrefix = [
     coreInstructions,
+    locationsBlock,
     input.skillCache.defaultSkillsPromptBlock,
   ].join("\n\n");
 

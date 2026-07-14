@@ -8,13 +8,19 @@ function escapeRegex(value: string): string {
 
 // Plain `\b` only recognizes ASCII word characters, so it fails to anchor next to
 // Vietnamese diacritics (e.g. "Đ", "ẵ") — use Unicode-aware letter/number boundaries instead.
-const LOCATION_PATTERNS: Array<{ slug: string; pattern: RegExp }> = CANONICAL_LOCATIONS.map((loc) => {
-  const alternatives = [loc.englishName, loc.vietnameseName, ...loc.aliases].map(escapeRegex);
-  return {
-    slug: loc.slug,
-    pattern: new RegExp(`(?<![\\p{L}\\p{N}])(${alternatives.join("|")})(?![\\p{L}\\p{N}])`, "iu"),
-  };
-});
+const LOCATION_PATTERNS: Array<{ slug: string; pattern: RegExp }> =
+  CANONICAL_LOCATIONS.map((loc) => {
+    const alternatives = [loc.englishName, loc.vietnameseName, ...loc.aliases].map(
+      escapeRegex,
+    );
+    return {
+      slug: loc.slug,
+      pattern: new RegExp(
+        `(?<![\\p{L}\\p{N}])(${alternatives.join("|")})(?![\\p{L}\\p{N}])`,
+        "iu",
+      ),
+    };
+  });
 
 function findCanonicalLocation(slug: string): CanonicalLocation | undefined {
   return CANONICAL_LOCATIONS.find((loc) => loc.slug === slug);
@@ -25,7 +31,9 @@ export function slugToDisplayName(slug: string): string {
 }
 
 /** Best single canonical slug match in free text, or undefined if none of the known cities are mentioned. */
-export function normalizeLocationToSlug(input: string | null | undefined): string | undefined {
+export function normalizeLocationToSlug(
+  input: string | null | undefined,
+): string | undefined {
   if (!input) return undefined;
   for (const { slug, pattern } of LOCATION_PATTERNS) {
     if (pattern.test(input)) return slug;
@@ -59,7 +67,10 @@ export function normalizeLocation(input: string | null | undefined): string {
  * requires every word in filterRole to appear in the title — not just some of them —
  * so "Frontend Engineer" doesn't match "Backend Engineer" on the shared word "engineer".
  */
-export function scoreRoleMatch(filterRole: string, jobTitle: string): { score: number; reason: string } | null {
+export function scoreRoleMatch(
+  filterRole: string,
+  jobTitle: string,
+): { score: number; reason: string } | null {
   const jobTitleLower = jobTitle.toLowerCase();
   const filterRoleLower = filterRole.toLowerCase();
   if (!filterRoleLower) return null;
@@ -68,16 +79,24 @@ export function scoreRoleMatch(filterRole: string, jobTitle: string): { score: n
   }
   const words = filterRoleLower.split(/\s+/).filter(Boolean);
   if (words.length > 0 && words.every((w) => jobTitleLower.includes(w))) {
-    return { score: 4, reason: `role "${filterRole}" partial match aligns with title (${words.join(", ")})` };
+    return {
+      score: 4,
+      reason: `role "${filterRole}" partial match aligns with title (${words.join(", ")})`,
+    };
   }
   return null;
 }
 
 /** Shared salary-fit check: negotiable/unspecified job salaries are treated as compatible. */
-export function scoreSalaryMatch(expectationVnd: number | undefined, jobSalaryMaxVnd: number): { score: number; reason: string } | null {
+export function scoreSalaryMatch(
+  expectationVnd: number | undefined,
+  jobSalaryMaxVnd: number,
+): { score: number; reason: string } | null {
   if (!expectationVnd) return null;
-  if (jobSalaryMaxVnd === 0) return { score: 1, reason: "salary is negotiable/unspecified" };
-  if (jobSalaryMaxVnd >= expectationVnd) return { score: 1, reason: "salary band covers expectation" };
+  if (jobSalaryMaxVnd === 0)
+    return { score: 1, reason: "salary is negotiable/unspecified" };
+  if (jobSalaryMaxVnd >= expectationVnd)
+    return { score: 1, reason: "salary band covers expectation" };
   return null;
 }
 
@@ -98,14 +117,12 @@ export interface ScoredJobResult {
 export function scoreJob(
   job: {
     title: string;
-    /** Legacy free-text display value, used only as a substring-match fallback for cities outside the canonical set. */
-    location: string;
     locationSlugs: string[];
     workMode: "remote" | "hybrid" | "onsite";
     salaryMaxVnd: number;
     requiredSkills: string[];
   },
-  filters: JobMatchFilters
+  filters: JobMatchFilters,
 ): ScoredJobResult {
   let score = 0;
   const reasons: string[] = [];
@@ -125,21 +142,16 @@ export function scoreJob(
     }
   }
 
-  // 2. Location Match — canonical slug overlap first, falling back to a raw substring match
-  // against the legacy display text for cities outside the canonical set.
+  // 2. Location Match — canonical slug overlap
   if (filters.locations && filters.locations.length > 0) {
-    const filterSlugs = new Set(filters.locations.flatMap((loc) => extractLocationSlugs(loc)));
-    const slugOverlap = filterSlugs.size > 0 && job.locationSlugs.some((slug) => filterSlugs.has(slug));
+    const filterSlugs = new Set(
+      filters.locations.flatMap((loc) => extractLocationSlugs(loc)),
+    );
+    const slugOverlap =
+      filterSlugs.size > 0 && job.locationSlugs.some((slug) => filterSlugs.has(slug));
     if (slugOverlap) {
       locationScore = 2;
       reasons.push("location match");
-    } else {
-      const jobLocationLower = job.location.toLowerCase();
-      const substringHit = filters.locations.some((loc) => loc && jobLocationLower.includes(loc.toLowerCase()));
-      if (substringHit) {
-        locationScore = 2;
-        reasons.push("location substring match");
-      }
     }
   }
 
@@ -171,7 +183,10 @@ export function scoreJob(
 
   // Safeguard: If core filters (role, location, skills) are specified but none matched,
   // do not return a match purely on salary or workMode.
-  const hasCoreFilter = filters.role || (filters.locations && filters.locations.length > 0) || (filters.skills && filters.skills.length > 0);
+  const hasCoreFilter =
+    filters.role ||
+    (filters.locations && filters.locations.length > 0) ||
+    (filters.skills && filters.skills.length > 0);
   const hasCoreMatch = roleScore > 0 || locationScore > 0 || skillsScore > 0;
   if (hasCoreFilter && !hasCoreMatch) {
     return { score: 0, reasons: ["no core filter match (role, location, skills)"] };

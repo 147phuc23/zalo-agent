@@ -2,7 +2,10 @@ import { generateText } from "ai";
 import type { LanguageModel, ProviderMetadata } from "ai";
 import { createOpenRouterChatModel } from "@platform/ai-client";
 import { CustomerProfileCache } from "../cache/customer-profile-cache.js";
-import { buildProviderCacheSettings, readProviderCacheDiagnostics } from "../cache/provider-cache.js";
+import {
+  buildProviderCacheSettings,
+  readProviderCacheDiagnostics,
+} from "../cache/provider-cache.js";
 import { loadDefaultSkills, loadTwentySkills } from "../cache/skill-cache.js";
 import { getHistory, getIntent } from "../mock/store.js";
 import { buildPromptCacheContext } from "../prompt/prompt-cache-context.js";
@@ -13,8 +16,18 @@ import {
 import { createAgentTools } from "../skills/registry.js";
 import { createTwentyAgentTools } from "../skills/twenty/registry.js";
 import { createTwentyRecruitingClientFromEnv } from "../twenty/recruiting-client.js";
-import { createDatabaseClient, createJobPostingRepository, type JobPostingRow } from "@platform/database";
-import type { HrAgentRunOptions, HrAgentRunResult, HrAgentState, JobPosting, SkillCacheResult } from "../types.js";
+import {
+  createDatabaseClient,
+  createJobPostingRepository,
+  type JobPostingRow,
+} from "@platform/database";
+import type {
+  HrAgentRunOptions,
+  HrAgentRunResult,
+  HrAgentState,
+  JobPosting,
+  SkillCacheResult,
+} from "../types.js";
 
 // Lazily-created, reused jobs repo backed by PLATFORM_DB_URL (Neon). Null when unset,
 // in which case load-jobs falls back to the in-code mock list.
@@ -23,7 +36,9 @@ function getJobsRepo() {
   if (jobsRepoSingleton) return jobsRepoSingleton;
   const url = process.env.PLATFORM_DB_URL;
   if (!url) return null;
-  jobsRepoSingleton = createJobPostingRepository(createDatabaseClient({ PLATFORM_DB_URL: url }));
+  jobsRepoSingleton = createJobPostingRepository(
+    createDatabaseClient({ PLATFORM_DB_URL: url }),
+  );
   return jobsRepoSingleton;
 }
 
@@ -32,7 +47,6 @@ function jobRowToPosting(row: JobPostingRow): JobPosting {
     id: row.external_id ?? row.id,
     title: row.title,
     company: row.company,
-    location: row.location ?? "",
     locationSlugs: row.location_slugs ?? [],
     workMode: row.work_mode,
     salaryMinVnd: Number(row.salary_min_vnd),
@@ -49,7 +63,9 @@ function jobRowToPosting(row: JobPostingRow): JobPosting {
 
 const customerProfileCache = new CustomerProfileCache();
 
-export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<HrAgentRunResult> {
+export async function runHrAgentScenario(
+  options: HrAgentRunOptions,
+): Promise<HrAgentRunResult> {
   const skillCache =
     options.skillMode === "twenty"
       ? await loadTwentySkills({ useCache: options.useLocalCache })
@@ -59,10 +75,13 @@ export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<Hr
     tenantId: options.scenario.tenantId,
     channel: options.scenario.channel,
     externalUserId: options.scenario.externalUserId,
-    forceReload: options.forceProfileReload || Boolean(options.scenario.forceProfileReload),
+    forceReload:
+      options.forceProfileReload || Boolean(options.scenario.forceProfileReload),
     useCache: options.useLocalCache,
     cacheVersion:
-      options.skillMode === "twenty" ? "twenty-recruiting-v1" : getMockCandidateProfileRevision(),
+      options.skillMode === "twenty"
+        ? "twenty-recruiting-v1"
+        : getMockCandidateProfileRevision(),
     loader: async (input) => {
       if (options.skillMode === "twenty") {
         const client = createTwentyRecruitingClientFromEnv();
@@ -111,7 +130,9 @@ export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<Hr
           loadJobs: jobsRepo
             ? {
                 listJobs: async () => {
-                  const rows = await jobsRepo.listActive({ tenantId: options.scenario.tenantId });
+                  const rows = await jobsRepo.listActive({
+                    tenantId: options.scenario.tenantId,
+                  });
                   return rows.map(jobRowToPosting);
                 },
               }
@@ -141,8 +162,6 @@ export async function runHrAgentScenario(options: HrAgentRunOptions): Promise<Hr
       }
     },
   });
-
-
 
   return {
     scenarioId: options.scenario.id,
@@ -198,7 +217,9 @@ function buildMockResult(input: {
   promptHash: string;
   promptDiagnostics: HrAgentRunResult["cache"]["prompt"];
 }): HrAgentRunResult {
-  const latestText = input.options.scenario.messages.map((message) => message.text).join(" ");
+  const latestText = input.options.scenario.messages
+    .map((message) => message.text)
+    .join(" ");
 
   return {
     scenarioId: input.options.scenario.id,

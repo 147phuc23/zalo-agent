@@ -137,12 +137,20 @@ export interface PromptTemplateRow {
 
 export function createTenantRepository(client: DatabaseClient) {
   return {
-    async ensureExists(input: { tenantId: string; name: string; timezone: string; locale: string }) {
-      const existing = await client.query("SELECT id FROM tenants WHERE id = $1 LIMIT 1", [input.tenantId]);
+    async ensureExists(input: {
+      tenantId: string;
+      name: string;
+      timezone: string;
+      locale: string;
+    }) {
+      const existing = await client.query(
+        "SELECT id FROM tenants WHERE id = $1 LIMIT 1",
+        [input.tenantId],
+      );
       if (!existing.rows[0]) {
         await client.query(
           "INSERT INTO tenants (id, name, timezone, locale, status) VALUES ($1, $2, $3, $4, 'active')",
-          [input.tenantId, input.name, input.timezone, input.locale]
+          [input.tenantId, input.name, input.timezone, input.locale],
         );
       }
     },
@@ -151,13 +159,17 @@ export function createTenantRepository(client: DatabaseClient) {
 
 export function createContactRepository(client: DatabaseClient) {
   return {
-    async findByExternalUser(input: { tenantId: string; channel: string; externalUserId: string }) {
+    async findByExternalUser(input: {
+      tenantId: string;
+      channel: string;
+      externalUserId: string;
+    }) {
       const res = await client.query(
         `SELECT id, tenant_id, channel, external_user_id, display_name, phone, metadata, created_at 
          FROM contacts 
          WHERE tenant_id = $1 AND channel = $2 AND external_user_id = $3 
          LIMIT 1`,
-        [input.tenantId, input.channel, input.externalUserId]
+        [input.tenantId, input.channel, input.externalUserId],
       );
       return (res.rows[0] as ContactRow) || null;
     },
@@ -167,7 +179,7 @@ export function createContactRepository(client: DatabaseClient) {
         `SELECT id, tenant_id, channel, external_user_id, display_name, phone, metadata, created_at 
          FROM contacts 
          WHERE id = ANY($1)`,
-        [input.ids]
+        [input.ids],
       );
       return res.rows as ContactRow[];
     },
@@ -190,7 +202,7 @@ export function createContactRepository(client: DatabaseClient) {
           input.displayName ?? null,
           input.phone ?? null,
           JSON.stringify(input.metadata ?? {}),
-        ]
+        ],
       );
       return res.rows[0] as ContactRow;
     },
@@ -199,13 +211,17 @@ export function createContactRepository(client: DatabaseClient) {
 
 export function createConversationRepository(client: DatabaseClient) {
   return {
-    async findByExternalThread(input: { tenantId: string; channel: string; externalThreadId: string }) {
+    async findByExternalThread(input: {
+      tenantId: string;
+      channel: string;
+      externalThreadId: string;
+    }) {
       const res = await client.query(
         `SELECT id, tenant_id, channel, external_thread_id, contact_id, status, assignee_user_id, override_model, last_activity_at, created_at 
          FROM conversations 
          WHERE tenant_id = $1 AND channel = $2 AND external_thread_id = $3 
          LIMIT 1`,
-        [input.tenantId, input.channel, input.externalThreadId]
+        [input.tenantId, input.channel, input.externalThreadId],
       );
       return (res.rows[0] as ConversationRow) || null;
     },
@@ -215,7 +231,7 @@ export function createConversationRepository(client: DatabaseClient) {
          FROM conversations 
          WHERE id = $1 
          LIMIT 1`,
-        [conversationId]
+        [conversationId],
       );
       return (res.rows[0] as ConversationRow) || null;
     },
@@ -226,7 +242,7 @@ export function createConversationRepository(client: DatabaseClient) {
          WHERE tenant_id = $1 
          ORDER BY last_activity_at DESC 
          LIMIT $2`,
-        [input.tenantId, input.limit]
+        [input.tenantId, input.limit],
       );
       return res.rows as ConversationRow[];
     },
@@ -253,40 +269,44 @@ export function createConversationRepository(client: DatabaseClient) {
           input.assigneeUserId ?? null,
           input.overrideModel ?? null,
           input.lastActivityAt ?? new Date().toISOString(),
-        ]
+        ],
       );
       return res.rows[0] as ConversationRow;
     },
     async updateLastActivity(conversationId: string, lastActivityAt: string) {
-      await client.query(
-        "UPDATE conversations SET last_activity_at = $1 WHERE id = $2",
-        [lastActivityAt, conversationId]
-      );
+      await client.query("UPDATE conversations SET last_activity_at = $1 WHERE id = $2", [
+        lastActivityAt,
+        conversationId,
+      ]);
     },
     async updateAssignee(conversationId: string, assigneeUserId: string | null) {
-      await client.query(
-        "UPDATE conversations SET assignee_user_id = $1 WHERE id = $2",
-        [assigneeUserId, conversationId]
-      );
+      await client.query("UPDATE conversations SET assignee_user_id = $1 WHERE id = $2", [
+        assigneeUserId,
+        conversationId,
+      ]);
     },
     async updateStatus(conversationId: string, status: string) {
-      await client.query(
-        "UPDATE conversations SET status = $1 WHERE id = $2",
-        [status, conversationId]
-      );
+      await client.query("UPDATE conversations SET status = $1 WHERE id = $2", [
+        status,
+        conversationId,
+      ]);
     },
     async updateOverrideModel(conversationId: string, overrideModel: string | null) {
-      await client.query(
-        "UPDATE conversations SET override_model = $1 WHERE id = $2",
-        [overrideModel, conversationId]
-      );
+      await client.query("UPDATE conversations SET override_model = $1 WHERE id = $2", [
+        overrideModel,
+        conversationId,
+      ]);
     },
   };
 }
 
 export function createMessageRepository(client: DatabaseClient) {
   return {
-    async listByConversation(input: { conversationId: string; limit: number; after?: string | Date }) {
+    async listByConversation(input: {
+      conversationId: string;
+      limit: number;
+      after?: string | Date;
+    }) {
       let query = `SELECT id, tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, raw_payload, is_read, read_at, created_at 
          FROM messages 
          WHERE conversation_id = $1`;
@@ -301,14 +321,17 @@ export function createMessageRepository(client: DatabaseClient) {
       const res = await client.query(query, params);
       return (res.rows as MessageRow[]).reverse();
     },
-    async findLatestByExternalMessageId(input: { tenantId: string; externalMessageId: string }) {
+    async findLatestByExternalMessageId(input: {
+      tenantId: string;
+      externalMessageId: string;
+    }) {
       const res = await client.query(
         `SELECT id, tenant_id, conversation_id, direction, message_type, text, external_message_id, idempotency_key, raw_payload, is_read, read_at, created_at 
          FROM messages 
          WHERE tenant_id = $1 AND external_message_id = $2 
          ORDER BY created_at DESC 
          LIMIT 1`,
-        [input.tenantId, input.externalMessageId]
+        [input.tenantId, input.externalMessageId],
       );
       return (res.rows[0] as MessageRow) || null;
     },
@@ -333,7 +356,7 @@ export function createMessageRepository(client: DatabaseClient) {
           input.externalMessageId ?? null,
           input.idempotencyKey,
           JSON.stringify(input.rawPayload),
-        ]
+        ],
       );
       return res.rows[0] as MessageRow;
     },
@@ -358,14 +381,14 @@ export function createMessageRepository(client: DatabaseClient) {
           input.externalMessageId ?? null,
           input.idempotencyKey,
           JSON.stringify(input.rawPayload),
-        ]
+        ],
       );
       return res.rows[0] as MessageRow;
     },
     async markAsRead(conversationId: string) {
       await client.query(
         "UPDATE messages SET is_read = true, read_at = NOW() WHERE conversation_id = $1 AND direction = 'inbound' AND is_read = false",
-        [conversationId]
+        [conversationId],
       );
     },
     async findById(id: string): Promise<MessageRow | null> {
@@ -374,16 +397,19 @@ export function createMessageRepository(client: DatabaseClient) {
          FROM messages 
          WHERE id = $1 
          LIMIT 1`,
-        [id]
+        [id],
       );
       return (res.rows[0] as MessageRow) || null;
     },
-    async updateRawPayload(id: string, rawPayload: Record<string, unknown>): Promise<void> {
+    async updateRawPayload(
+      id: string,
+      rawPayload: Record<string, unknown>,
+    ): Promise<void> {
       await client.query(
         `UPDATE messages 
          SET raw_payload = $1 
          WHERE id = $2`,
-        [JSON.stringify(rawPayload), id]
+        [JSON.stringify(rawPayload), id],
       );
     },
   };
@@ -411,7 +437,7 @@ export function createDeliveryRepository(client: DatabaseClient) {
           input.errorCode ?? null,
           input.errorMessage ?? null,
           JSON.stringify(input.providerPayload ?? {}),
-        ]
+        ],
       );
     },
   };
@@ -426,7 +452,7 @@ export function createWorkflowConfigRepository(client: DatabaseClient) {
          WHERE tenant_id = $1 
          ORDER BY created_at DESC 
          LIMIT 1`,
-        [tenantId]
+        [tenantId],
       );
       return (res.rows[0] as WorkflowConfigRow) || null;
     },
@@ -451,7 +477,7 @@ export function createHumanTaskRepository(client: DatabaseClient) {
           input.type,
           input.status ?? "open",
           JSON.stringify(input.payload ?? {}),
-        ]
+        ],
       );
     },
   };
@@ -480,7 +506,7 @@ export function createAuditRepository(client: DatabaseClient) {
           JSON.stringify(input.inputPayload ?? {}),
           input.outputPayload === null ? null : JSON.stringify(input.outputPayload ?? {}),
           input.status ?? "ok",
-        ]
+        ],
       );
       return res.rows[0] as ToolCallAuditRow;
     },
@@ -508,20 +534,25 @@ export function createPromptTemplateRepository(client: DatabaseClient) {
          FROM prompt_templates 
          WHERE tenant_id = $1 AND key = $2 AND is_active = true 
          LIMIT 1`,
-        [input.tenantId, input.key]
+        [input.tenantId, input.key],
       );
       return (res.rows[0] as PromptTemplateRow) || null;
     },
-    async create(input: { tenantId: string; key: string; content: string; version: number }) {
+    async create(input: {
+      tenantId: string;
+      key: string;
+      content: string;
+      version: number;
+    }) {
       await client.query(
         "UPDATE prompt_templates SET is_active = false WHERE tenant_id = $1 AND key = $2",
-        [input.tenantId, input.key]
+        [input.tenantId, input.key],
       );
       const res = await client.query(
         `INSERT INTO prompt_templates (tenant_id, key, content, version, is_active)
          VALUES ($1, $2, $3, $4, true)
          RETURNING id, tenant_id, key, content, version, is_active, created_at`,
-        [input.tenantId, input.key, input.content, input.version]
+        [input.tenantId, input.key, input.content, input.version],
       );
       return res.rows[0] as PromptTemplateRow;
     },
@@ -531,7 +562,7 @@ export function createPromptTemplateRepository(client: DatabaseClient) {
          FROM prompt_templates 
          WHERE tenant_id = $1 AND key = $2 
          ORDER BY version DESC`,
-        [input.tenantId, input.key]
+        [input.tenantId, input.key],
       );
       return res.rows as PromptTemplateRow[];
     },
@@ -544,7 +575,6 @@ export interface JobPostingRow {
   external_id: string | null;
   title: string;
   company: string;
-  location: string | null;
   location_slugs: string[];
   work_mode: "remote" | "hybrid" | "onsite";
   salary_min_vnd: number;
@@ -585,7 +615,6 @@ export function createJobPostingRepository(client: DatabaseClient) {
         externalId?: string | null;
         title: string;
         company: string;
-        location: string;
         locationSlugs: string[];
         workMode: "remote" | "hybrid" | "onsite";
         salaryMinVnd: number;
@@ -603,13 +632,13 @@ export function createJobPostingRepository(client: DatabaseClient) {
       for (const j of input.jobs) {
         await client.query(
           `INSERT INTO job_postings
-             (tenant_id, external_id, title, company, location, location_slugs, work_mode,
+             (tenant_id, external_id, title, company, location_slugs, work_mode,
               salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
               job_type, experience_required_years, benefits, education_required)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
            ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
            DO UPDATE SET
-             title = EXCLUDED.title, company = EXCLUDED.company, location = EXCLUDED.location,
+             title = EXCLUDED.title, company = EXCLUDED.company,
              location_slugs = EXCLUDED.location_slugs,
              work_mode = EXCLUDED.work_mode, salary_min_vnd = EXCLUDED.salary_min_vnd,
              salary_max_vnd = EXCLUDED.salary_max_vnd, seniority = EXCLUDED.seniority,
@@ -618,9 +647,21 @@ export function createJobPostingRepository(client: DatabaseClient) {
              benefits = EXCLUDED.benefits, education_required = EXCLUDED.education_required,
              is_active = true`,
           [
-            input.tenantId, j.externalId ?? null, j.title, j.company, j.location, j.locationSlugs, j.workMode,
-            j.salaryMinVnd, j.salaryMaxVnd, j.seniority, j.requiredSkills, j.description,
-            j.jobType ?? null, j.experienceRequiredYears ?? null, j.benefits ?? null, j.educationRequired ?? null,
+            input.tenantId,
+            j.externalId ?? null,
+            j.title,
+            j.company,
+            j.locationSlugs,
+            j.workMode,
+            j.salaryMinVnd,
+            j.salaryMaxVnd,
+            j.seniority,
+            j.requiredSkills,
+            j.description,
+            j.jobType ?? null,
+            j.experienceRequiredYears ?? null,
+            j.benefits ?? null,
+            j.educationRequired ?? null,
           ],
         );
         inserted += 1;
@@ -629,7 +670,6 @@ export function createJobPostingRepository(client: DatabaseClient) {
     },
   };
 }
-
 
 export interface GuestAccessRow {
   id: string;
@@ -655,7 +695,7 @@ export function createGuestAccessRepository(client: DatabaseClient) {
          FROM public.guest_access
          WHERE id = $1
          LIMIT 1`,
-        [id]
+        [id],
       );
       return (res.rows[0] as GuestAccessRow) || null;
     },
@@ -665,7 +705,7 @@ export function createGuestAccessRepository(client: DatabaseClient) {
          FROM public.guest_access
          WHERE invite_code = $1
          LIMIT 1`,
-        [inviteCode]
+        [inviteCode],
       );
       return (res.rows[0] as GuestAccessRow) || null;
     },
@@ -674,7 +714,7 @@ export function createGuestAccessRepository(client: DatabaseClient) {
         `INSERT INTO public.guest_access (tenant_id, invite_code, status, profile)
          VALUES ($1, $2, 'pending', '{}'::jsonb)
          RETURNING id, tenant_id, invite_code, status, password_hash, display_name, profile, contact_id, conversation_id, session_token_hash, created_at, claimed_at, last_seen_at`,
-        [input.tenantId, input.inviteCode]
+        [input.tenantId, input.inviteCode],
       );
       return res.rows[0] as GuestAccessRow;
     },
@@ -707,7 +747,7 @@ export function createGuestAccessRepository(client: DatabaseClient) {
           input.conversationId,
           input.sessionTokenHash,
           input.inviteCode,
-        ]
+        ],
       );
       return (res.rows[0] as GuestAccessRow) || null;
     },
@@ -717,7 +757,7 @@ export function createGuestAccessRepository(client: DatabaseClient) {
          SET session_token_hash = $1
          WHERE invite_code = $2
          RETURNING id, tenant_id, invite_code, status, password_hash, display_name, profile, contact_id, conversation_id, session_token_hash, created_at, claimed_at, last_seen_at`,
-        [input.sessionTokenHash, input.inviteCode]
+        [input.sessionTokenHash, input.inviteCode],
       );
       return (res.rows[0] as GuestAccessRow) || null;
     },
@@ -726,7 +766,7 @@ export function createGuestAccessRepository(client: DatabaseClient) {
         `UPDATE public.guest_access
          SET last_seen_at = now()
          WHERE invite_code = $1`,
-        [inviteCode]
+        [inviteCode],
       );
     },
     async listByTenant(input: { tenantId: string; limit?: number }) {
@@ -736,7 +776,7 @@ export function createGuestAccessRepository(client: DatabaseClient) {
          WHERE tenant_id = $1
          ORDER BY created_at DESC
          LIMIT $2`,
-        [input.tenantId, input.limit ?? 100]
+        [input.tenantId, input.limit ?? 100],
       );
       return res.rows as GuestAccessRow[];
     },
@@ -746,7 +786,7 @@ export function createGuestAccessRepository(client: DatabaseClient) {
          SET status = 'revoked'
          WHERE id = $1
          RETURNING id, tenant_id, invite_code, status, password_hash, display_name, profile, contact_id, conversation_id, session_token_hash, created_at, claimed_at, last_seen_at`,
-        [id]
+        [id],
       );
       return (res.rows[0] as GuestAccessRow) || null;
     },

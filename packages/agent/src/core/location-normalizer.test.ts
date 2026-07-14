@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { normalizeLocation, extractLocationSlugs, normalizeLocationToSlug, scoreJob } from "./location-normalizer.js";
+import {
+  normalizeLocation,
+  extractLocationSlugs,
+  normalizeLocationToSlug,
+  scoreJob,
+} from "./location-normalizer.js";
 
 describe("location-normalizer", () => {
   describe("normalizeLocation", () => {
@@ -69,7 +74,6 @@ describe("location-normalizer", () => {
   describe("scoreJob", () => {
     const sampleJob = {
       title: "Senior Software Engineer (Java)",
-      location: "Ho Chi Minh City, Vietnam",
       locationSlugs: ["ho-chi-minh-city"],
       workMode: "onsite" as const,
       salaryMaxVnd: 0, // negotiable
@@ -80,7 +84,9 @@ describe("location-normalizer", () => {
       const filters = { role: "Senior Java" };
       const { score, reasons } = scoreJob(sampleJob, filters);
       expect(score).toBe(4);
-      expect(reasons).toContain('role "Senior Java" partial match aligns with title (senior, java)');
+      expect(reasons).toContain(
+        'role "Senior Java" partial match aligns with title (senior, java)',
+      );
     });
 
     it("does not match on a single shared word between unrelated roles", () => {
@@ -96,14 +102,6 @@ describe("location-normalizer", () => {
       const { score, reasons } = scoreJob(sampleJob, filters);
       expect(score).toBe(2);
       expect(reasons).toContain("location match");
-    });
-
-    it("falls back to a substring match for cities outside the canonical set", () => {
-      const outOfSetJob = { ...sampleJob, location: "Can Tho, Vietnam", locationSlugs: [] };
-      const filters = { locations: ["Can Tho"] };
-      const { score, reasons } = scoreJob(outOfSetJob, filters);
-      expect(score).toBe(2);
-      expect(reasons).toContain("location substring match");
     });
 
     it("matches negotiable/unspecified salaries when candidate specifies min salary", () => {

@@ -13,7 +13,8 @@
     "test": "vitest run --passWithNoTests",
     "lint": "eslint .",
     "migrate": "tsx src/migrate-cli.ts",
-    "seed:jobs": "tsx src/seed-jobs.ts"
+    "seed:jobs": "tsx src/seed-jobs.ts",
+    "seed:sql-jobs": "tsx src/seed-jobs-from-sql.ts"
   },
   "dependencies": {
     "@platform/config": "workspace:*",
