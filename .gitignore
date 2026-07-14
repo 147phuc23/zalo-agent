@@ -12,3 +12,6 @@ bun.lockb
 # Build output (rebuilt by Vercel buildCommand / tsc / esbuild)
 dist/
 .vercel
+
+# superpowers scratch (progress ledgers, scripts state)
+.superpowers/
