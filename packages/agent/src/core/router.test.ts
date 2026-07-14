@@ -73,4 +73,17 @@ describe("Router & Classifier Agent", () => {
     expect(result).toBe("Chào bạn! Mình có thể giúp gì cho bạn hôm nay? 😊");
     expect(mockGenerate).toHaveBeenCalledTimes(1);
   });
+
+  it("includes the shared persona examples in the chitchat system prompt", async () => {
+    mockGenerate.mockResolvedValue({
+      text: "Chào bạn!",
+      model: "tencent/hy3:free",
+    });
+
+    await generateChitchatReply([{ role: "user", content: "Chào bạn" }]);
+
+    const callArgs = mockGenerate.mock.calls[0][0];
+    expect(callArgs.system).toContain("Hoàng Phúc");
+    expect(callArgs.system).toContain("Java Backend hả");
+  });
 });

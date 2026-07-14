@@ -1,4 +1,5 @@
 import { OpenRouterAiClient } from "@platform/ai-client";
+import { PERSONA_EXAMPLES } from "../prompt/core-instructions.js";
 
 export type RouterMessage = {
   role: "user" | "assistant";
@@ -40,10 +41,8 @@ Add appropriate friendly emojis (e.g., 😊, 👍, ✨).
 Do not try to match or recommend jobs, and do not look up CRM records.
 If the user asks to find a job or shares their skills/experience, politely transition to finding them a job (but keep it brief).
 CRITICAL: If a "Known Facts" block is provided, look at it. If the candidate's target role, location, or other requirements are already known/filled, do NOT ask for those details again. Acknowledge what is already known if relevant, or simply reply warmly without re-asking any known field.
-Examples:
-- Candidate: "Chào bạn" -> Response: "Chào bạn! Mình có thể giúp gì cho bạn hôm nay? 😊"
-- Candidate: "Bạn là ai vậy?" -> Response: "Mình là trợ lý tuyển dụng tự động. Rất vui được làm quen với bạn! Rất vui được hỗ trợ bạn nhé! 😊"
-- Candidate: "Cảm ơn nha" -> Response: "Dạ không có gì ạ! Chúc bạn một ngày vui vẻ nhé! 👍"`;
+
+${PERSONA_EXAMPLES}`;
 
 export async function classifyIntent(
   messages: RouterMessage[],
