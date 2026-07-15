@@ -1,17 +1,11 @@
 import type { createRepositorySet } from "@platform/database";
-import type { CandidateRequirement } from "@platform/agent";
 
 type Repos = ReturnType<typeof createRepositorySet>;
-
-export type KnownFacts = {
-  text: string;
-  requirement: CandidateRequirement;
-};
 
 export async function buildKnownFacts(
   repos: Repos,
   conversationId: string,
-): Promise<KnownFacts | undefined> {
+): Promise<string | undefined> {
   const audits = await repos.audits.listByConversation(conversationId);
   if (!audits || audits.length === 0) {
     return undefined;
@@ -39,7 +33,7 @@ export async function buildKnownFacts(
 
     if (!outputObj) continue;
 
-    if (toolName === "hr_gatherRequirement" || toolName === "requirement_normalizer") {
+    if (toolName === "hr_gatherRequirement") {
       latestGather = outputObj;
     } else if (toolName === "memory_saveInteractionIntent") {
       latestSaveIntent = outputObj;
@@ -108,11 +102,8 @@ export async function buildKnownFacts(
     return undefined;
   }
 
-  return {
-    text: [
-      "# Known Facts So Far (from earlier tool results - do not re-ask these)",
-      ...lines,
-    ].join("\n"),
-    requirement: requirement as CandidateRequirement,
-  };
+  return [
+    "# Known Facts So Far (from earlier tool results - do not re-ask these)",
+    ...lines,
+  ].join("\n");
 }

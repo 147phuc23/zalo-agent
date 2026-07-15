@@ -74,41 +74,10 @@ describe("buildKnownFacts", () => {
     const result = await buildKnownFacts(mockRepos, "conv-1");
 
     expect(result).toBeDefined();
-    expect(result?.text).toContain("# Known Facts So Far");
-    expect(result?.text).toContain("- Intent: seeking_jobs");
-    expect(result?.text).toContain("- Requirement: role=Backend Engineer, workMode=remote, salaryMinVnd=30000000");
-    expect(result?.text).toContain("- CRM Profile Facts: displayName: Alex, phone: +8499999999, location: Hanoi");
-    expect(result?.text).toContain("- Jobs already shown: [job-1] Senior Node.js Developer @ Acme Corp, [job-2] Backend Engineer @ Globex");
-    expect(result?.requirement).toEqual({
-      role: "Backend Engineer",
-      workMode: "remote",
-      salaryMinVnd: 30000000,
-    });
-  });
-
-  it("picks up requirement_normalizer audits the same way as hr_gatherRequirement", async () => {
-    const mockAudits = [
-      {
-        tool_name: "requirement_normalizer",
-        status: "ok",
-        output: JSON.stringify({
-          requirement: {
-            role: "frontend engineer",
-            workMode: "hybrid",
-          },
-        }),
-      },
-    ];
-
-    const mockRepos = {
-      audits: {
-        listByConversation: vi.fn().mockResolvedValue(mockAudits),
-      },
-    } as any;
-
-    const result = await buildKnownFacts(mockRepos, "conv-1");
-
-    expect(result?.text).toContain("- Requirement: role=frontend engineer, workMode=hybrid");
-    expect(result?.requirement).toEqual({ role: "frontend engineer", workMode: "hybrid" });
+    expect(result).toContain("# Known Facts So Far");
+    expect(result).toContain("- Intent: seeking_jobs");
+    expect(result).toContain("- Requirement: role=Backend Engineer, workMode=remote, salaryMinVnd=30000000");
+    expect(result).toContain("- CRM Profile Facts: displayName: Alex, phone: +8499999999, location: Hanoi");
+    expect(result).toContain("- Jobs already shown: [job-1] Senior Node.js Developer @ Acme Corp, [job-2] Backend Engineer @ Globex");
   });
 });
