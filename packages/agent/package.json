@@ -7,7 +7,8 @@
     "./twenty": "./src/twenty/index.ts",
     "./cv-extractor": "./src/core/cv-extractor.ts",
     "./outreach-engine": "./src/core/outreach-engine.ts",
-    "./location-normalizer": "./src/core/location-normalizer.ts"
+    "./location-normalizer": "./src/core/location-normalizer.ts",
+    "./document-processor": "./src/core/document-processor.ts"
   },
   "dependencies": {
     "@platform/ai-client": "workspace:*",

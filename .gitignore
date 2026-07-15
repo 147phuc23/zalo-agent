@@ -15,3 +15,6 @@ dist/
 
 # superpowers scratch (progress ledgers, scripts state)
 .superpowers/
+
+# Local storage uploads
+.data/

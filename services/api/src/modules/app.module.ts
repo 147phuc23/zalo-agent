@@ -4,6 +4,7 @@ import { InternalEventsController } from "../routes/internal-events.controller.j
 import { InternalInboxController } from "../routes/internal-inbox.controller.js";
 import { InternalOutboundController } from "../routes/internal-outbound.controller.js";
 import { InternalPromptsController } from "../routes/internal-prompts.controller.js";
+import { InternalDocumentsController } from "../routes/internal-documents.controller.js";
 import { PostgresModule } from "./postgres.module.js";
 import { QueueModule } from "./queue.module.js";
 import { IngestService } from "../services/ingest.service.js";
@@ -19,6 +20,7 @@ import { SseService } from "../services/sse.service.js";
     InternalInboxController,
     InternalOutboundController,
     InternalPromptsController,
+    InternalDocumentsController,
   ],
   providers: [IngestService, InboxQueryService, PromptsService, SseService],
 })

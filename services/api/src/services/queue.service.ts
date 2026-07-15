@@ -17,6 +17,7 @@ export class QueueService {
   private readonly crmSyncQueue: Queue | null = null;
   private readonly humanTaskCreateQueue: Queue | null = null;
   private readonly knowledgeEmbedQueue: Queue | null = null;
+  private readonly documentProcessQueue: Queue | null = null;
   private readonly deadLetterQueue: Queue | null = null;
 
   constructor() {
@@ -32,6 +33,7 @@ export class QueueService {
     this.crmSyncQueue = new Queue("crm.sync", { connection, defaultJobOptions: DEFAULT_JOB_OPTIONS });
     this.humanTaskCreateQueue = new Queue("human.task.create", { connection, defaultJobOptions: DEFAULT_JOB_OPTIONS });
     this.knowledgeEmbedQueue = new Queue("knowledge.embed", { connection, defaultJobOptions: DEFAULT_JOB_OPTIONS });
+    this.documentProcessQueue = new Queue("document.process", { connection, defaultJobOptions: DEFAULT_JOB_OPTIONS });
     this.deadLetterQueue = new Queue("dead-letter", { connection, defaultJobOptions: DEFAULT_JOB_OPTIONS });
   }
 
@@ -87,6 +89,14 @@ export class QueueService {
       return;
     }
     await this.knowledgeEmbedQueue.add("knowledge.embed", payload);
+  }
+
+  async enqueueDocumentProcess(payload: { tenantId: string; documentId: string }) {
+    if (!this.documentProcessQueue) {
+      console.log("[QueueService] enqueueDocumentProcess (no-op):", payload);
+      return;
+    }
+    await this.documentProcessQueue.add("document.process", payload);
   }
 
   async enqueueDeadLetter(payload: {

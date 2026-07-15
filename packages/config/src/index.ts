@@ -8,6 +8,11 @@ const SharedSchema = z.object({
   // Set to "true" to skip auto-running migrations on boot (e.g. serverless/Vercel,
   // where migrations are applied separately via `pnpm db:migrate`).
   DISABLE_DB_MIGRATIONS: z.string().optional(),
+  R2_ACCOUNT_ID: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET: z.string().optional(),
+  LOCAL_UPLOAD_DIR: z.string().optional(),
 });
 
 const ApiSchema = SharedSchema.extend({
@@ -23,6 +28,11 @@ export interface ApiEnv {
   REDIS_URL?: string;
   OPENROUTER_API_KEY?: string;
   DISABLE_DB_MIGRATIONS?: string;
+  R2_ACCOUNT_ID?: string;
+  R2_ACCESS_KEY_ID?: string;
+  R2_SECRET_ACCESS_KEY?: string;
+  R2_BUCKET?: string;
+  LOCAL_UPLOAD_DIR?: string;
   APP_PORT: number;
   INTERNAL_INGEST_TOKEN: string;
 }
@@ -33,6 +43,11 @@ export interface WorkerEnv {
   REDIS_URL?: string;
   OPENROUTER_API_KEY?: string;
   DISABLE_DB_MIGRATIONS?: string;
+  R2_ACCOUNT_ID?: string;
+  R2_ACCESS_KEY_ID?: string;
+  R2_SECRET_ACCESS_KEY?: string;
+  R2_BUCKET?: string;
+  LOCAL_UPLOAD_DIR?: string;
 }
 
 export function loadApiEnv(input: NodeJS.ProcessEnv = process.env): ApiEnv {

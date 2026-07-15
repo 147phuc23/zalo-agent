@@ -13,6 +13,7 @@ import {
   resolveHrSkillMode,
 } from "@platform/agent";
 import { startCvWorker } from "@platform/agent/cv-extractor";
+import { startDocumentWorker } from "@platform/agent/document-processor";
 import { startOutreachCampaignWorkers } from "@platform/agent/outreach-engine";
 import type { MockZaloPayload } from "@platform/agent";
 import { Redis } from "ioredis";
@@ -202,6 +203,19 @@ worker.on("failed", (job, err) => {
 });
 
 console.log("[worker] started");
+
+const documentWorker = startDocumentWorker({
+  redisUrl: env.REDIS_URL,
+  repos,
+});
+
+documentWorker.on("completed", (job) => {
+  console.log("[document-worker] completed", job.id);
+});
+
+documentWorker.on("failed", (job, err) => {
+  console.error("[document-worker] failed", job?.id, err);
+});
 
 if (twentyRuntimeEnabled) {
   const cvWorker = startCvWorker({
