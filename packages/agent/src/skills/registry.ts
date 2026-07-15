@@ -7,9 +7,12 @@ import { createCrmUpdateCandidateProfileTool } from "./crm-update-candidate-prof
 import { createGatherRequirementTool } from "./gather-requirement/handler.js";
 import { createLoadJobsTool, type LoadJobsContext } from "./load-jobs/handler.js";
 import { createSaveInteractionIntentTool } from "./save-interaction-intent/handler.js";
+import { createLoadJobFiltersTool, type LoadJobFiltersContext } from "./load-job-filters/handler.js";
+import { createNormalizeRequirementTool } from "./normalize-requirement/handler.js";
 
 export interface AgentToolsContext {
   loadJobs?: LoadJobsContext;
+  loadJobFilters?: LoadJobFiltersContext;
 }
 
 export function createAgentTools(skills: SkillDefinition[], ctx?: AgentToolsContext) {
@@ -20,8 +23,10 @@ export function createAgentTools(skills: SkillDefinition[], ctx?: AgentToolsCont
     crm_updateCandidateProfile: createCrmUpdateCandidateProfileTool(),
     crm_addCandidateProfileNote: createCrmAddCandidateProfileNoteTool(),
     hr_gatherRequirement: createGatherRequirementTool(),
+    hr_normalizeRequirement: createNormalizeRequirementTool(),
     memory_saveInteractionIntent: createSaveInteractionIntentTool(),
     jobs_search: createLoadJobsTool(ctx?.loadJobs),
+    jobs_getJobFilters: createLoadJobFiltersTool(ctx?.loadJobFilters),
   };
 }
 

@@ -6,8 +6,10 @@ import { createTwentyListInProgressApplicationsTool } from "./list-in-progress-a
 import { createTwentySearchJobsTool } from "./search-jobs/handler.js";
 import { createTwentyUpdateCandidateProfileTool } from "./update-candidate-profile/handler.js";
 import { createTwentySkillLoadTool, createTwentySkillSearchTool } from "./skills-meta/handler.js";
+import { createTwentyGetJobFiltersTool } from "./get-job-filters/handler.js";
 
 import { createGatherRequirementTool } from "../gather-requirement/handler.js";
+import { createNormalizeRequirementTool } from "../normalize-requirement/handler.js";
 import { createSaveInteractionIntentTool } from "../save-interaction-intent/handler.js";
 
 export function createTwentyAgentTools(skills: SkillDefinition[]) {
@@ -17,10 +19,12 @@ export function createTwentyAgentTools(skills: SkillDefinition[]) {
     twenty_getCandidateProfile: createTwentyGetCandidateProfileTool(),
     twenty_updateCandidateProfile: createTwentyUpdateCandidateProfileTool(),
     twenty_searchJobs: createTwentySearchJobsTool(),
+    twenty_getJobFilters: createTwentyGetJobFiltersTool(),
     twenty_getRecruitingStatus: createTwentyGetRecruitingStatusTool(),
     twenty_listInProgressApplications: createTwentyListInProgressApplicationsTool(),
     twenty_computeJobMatches: createTwentyComputeJobMatchesTool(),
     hr_gatherRequirement: createGatherRequirementTool(),
+    hr_normalizeRequirement: createNormalizeRequirementTool(),
     memory_saveInteractionIntent: createSaveInteractionIntentTool(),
   };
 }

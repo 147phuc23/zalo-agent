@@ -567,11 +567,19 @@ async function generateDraftReply(
     abortSignal,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onStepFinish: async (step: any) => {
+      if (step.text) {
+        console.log(`[worker:step] Step Assistant text: ${step.text.trim()}`);
+      }
       if (!step.toolCalls || step.toolCalls.length === 0) return;
       for (const call of step.toolCalls) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const matchingResult = step.toolResults?.find(
           (r: any) => r.toolCallId === call.toolCallId,
+        );
+        console.log(
+          `[worker:step] Step Tool Call: ${call.toolName} (callId: ${call.toolCallId}) args:`,
+          JSON.stringify(call.args),
+          `status: ${matchingResult?.isError ? "error" : "ok"}`
         );
         const auditRow = await repos.audits.append({
           tenantId,
@@ -661,9 +669,27 @@ function parseDraftResponses(text: string): string[] {
     );
   }
 
+  if (/<nl>/i.test(text)) {
+    return normalizeNlResponses(
+      text.split(/<nl>/i).map((part) => part.trim()),
+    );
+  }
+
   return normalizeResponses(
     text.split(/\n+/).map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/, "")),
   );
+}
+
+function normalizeNlResponses(responses: string[]): string[] {
+  const cleaned = responses
+    .map((response) => response.trim())
+    .filter(Boolean);
+
+  if (cleaned.length === 0) {
+    throw new Error("OpenRouter response did not include any chat responses");
+  }
+
+  return cleaned;
 }
 
 function parseJsonLike(text: string): unknown {

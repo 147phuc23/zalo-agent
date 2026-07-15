@@ -177,10 +177,18 @@ export async function generateAndSaveReply(
     systemPromptOverride,
     knownFacts,
     onStepFinish: async (step: any) => {
+      if (step.text) {
+        console.log(`[core:reply] Step Assistant text: ${step.text.trim()}`);
+      }
       if (!step.toolCalls || step.toolCalls.length === 0) return;
       for (const call of step.toolCalls) {
         const matchingResult = step.toolResults?.find(
           (r: any) => r.toolCallId === call.toolCallId,
+        );
+        console.log(
+          `[core:reply] Step Tool Call: ${call.toolName} (callId: ${call.toolCallId}) args:`,
+          JSON.stringify(call.args),
+          `status: ${matchingResult?.isError ? "error" : "ok"}`
         );
         await repos.audits.append({
           tenantId: input.tenantId,
@@ -247,9 +255,27 @@ function parseDraftResponses(text: string): string[] {
     );
   }
 
+  if (/<nl>/i.test(text)) {
+    return normalizeNlResponses(
+      text.split(/<nl>/i).map((part) => part.trim()),
+    );
+  }
+
   return normalizeResponses(
     text.split(/\n+/).map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/, "")),
   );
+}
+
+function normalizeNlResponses(responses: string[]): string[] {
+  const cleaned = responses
+    .map((response) => response.trim())
+    .filter(Boolean);
+
+  if (cleaned.length === 0) {
+    throw new Error("OpenRouter response did not include any chat responses");
+  }
+
+  return cleaned;
 }
 
 function parseJsonLike(text: string): unknown {

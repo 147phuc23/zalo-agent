@@ -7,11 +7,13 @@ describe("createTwentyAgentTools", () => {
     expect(Object.keys(tools).sort()).toEqual(
       [
         "hr_gatherRequirement",
+        "hr_normalizeRequirement",
         "memory_saveInteractionIntent",
         "skills_load",
         "skills_search",
         "twenty_computeJobMatches",
         "twenty_getCandidateProfile",
+        "twenty_getJobFilters",
         "twenty_getRecruitingStatus",
         "twenty_listInProgressApplications",
         "twenty_searchJobs",

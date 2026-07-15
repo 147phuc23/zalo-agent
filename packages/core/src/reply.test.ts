@@ -100,4 +100,30 @@ describe("generateAndSaveReply - USE_DB_PROMPT toggle", () => {
       })
     );
   });
+
+  it("splits LLM output by <nl> tags and saves each as a separate message", async () => {
+    vi.mocked(runHrAgentScenario).mockResolvedValueOnce({
+      assistantText: "Chào bạn! 😊<nl>Đây là job Backend ngon lành nè:\n- Lương 35tr\n- Stack: Java<NL>Bạn thích job này không?",
+      steps: [],
+    } as any);
+
+    await generateAndSaveReply(mockRepos, {
+      tenantId: "tenant-1",
+      conversationId: "conv-1",
+    });
+
+    expect(mockRepos.messages.createOutbound).toHaveBeenCalledTimes(3);
+    expect(mockRepos.messages.createOutbound).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ text: "Chào bạn! 😊" })
+    );
+    expect(mockRepos.messages.createOutbound).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ text: "Đây là job Backend ngon lành nè:\n- Lương 35tr\n- Stack: Java" })
+    );
+    expect(mockRepos.messages.createOutbound).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({ text: "Bạn thích job này không?" })
+    );
+  });
 });
