@@ -13,8 +13,6 @@ describe("buildPromptCacheContext", () => {
   const mockProfile: CandidateProfile = {
     externalUserId: "user-123",
     displayName: "Test User",
-    skills: [],
-    preferredRoles: [],
   };
 
   const mockState: HrAgentState = {

@@ -4,6 +4,7 @@ import type { SkillDefinition } from "../types.js";
 import { createCrmAddCandidateProfileNoteTool } from "./crm-add-candidate-profile-note/handler.js";
 import { createCrmGetCandidateProfileTool } from "./crm-get-candidate-profile/handler.js";
 import { createCrmUpdateCandidateProfileTool } from "./crm-update-candidate-profile/handler.js";
+import { createGatherRequirementTool } from "./gather-requirement/handler.js";
 import { createLoadJobsTool, type LoadJobsContext } from "./load-jobs/handler.js";
 import { createSaveInteractionIntentTool } from "./save-interaction-intent/handler.js";
 
@@ -18,6 +19,7 @@ export function createAgentTools(skills: SkillDefinition[], ctx?: AgentToolsCont
     crm_getCandidateProfile: createCrmGetCandidateProfileTool(),
     crm_updateCandidateProfile: createCrmUpdateCandidateProfileTool(),
     crm_addCandidateProfileNote: createCrmAddCandidateProfileNoteTool(),
+    hr_gatherRequirement: createGatherRequirementTool(),
     memory_saveInteractionIntent: createSaveInteractionIntentTool(),
     jobs_search: createLoadJobsTool(ctx?.loadJobs),
   };
