@@ -4,7 +4,7 @@
 INSERT INTO public.job_postings (
   tenant_id, external_id, title, company, location, work_mode,
   salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-  job_type, experience_required_years, benefits, education_required, is_active
+  job_type, experience_required_years, benefits, education_required, status
 ) VALUES (
   'b545a6ca-eabe-4bb8-852d-2c497edb8e38',
   'Application or Systems Support Engineer_Thoughtworks',
@@ -21,7 +21,7 @@ INSERT INTO public.job_postings (
   NULL,
   'Learning and development programs, career growth support, inclusive and supportive community culture.',
   NULL,
-  true
+  'active'
 ) ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
 DO UPDATE SET
   title = EXCLUDED.title,
@@ -37,12 +37,12 @@ DO UPDATE SET
   experience_required_years = EXCLUDED.experience_required_years,
   benefits = EXCLUDED.benefits,
   education_required = EXCLUDED.education_required,
-  is_active = true;
+  status = 'active';
 
 INSERT INTO public.job_postings (
   tenant_id, external_id, title, company, location, work_mode,
   salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-  job_type, experience_required_years, benefits, education_required, is_active
+  job_type, experience_required_years, benefits, education_required, status
 ) VALUES (
   'b545a6ca-eabe-4bb8-852d-2c497edb8e38',
   'Fullstack Software Engineer (Javascript, JavaorKotlin)_Thoughtworks',
@@ -59,7 +59,7 @@ INSERT INTO public.job_postings (
   3,
   'Learning and development programs, career growth support, health and wellbeing benefits, inclusive workplace.',
   NULL,
-  true
+  'active'
 ) ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
 DO UPDATE SET
   title = EXCLUDED.title,
@@ -75,12 +75,12 @@ DO UPDATE SET
   experience_required_years = EXCLUDED.experience_required_years,
   benefits = EXCLUDED.benefits,
   education_required = EXCLUDED.education_required,
-  is_active = true;
+  status = 'active';
 
 INSERT INTO public.job_postings (
   tenant_id, external_id, title, company, location, work_mode,
   salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-  job_type, experience_required_years, benefits, education_required, is_active
+  job_type, experience_required_years, benefits, education_required, status
 ) VALUES (
   'b545a6ca-eabe-4bb8-852d-2c497edb8e38',
   'Fullstack Software Engineer (Node.js, React)_Thoughtworks',
@@ -97,7 +97,7 @@ INSERT INTO public.job_postings (
   3,
   'Interactive learning tools, development programs, career growth support, inclusive community.',
   NULL,
-  true
+  'active'
 ) ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
 DO UPDATE SET
   title = EXCLUDED.title,
@@ -113,12 +113,12 @@ DO UPDATE SET
   experience_required_years = EXCLUDED.experience_required_years,
   benefits = EXCLUDED.benefits,
   education_required = EXCLUDED.education_required,
-  is_active = true;
+  status = 'active';
 
 INSERT INTO public.job_postings (
   tenant_id, external_id, title, company, location, work_mode,
   salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-  job_type, experience_required_years, benefits, education_required, is_active
+  job_type, experience_required_years, benefits, education_required, status
 ) VALUES (
   'b545a6ca-eabe-4bb8-852d-2c497edb8e38',
   'Lead Software Engineer (Java)_Thoughtworks',
@@ -135,7 +135,7 @@ INSERT INTO public.job_postings (
   NULL,
   'Learning and development programs, career growth support, inclusive and supportive team culture.',
   NULL,
-  true
+  'active'
 ) ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
 DO UPDATE SET
   title = EXCLUDED.title,
@@ -151,12 +151,12 @@ DO UPDATE SET
   experience_required_years = EXCLUDED.experience_required_years,
   benefits = EXCLUDED.benefits,
   education_required = EXCLUDED.education_required,
-  is_active = true;
+  status = 'active';
 
 INSERT INTO public.job_postings (
   tenant_id, external_id, title, company, location, work_mode,
   salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-  job_type, experience_required_years, benefits, education_required, is_active
+  job_type, experience_required_years, benefits, education_required, status
 ) VALUES (
   'b545a6ca-eabe-4bb8-852d-2c497edb8e38',
   'Lead Systems Support Engineer_Thoughtworks',
@@ -173,7 +173,7 @@ INSERT INTO public.job_postings (
   NULL,
   'Learning and development programs, career growth support, inclusive community, autonomous career path.',
   NULL,
-  true
+  'active'
 ) ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
 DO UPDATE SET
   title = EXCLUDED.title,
@@ -189,12 +189,12 @@ DO UPDATE SET
   experience_required_years = EXCLUDED.experience_required_years,
   benefits = EXCLUDED.benefits,
   education_required = EXCLUDED.education_required,
-  is_active = true;
+  status = 'active';
 
 INSERT INTO public.job_postings (
   tenant_id, external_id, title, company, location, work_mode,
   salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-  job_type, experience_required_years, benefits, education_required, is_active
+  job_type, experience_required_years, benefits, education_required, status
 ) VALUES (
   'b545a6ca-eabe-4bb8-852d-2c497edb8e38',
   'Senior Application or Systems Support Engineer_Thoughtworks',
@@ -211,7 +211,7 @@ INSERT INTO public.job_postings (
   NULL,
   'Learning and development programs, career growth support, inclusive and supportive community.',
   NULL,
-  true
+  'active'
 ) ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
 DO UPDATE SET
   title = EXCLUDED.title,
@@ -227,12 +227,12 @@ DO UPDATE SET
   experience_required_years = EXCLUDED.experience_required_years,
   benefits = EXCLUDED.benefits,
   education_required = EXCLUDED.education_required,
-  is_active = true;
+  status = 'active';
 
 INSERT INTO public.job_postings (
   tenant_id, external_id, title, company, location, work_mode,
   salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-  job_type, experience_required_years, benefits, education_required, is_active
+  job_type, experience_required_years, benefits, education_required, status
 ) VALUES (
   'b545a6ca-eabe-4bb8-852d-2c497edb8e38',
   'Senior Fullstack Software Engineer (Node.js, React)_Thoughtworks',
@@ -249,7 +249,7 @@ INSERT INTO public.job_postings (
   NULL,
   'Learning and development programs, career growth support, inclusive and supportive community culture.',
   NULL,
-  true
+  'active'
 ) ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
 DO UPDATE SET
   title = EXCLUDED.title,
@@ -265,12 +265,12 @@ DO UPDATE SET
   experience_required_years = EXCLUDED.experience_required_years,
   benefits = EXCLUDED.benefits,
   education_required = EXCLUDED.education_required,
-  is_active = true;
+  status = 'active';
 
 INSERT INTO public.job_postings (
   tenant_id, external_id, title, company, location, work_mode,
   salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-  job_type, experience_required_years, benefits, education_required, is_active
+  job_type, experience_required_years, benefits, education_required, status
 ) VALUES (
   'b545a6ca-eabe-4bb8-852d-2c497edb8e38',
   'Senior Fullstack Software Engineer (Node.js, React, Java)_Thoughtworks',
@@ -287,7 +287,7 @@ INSERT INTO public.job_postings (
   NULL,
   'Learning and development programs, career autonomy, supportive cultivation culture, inclusive community of experts.',
   NULL,
-  true
+  'active'
 ) ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
 DO UPDATE SET
   title = EXCLUDED.title,
@@ -303,12 +303,12 @@ DO UPDATE SET
   experience_required_years = EXCLUDED.experience_required_years,
   benefits = EXCLUDED.benefits,
   education_required = EXCLUDED.education_required,
-  is_active = true;
+  status = 'active';
 
 INSERT INTO public.job_postings (
   tenant_id, external_id, title, company, location, work_mode,
   salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-  job_type, experience_required_years, benefits, education_required, is_active
+  job_type, experience_required_years, benefits, education_required, status
 ) VALUES (
   'b545a6ca-eabe-4bb8-852d-2c497edb8e38',
   'Senior Software Engineer (C#or.Net)_Thoughtworks',
@@ -325,7 +325,7 @@ INSERT INTO public.job_postings (
   NULL,
   'Learning & development programs, career growth autonomy, inclusive community, mentorship.',
   NULL,
-  true
+  'active'
 ) ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
 DO UPDATE SET
   title = EXCLUDED.title,
@@ -341,12 +341,12 @@ DO UPDATE SET
   experience_required_years = EXCLUDED.experience_required_years,
   benefits = EXCLUDED.benefits,
   education_required = EXCLUDED.education_required,
-  is_active = true;
+  status = 'active';
 
 INSERT INTO public.job_postings (
   tenant_id, external_id, title, company, location, work_mode,
   salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-  job_type, experience_required_years, benefits, education_required, is_active
+  job_type, experience_required_years, benefits, education_required, status
 ) VALUES (
   'b545a6ca-eabe-4bb8-852d-2c497edb8e38',
   'Senior Software Engineer (Java)_Thoughtworks',
@@ -363,7 +363,7 @@ INSERT INTO public.job_postings (
   NULL,
   'Interactive tools, numerous development programs, and supportive teammates for career growth in an inclusive culture.',
   NULL,
-  true
+  'active'
 ) ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
 DO UPDATE SET
   title = EXCLUDED.title,
@@ -379,12 +379,12 @@ DO UPDATE SET
   experience_required_years = EXCLUDED.experience_required_years,
   benefits = EXCLUDED.benefits,
   education_required = EXCLUDED.education_required,
-  is_active = true;
+  status = 'active';
 
 INSERT INTO public.job_postings (
   tenant_id, external_id, title, company, location, work_mode,
   salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-  job_type, experience_required_years, benefits, education_required, is_active
+  job_type, experience_required_years, benefits, education_required, status
 ) VALUES (
   'b545a6ca-eabe-4bb8-852d-2c497edb8e38',
   'Senior Software Engineer (Javascript, Java)_Thoughtworks',
@@ -401,7 +401,7 @@ INSERT INTO public.job_postings (
   NULL,
   'Autonomous career development, learning and development programs, supportive cultivation culture, and collaborative environment.',
   NULL,
-  true
+  'active'
 ) ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
 DO UPDATE SET
   title = EXCLUDED.title,
@@ -417,12 +417,12 @@ DO UPDATE SET
   experience_required_years = EXCLUDED.experience_required_years,
   benefits = EXCLUDED.benefits,
   education_required = EXCLUDED.education_required,
-  is_active = true;
+  status = 'active';
 
 INSERT INTO public.job_postings (
   tenant_id, external_id, title, company, location, work_mode,
   salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-  job_type, experience_required_years, benefits, education_required, is_active
+  job_type, experience_required_years, benefits, education_required, status
 ) VALUES (
   'b545a6ca-eabe-4bb8-852d-2c497edb8e38',
   'Senior Systems Support Engineer_Thoughtworks',
@@ -439,7 +439,7 @@ INSERT INTO public.job_postings (
   NULL,
   'Learning and development programs, autonomous career path, supportive cultivation culture, inclusive community.',
   NULL,
-  true
+  'active'
 ) ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
 DO UPDATE SET
   title = EXCLUDED.title,
@@ -455,12 +455,12 @@ DO UPDATE SET
   experience_required_years = EXCLUDED.experience_required_years,
   benefits = EXCLUDED.benefits,
   education_required = EXCLUDED.education_required,
-  is_active = true;
+  status = 'active';
 
 INSERT INTO public.job_postings (
   tenant_id, external_id, title, company, location, work_mode,
   salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-  job_type, experience_required_years, benefits, education_required, is_active
+  job_type, experience_required_years, benefits, education_required, status
 ) VALUES (
   'b545a6ca-eabe-4bb8-852d-2c497edb8e38',
   'Software Engineer (C#, .NET)_Thoughtworks',
@@ -477,7 +477,7 @@ INSERT INTO public.job_postings (
   3,
   'Learning & development programs, career growth support, inclusive and collaborative culture',
   NULL,
-  true
+  'active'
 ) ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
 DO UPDATE SET
   title = EXCLUDED.title,
@@ -493,12 +493,12 @@ DO UPDATE SET
   experience_required_years = EXCLUDED.experience_required_years,
   benefits = EXCLUDED.benefits,
   education_required = EXCLUDED.education_required,
-  is_active = true;
+  status = 'active';
 
 INSERT INTO public.job_postings (
   tenant_id, external_id, title, company, location, work_mode,
   salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-  job_type, experience_required_years, benefits, education_required, is_active
+  job_type, experience_required_years, benefits, education_required, status
 ) VALUES (
   'b545a6ca-eabe-4bb8-852d-2c497edb8e38',
   'Software Engineer (Java)_Thoughtworks',
@@ -515,7 +515,7 @@ INSERT INTO public.job_postings (
   3,
   'Learning and development programs, career growth support, inclusive and collaborative work culture.',
   NULL,
-  true
+  'active'
 ) ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
 DO UPDATE SET
   title = EXCLUDED.title,
@@ -531,12 +531,12 @@ DO UPDATE SET
   experience_required_years = EXCLUDED.experience_required_years,
   benefits = EXCLUDED.benefits,
   education_required = EXCLUDED.education_required,
-  is_active = true;
+  status = 'active';
 
 INSERT INTO public.job_postings (
   tenant_id, external_id, title, company, location, work_mode,
   salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-  job_type, experience_required_years, benefits, education_required, is_active
+  job_type, experience_required_years, benefits, education_required, status
 ) VALUES (
   'b545a6ca-eabe-4bb8-852d-2c497edb8e38',
   'Technical Principal_Thoughtworks',
@@ -553,7 +553,7 @@ INSERT INTO public.job_postings (
   NULL,
   'Learning and development programs, career growth support, inclusive and supportive culture, autonomous teams.',
   NULL,
-  true
+  'active'
 ) ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
 DO UPDATE SET
   title = EXCLUDED.title,
@@ -569,4 +569,4 @@ DO UPDATE SET
   experience_required_years = EXCLUDED.experience_required_years,
   benefits = EXCLUDED.benefits,
   education_required = EXCLUDED.education_required,
-  is_active = true;
+  status = 'active';

@@ -1,5 +1,8 @@
 import pg from "pg";
 
+// Parse bigint (INT8) as number
+pg.types.setTypeParser(pg.types.builtins.INT8, (value) => parseInt(value, 10));
+
 export { runMigrations } from "./migrator.js";
 export {
   createAuditRepository,

@@ -14,6 +14,7 @@
     "@platform/agent": "workspace:*",
     "@platform/core": "workspace:*",
     "@platform/database": "workspace:*",
+    "@platform/storage": "workspace:*",
     "lucide-react": "^0.468.0",
     "next": "16.2.4",
     "pg": "^8.13.3",

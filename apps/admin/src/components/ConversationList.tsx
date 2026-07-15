@@ -47,6 +47,15 @@ export function ConversationList({
         </button>
       </div>
 
+      <div className="px-3 py-2 border-b border-gray-150 bg-stone-50 flex gap-2">
+        <a href="/" className="flex-1 text-center py-1.5 text-xs font-semibold rounded-lg bg-white border border-gray-200 shadow-xs text-blue-600">
+          Hội thoại Zalo
+        </a>
+        <a href="/jobs" className="flex-1 text-center py-1.5 text-xs font-semibold rounded-lg hover:bg-white hover:border-gray-200 text-slate-500 hover:text-slate-800 hover:shadow-xs transition">
+          Tin tuyển dụng
+        </a>
+      </div>
+
       {/* Search */}
       <div className="p-3 border-b border-gray-200 relative">
         <Search className="w-4 h-4 text-gray-400 absolute left-6 top-6" />

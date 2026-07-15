@@ -14,9 +14,12 @@
     "@platform/ai-client": "workspace:*",
     "@platform/database": "workspace:*",
     "@platform/shared": "workspace:*",
+    "@platform/storage": "workspace:*",
     "ai": "^4.3.16",
     "bullmq": "^5.58.5",
     "dotenv": "^16.6.1",
+    "mammoth": "^1.12.0",
+    "unpdf": "^1.6.2",
     "zod": "^3.25.28"
   }
 }

@@ -582,6 +582,20 @@ export interface CompanyRow {
 
 export function createCompanyRepository(client: DatabaseClient) {
   return {
+    async findById(id: string) {
+      const res = await client.query(
+        `SELECT * FROM companies WHERE id = $1`,
+        [id]
+      );
+      return (res.rows[0] as CompanyRow) || null;
+    },
+    async listAll(input: { tenantId: string }) {
+      const res = await client.query(
+        `SELECT * FROM companies WHERE tenant_id = $1 ORDER BY name ASC`,
+        [input.tenantId]
+      );
+      return res.rows as CompanyRow[];
+    },
     async findByName(input: { tenantId: string; name: string }) {
       const res = await client.query(
         `SELECT * FROM companies WHERE tenant_id = $1 AND name = $2`,
@@ -635,18 +649,236 @@ export interface JobPostingRow {
   experience_required_years: number | null;
   benefits: string | null;
   education_required: string | null;
-  is_active: boolean;
+  status: "draft" | "active" | "archived";
+  source_document_id: string | null;
   created_at: string;
 }
 
 export function createJobPostingRepository(client: DatabaseClient) {
   return {
+    async findByIdOrExternalId(input: { tenantId: string; idOrExternalId: string }) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.idOrExternalId);
+      const res = await client.query(
+        `SELECT jp.*, c.name AS company, c.introduction AS company_introduction, c.benefits AS company_benefits, c.work_style AS company_work_style
+         FROM job_postings jp
+         LEFT JOIN companies c ON jp.company_id = c.id
+         WHERE jp.tenant_id = $1 AND (${isUuid ? "jp.id = $2::uuid" : "false"} OR jp.external_id = $2::text)
+         LIMIT 1`,
+        [input.tenantId, input.idOrExternalId]
+      );
+      return (res.rows[0] as JobPostingRow) || null;
+    },
+    async createDraft(input: {
+      tenantId: string;
+      sourceDocumentId: string | null;
+      fields: {
+        title: string;
+        company: string;
+        locationSlugs: string[];
+        workMode: "remote" | "hybrid" | "onsite";
+        salaryMinVnd?: number;
+        salaryMaxVnd?: number;
+        seniority: string;
+        requiredSkills: string[];
+        description: string;
+        jobType?: string | null;
+        experienceRequiredYears?: number | null;
+        benefits?: string | null;
+        educationRequired?: string | null;
+      };
+    }) {
+      const companyRes = await client.query(
+        `INSERT INTO companies (tenant_id, name, introduction, benefits, work_style)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (tenant_id, name) DO UPDATE SET name = EXCLUDED.name
+         RETURNING id`,
+        [
+          input.tenantId,
+          input.fields.company,
+          `Introduction to ${input.fields.company}`,
+          input.fields.benefits ?? `Benefits at ${input.fields.company}`,
+          `Work style at ${input.fields.company}`
+        ]
+      );
+      const companyId = companyRes.rows[0].id;
+
+      const res = await client.query(
+        `INSERT INTO job_postings
+           (tenant_id, source_document_id, title, company_id, location_slugs, work_mode,
+            salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
+            job_type, experience_required_years, benefits, education_required, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'draft')
+         RETURNING id`,
+        [
+          input.tenantId,
+          input.sourceDocumentId,
+          input.fields.title,
+          companyId,
+          input.fields.locationSlugs || [],
+          input.fields.workMode || 'hybrid',
+          input.fields.salaryMinVnd ?? 0,
+          input.fields.salaryMaxVnd ?? 0,
+          input.fields.seniority || '',
+          input.fields.requiredSkills || [],
+          input.fields.description || '',
+          input.fields.jobType ?? null,
+          input.fields.experienceRequiredYears ?? null,
+          input.fields.benefits ?? null,
+          input.fields.educationRequired ?? null,
+        ]
+      );
+      const id = res.rows[0].id;
+      return (await this.findByIdOrExternalId({ tenantId: input.tenantId, idOrExternalId: id }))!;
+    },
+    async updateFields(input: { id: string; patch: Partial<JobPostingRow & { company: string }> }) {
+      let companyId: string | undefined;
+      if (input.patch.company !== undefined) {
+        const existingJob = await client.query("SELECT tenant_id FROM job_postings WHERE id = $1", [input.id]);
+        if (existingJob.rows.length === 0) {
+          throw new Error(`Job posting not found: ${input.id}`);
+        }
+        const tenantId = existingJob.rows[0].tenant_id;
+        const companyRes = await client.query(
+          `INSERT INTO companies (tenant_id, name, introduction, benefits, work_style)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (tenant_id, name) DO UPDATE SET name = EXCLUDED.name
+           RETURNING id`,
+          [
+            tenantId,
+            input.patch.company,
+            `Introduction to ${input.patch.company}`,
+            input.patch.benefits ?? `Benefits at ${input.patch.company}`,
+            `Work style at ${input.patch.company}`
+          ]
+        );
+        companyId = companyRes.rows[0].id;
+      }
+
+      const setClause: string[] = [];
+      const values: any[] = [];
+      let paramIndex = 1;
+
+      if (input.patch.title !== undefined) {
+        setClause.push(`title = $${paramIndex++}`);
+        values.push(input.patch.title);
+      }
+      if (companyId !== undefined) {
+        setClause.push(`company_id = $${paramIndex++}`);
+        values.push(companyId);
+      }
+      if (input.patch.location_slugs !== undefined) {
+        setClause.push(`location_slugs = $${paramIndex++}`);
+        values.push(input.patch.location_slugs);
+      } else if ((input.patch as any).locationSlugs !== undefined) {
+        setClause.push(`location_slugs = $${paramIndex++}`);
+        values.push((input.patch as any).locationSlugs);
+      }
+      if (input.patch.work_mode !== undefined) {
+        setClause.push(`work_mode = $${paramIndex++}`);
+        values.push(input.patch.work_mode);
+      } else if ((input.patch as any).workMode !== undefined) {
+        setClause.push(`work_mode = $${paramIndex++}`);
+        values.push((input.patch as any).workMode);
+      }
+      if (input.patch.salary_min_vnd !== undefined) {
+        setClause.push(`salary_min_vnd = $${paramIndex++}`);
+        values.push(input.patch.salary_min_vnd);
+      } else if ((input.patch as any).salaryMinVnd !== undefined) {
+        setClause.push(`salary_min_vnd = $${paramIndex++}`);
+        values.push((input.patch as any).salaryMinVnd);
+      }
+      if (input.patch.salary_max_vnd !== undefined) {
+        setClause.push(`salary_max_vnd = $${paramIndex++}`);
+        values.push(input.patch.salary_max_vnd);
+      } else if ((input.patch as any).salaryMaxVnd !== undefined) {
+        setClause.push(`salary_max_vnd = $${paramIndex++}`);
+        values.push((input.patch as any).salaryMaxVnd);
+      }
+      if (input.patch.seniority !== undefined) {
+        setClause.push(`seniority = $${paramIndex++}`);
+        values.push(input.patch.seniority);
+      }
+      if (input.patch.required_skills !== undefined) {
+        setClause.push(`required_skills = $${paramIndex++}`);
+        values.push(input.patch.required_skills);
+      } else if ((input.patch as any).requiredSkills !== undefined) {
+        setClause.push(`required_skills = $${paramIndex++}`);
+        values.push((input.patch as any).requiredSkills);
+      }
+      if (input.patch.description !== undefined) {
+        setClause.push(`description = $${paramIndex++}`);
+        values.push(input.patch.description);
+      }
+      if (input.patch.job_type !== undefined) {
+        setClause.push(`job_type = $${paramIndex++}`);
+        values.push(input.patch.job_type);
+      } else if ((input.patch as any).jobType !== undefined) {
+        setClause.push(`job_type = $${paramIndex++}`);
+        values.push((input.patch as any).jobType);
+      }
+      if (input.patch.experience_required_years !== undefined) {
+        setClause.push(`experience_required_years = $${paramIndex++}`);
+        values.push(input.patch.experience_required_years);
+      } else if ((input.patch as any).experienceRequiredYears !== undefined) {
+        setClause.push(`experience_required_years = $${paramIndex++}`);
+        values.push((input.patch as any).experienceRequiredYears);
+      }
+      if (input.patch.benefits !== undefined) {
+        setClause.push(`benefits = $${paramIndex++}`);
+        values.push(input.patch.benefits);
+      }
+      if (input.patch.education_required !== undefined) {
+        setClause.push(`education_required = $${paramIndex++}`);
+        values.push(input.patch.education_required);
+      } else if ((input.patch as any).educationRequired !== undefined) {
+        setClause.push(`education_required = $${paramIndex++}`);
+        values.push((input.patch as any).educationRequired);
+      }
+
+      if (setClause.length === 0) {
+        const existing = await client.query("SELECT tenant_id FROM job_postings WHERE id = $1", [input.id]);
+        if (existing.rows.length === 0) {
+          throw new Error(`Job posting not found: ${input.id}`);
+        }
+        return (await this.findByIdOrExternalId({ tenantId: existing.rows[0].tenant_id, idOrExternalId: input.id }))!;
+      }
+
+      values.push(input.id);
+      const updateQuery = `UPDATE job_postings SET ${setClause.join(", ")} WHERE id = $${paramIndex++} RETURNING tenant_id`;
+      const res = await client.query(updateQuery, values);
+      if (res.rows.length === 0) {
+        throw new Error(`Job posting not found: ${input.id}`);
+      }
+      const tenantId = res.rows[0].tenant_id;
+      return (await this.findByIdOrExternalId({ tenantId, idOrExternalId: input.id }))!;
+    },
+    async setStatus(input: { id: string; status: "draft" | "active" | "archived" }) {
+      const res = await client.query(
+        "UPDATE job_postings SET status = $1 WHERE id = $2",
+        [input.status, input.id]
+      );
+      if (res.rowCount === 0) {
+        throw new Error(`Job posting not found: ${input.id}`);
+      }
+    },
+    async listByStatus(input: { tenantId: string; status: "draft" | "active" | "archived"; limit?: number }) {
+      const res = await client.query(
+        `SELECT jp.*, c.name AS company, c.introduction AS company_introduction, c.benefits AS company_benefits, c.work_style AS company_work_style
+         FROM job_postings jp
+         LEFT JOIN companies c ON jp.company_id = c.id
+         WHERE jp.tenant_id = $1 AND jp.status = $2
+         ORDER BY jp.created_at DESC
+         LIMIT $3`,
+        [input.tenantId, input.status, input.limit ?? 500]
+      );
+      return res.rows as JobPostingRow[];
+    },
     async listActive(input: { tenantId: string; limit?: number }) {
       const res = await client.query(
         `SELECT jp.*, c.name AS company, c.introduction AS company_introduction, c.benefits AS company_benefits, c.work_style AS company_work_style
          FROM job_postings jp
          LEFT JOIN companies c ON jp.company_id = c.id
-         WHERE jp.tenant_id = $1 AND jp.is_active = true
+         WHERE jp.tenant_id = $1 AND jp.status = 'active'
          ORDER BY jp.created_at DESC
          LIMIT $2`,
         [input.tenantId, input.limit ?? 500],
@@ -655,7 +887,7 @@ export function createJobPostingRepository(client: DatabaseClient) {
     },
     async count(input: { tenantId: string }) {
       const res = await client.query(
-        "SELECT COUNT(*)::int AS n FROM job_postings WHERE tenant_id = $1 AND is_active = true",
+        "SELECT COUNT(*)::int AS n FROM job_postings WHERE tenant_id = $1 AND status = 'active'",
         [input.tenantId],
       );
       return (res.rows[0]?.n as number) ?? 0;
@@ -701,8 +933,8 @@ export function createJobPostingRepository(client: DatabaseClient) {
           `INSERT INTO job_postings
              (tenant_id, external_id, title, company_id, location_slugs, work_mode,
               salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
-              job_type, experience_required_years, benefits, education_required)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+              job_type, experience_required_years, benefits, education_required, status)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'active')
            ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
            DO UPDATE SET
              title = EXCLUDED.title, company_id = EXCLUDED.company_id,
@@ -712,7 +944,7 @@ export function createJobPostingRepository(client: DatabaseClient) {
              required_skills = EXCLUDED.required_skills, description = EXCLUDED.description,
              job_type = EXCLUDED.job_type, experience_required_years = EXCLUDED.experience_required_years,
              benefits = EXCLUDED.benefits, education_required = EXCLUDED.education_required,
-             is_active = true`,
+             status = 'active'`,
           [
             input.tenantId,
             j.externalId ?? null,
