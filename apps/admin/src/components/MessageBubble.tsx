@@ -112,7 +112,9 @@ export const MessageBubble = React.memo(function MessageBubble({
 
   return (
     <div
-      className={`flex items-center gap-2 group/msg ${isInbound ? "justify-start" : "justify-end"}`}
+      className={`flex items-center gap-2 group/msg ${isInbound ? "justify-start" : "justify-end"} ${
+        m.rawPayload?.reactions && m.rawPayload.reactions.length > 0 ? "pb-2.5" : ""
+      }`}
     >
       {!isInbound && (
         <div className="opacity-0 group-hover/msg:opacity-100 transition-opacity flex gap-1.5 flex-shrink-0">
@@ -167,10 +169,8 @@ export const MessageBubble = React.memo(function MessageBubble({
         )}
         {m.rawPayload?.reactions && m.rawPayload.reactions.length > 0 && (
           <div
-            className={`flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-full text-xs w-fit shadow-xs ${
-              isInbound
-                ? "bg-gray-50 border border-gray-150 text-slate-600"
-                : "bg-blue-700 text-blue-100"
+            className={`absolute -bottom-2 flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] bg-white border border-stone-200 text-slate-600 shadow-sm z-10 select-none ${
+              isInbound ? "left-3" : "right-3"
             }`}
           >
             {m.rawPayload.reactions.map((r: any, idx: number) => {
