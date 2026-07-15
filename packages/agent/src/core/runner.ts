@@ -20,6 +20,8 @@ import {
   createDatabaseClient,
   createJobPostingRepository,
   createCompanyRepository,
+  createContactRepository,
+  createCandidateProfileRepository,
   type JobPostingRow,
 } from "@platform/database";
 import type {
@@ -52,6 +54,28 @@ function getCompanyRepo() {
     createDatabaseClient({ PLATFORM_DB_URL: url }),
   );
   return companyRepoSingleton;
+}
+
+let contactsRepoSingleton: ReturnType<typeof createContactRepository> | null = null;
+function getContactsRepo() {
+  if (contactsRepoSingleton) return contactsRepoSingleton;
+  const url = process.env.PLATFORM_DB_URL;
+  if (!url) return null;
+  contactsRepoSingleton = createContactRepository(
+    createDatabaseClient({ PLATFORM_DB_URL: url }),
+  );
+  return contactsRepoSingleton;
+}
+
+let candidateProfileRepoSingleton: ReturnType<typeof createCandidateProfileRepository> | null = null;
+function getCandidateProfileRepo() {
+  if (candidateProfileRepoSingleton) return candidateProfileRepoSingleton;
+  const url = process.env.PLATFORM_DB_URL;
+  if (!url) return null;
+  candidateProfileRepoSingleton = createCandidateProfileRepository(
+    createDatabaseClient({ PLATFORM_DB_URL: url }),
+  );
+  return candidateProfileRepoSingleton;
 }
 
 function jobRowToPosting(row: JobPostingRow): JobPosting {
@@ -103,6 +127,42 @@ export async function runHrAgentScenario(
         return client.loadCandidateProfile({ externalUserId: input.externalUserId });
       }
 
+      const contactsRepo = getContactsRepo();
+      const candidateProfileRepo = getCandidateProfileRepo();
+      if (contactsRepo && candidateProfileRepo) {
+        try {
+          const contact = await contactsRepo.findByExternalUser({
+            tenantId: input.tenantId,
+            channel: input.channel,
+            externalUserId: input.externalUserId,
+          });
+          if (contact) {
+            const profile = await candidateProfileRepo.findByContact({
+              tenantId: input.tenantId,
+              contactId: contact.id,
+            });
+            if (profile) {
+              return {
+                externalUserId: input.externalUserId,
+                displayName: profile.full_name || "",
+                email: profile.email || "",
+                phone: profile.phone || "",
+                location: profile.location || "",
+                yearsOfExperience: Number(profile.years_of_experience || 0),
+                currentTitle: profile.current_title || "",
+                skills: profile.skills || [],
+                preferredRoles: profile.preferred_roles || [],
+                salaryExpectationVnd: Number(profile.salary_expectation_vnd || 0),
+                availability: profile.availability || "",
+                notes: (profile.raw_extraction as any)?.notes || [],
+              };
+            }
+          }
+        } catch (err) {
+          console.error("[runner] Failed to load candidate profile from database, falling back to mock:", err);
+        }
+      }
+
       return getMockCandidateProfile(input);
     },
   });
@@ -139,6 +199,142 @@ export async function runHrAgentScenario(
 
   const jobsRepo = getJobsRepo();
   const companyRepo = getCompanyRepo();
+  const contactsRepo = getContactsRepo();
+  const candidateProfileRepo = getCandidateProfileRepo();
+  
+  const candidateProfileCtx = contactsRepo && candidateProfileRepo ? {
+    getProfile: async (input: { tenantId: string; channel: string; externalUserId: string }) => {
+      const contact = await contactsRepo.findByExternalUser({
+        tenantId: input.tenantId,
+        channel: input.channel,
+        externalUserId: input.externalUserId,
+      });
+      if (!contact) return null;
+      const profile = await candidateProfileRepo.findByContact({
+        tenantId: input.tenantId,
+        contactId: contact.id,
+      });
+      if (!profile) return null;
+      return {
+        externalUserId: input.externalUserId,
+        displayName: profile.full_name || "",
+        email: profile.email || "",
+        phone: profile.phone || "",
+        location: profile.location || "",
+        yearsOfExperience: Number(profile.years_of_experience || 0),
+        currentTitle: profile.current_title || "",
+        skills: profile.skills || [],
+        preferredRoles: profile.preferred_roles || [],
+        salaryExpectationVnd: Number(profile.salary_expectation_vnd || 0),
+        availability: profile.availability || "",
+        notes: (profile.raw_extraction as any)?.notes || [],
+      };
+    },
+    updateProfile: async (input: { tenantId: string; channel: string; externalUserId: string; patch: any }) => {
+      let contact = await contactsRepo.findByExternalUser({
+        tenantId: input.tenantId,
+        channel: input.channel,
+        externalUserId: input.externalUserId,
+      });
+      if (!contact) {
+        contact = await contactsRepo.createShadow({
+          tenantId: input.tenantId,
+          channel: input.channel,
+          externalUserId: input.externalUserId,
+        });
+      }
+      const patch = input.patch;
+      const profile = await candidateProfileRepo.upsert({
+        tenantId: input.tenantId,
+        contactId: contact.id,
+        patch: {
+          fullName: patch.displayName,
+          email: patch.email,
+          phone: patch.phone,
+          location: patch.location,
+          yearsOfExperience: patch.yearsOfExperience,
+          currentTitle: patch.currentTitle,
+          skills: patch.skills,
+          preferredRoles: patch.preferredRoles,
+          salaryExpectationVnd: patch.salaryExpectationVnd,
+          availability: patch.availability,
+        }
+      });
+      return {
+        created: false,
+        profile: {
+          externalUserId: input.externalUserId,
+          displayName: profile.full_name || "",
+          email: profile.email || "",
+          phone: profile.phone || "",
+          location: profile.location || "",
+          yearsOfExperience: Number(profile.years_of_experience || 0),
+          currentTitle: profile.current_title || "",
+          skills: profile.skills || [],
+          preferredRoles: profile.preferred_roles || [],
+          salaryExpectationVnd: Number(profile.salary_expectation_vnd || 0),
+          availability: profile.availability || "",
+          notes: (profile.raw_extraction as any)?.notes || [],
+        }
+      };
+    },
+    addNote: async (input: { tenantId: string; channel: string; externalUserId: string; note: string; source?: string }) => {
+      let contact = await contactsRepo.findByExternalUser({
+        tenantId: input.tenantId,
+        channel: input.channel,
+        externalUserId: input.externalUserId,
+      });
+      if (!contact) {
+        contact = await contactsRepo.createShadow({
+          tenantId: input.tenantId,
+          channel: input.channel,
+          externalUserId: input.externalUserId,
+        });
+      }
+      
+      let existingNotes: string[] = [];
+      const profile = await candidateProfileRepo.findByContact({
+        tenantId: input.tenantId,
+        contactId: contact.id,
+      });
+      if (profile && profile.raw_extraction && Array.isArray((profile.raw_extraction as any).notes)) {
+        existingNotes = (profile.raw_extraction as any).notes;
+      }
+      
+      const newNotes = [...existingNotes, input.note];
+      const updatedProfile = await candidateProfileRepo.upsert({
+        tenantId: input.tenantId,
+        contactId: contact.id,
+        patch: {
+          rawExtraction: { notes: newNotes }
+        }
+      });
+      
+      return {
+        created: false,
+        note: {
+          content: input.note,
+          source: input.source,
+          createdAt: new Date().toISOString(),
+        },
+        profile: {
+          externalUserId: input.externalUserId,
+          displayName: updatedProfile.full_name || "",
+          email: updatedProfile.email || "",
+          phone: updatedProfile.phone || "",
+          location: updatedProfile.location || "",
+          yearsOfExperience: Number(updatedProfile.years_of_experience || 0),
+          currentTitle: updatedProfile.current_title || "",
+          skills: updatedProfile.skills || [],
+          preferredRoles: updatedProfile.preferred_roles || [],
+          salaryExpectationVnd: Number(updatedProfile.salary_expectation_vnd || 0),
+          availability: updatedProfile.availability || "",
+          notes: newNotes,
+        }
+      };
+    }
+  } : undefined;
+
   const tools =
     options.skillMode === "twenty"
       ? createTwentyAgentTools(skillCache.skills)
@@ -170,6 +366,7 @@ export async function runHrAgentScenario(
                 },
               }
             : undefined,
+          candidateProfile: candidateProfileCtx,
         });
 
   const result = await generateText({

@@ -11,7 +11,10 @@ import { createLoadJobFiltersTool, type LoadJobFiltersContext } from "./load-job
 import { createNormalizeRequirementTool } from "./normalize-requirement/handler.js";
 import { createQueryCompanyTool, type QueryCompanyContext } from "./query-company/handler.js";
 
+import { type CandidateProfileContext } from "./crm-get-candidate-profile/handler.js";
+
 export interface AgentToolsContext {
+  candidateProfile?: CandidateProfileContext;
   loadJobs?: LoadJobsContext;
   loadJobFilters?: LoadJobFiltersContext;
   queryCompany?: QueryCompanyContext;
@@ -21,9 +24,9 @@ export function createAgentTools(skills: SkillDefinition[], ctx?: AgentToolsCont
   return {
     skills_search: createSkillSearchTool(skills),
     skills_load: createSkillLoadTool(skills),
-    crm_getCandidateProfile: createCrmGetCandidateProfileTool(),
-    crm_updateCandidateProfile: createCrmUpdateCandidateProfileTool(),
-    crm_addCandidateProfileNote: createCrmAddCandidateProfileNoteTool(),
+    crm_getCandidateProfile: createCrmGetCandidateProfileTool(ctx?.candidateProfile),
+    crm_updateCandidateProfile: createCrmUpdateCandidateProfileTool(ctx?.candidateProfile),
+    crm_addCandidateProfileNote: createCrmAddCandidateProfileNoteTool(ctx?.candidateProfile),
     hr_gatherRequirement: createGatherRequirementTool(),
     hr_normalizeRequirement: createNormalizeRequirementTool(),
     memory_saveInteractionIntent: createSaveInteractionIntentTool(),
