@@ -26,13 +26,6 @@ export const DEFAULT_SKILLS: SkillDefinition[] = [
     "filePath": "src/skills/crm-update-candidate-profile/SKILL.md"
   },
   {
-    "id": "gather-requirement",
-    "name": "Gather Requirement",
-    "description": "Extract and update the candidate's job-search requirements from Zalo chat text.",
-    "content": "# Gather Requirement\nDescription: Extract and update the candidate's job-search requirements from Zalo chat text.\n\nUse this skill whenever the candidate gives information about desired role, salary, location, skills, experience, work mode, language, availability, or constraints. (Note: it automatically parses and converts USD salaries like \"2k\" or \"2000\" into VND).\n\nInput contract:\n- `messages`: recent candidate messages as text.\n- `existingRequirement`: current known requirement fields.\n\nOutput contract:\n- `requirement`: merged candidate requirement.\n- `missingFields`: important fields still missing.\n- `confidence`: low, medium, or high.\n\nThe skill is deterministic and should be called before matching jobs when the latest user message changes job-search criteria.",
-    "filePath": "src/skills/gather-requirement/SKILL.md"
-  },
-  {
     "id": "load-jobs",
     "name": "Load Jobs",
     "description": "Query and filter mocked job postings for HR recruiter conversations.",

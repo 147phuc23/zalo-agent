@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { generateAndSaveReply } from "./reply.js";
-import { runHrAgentScenario } from "@platform/agent";
+import { runHrAgentScenario, classifyIntent } from "@platform/agent";
 
 vi.mock("@platform/agent", () => ({
   runHrAgentScenario: vi.fn().mockResolvedValue({
@@ -98,6 +98,40 @@ describe("generateAndSaveReply - USE_DB_PROMPT toggle", () => {
       expect.objectContaining({
         systemPromptOverride: "DB Prompt Content",
       })
+    );
+  });
+
+  it("writes a requirement_normalizer audit entry when classifyIntent returns a normalizedRequirement", async () => {
+    vi.mocked(classifyIntent).mockResolvedValueOnce({
+      category: "AGENT" as any,
+      reason: "test",
+      normalizedRequirement: { role: "backend engineer", workMode: "remote" },
+    });
+
+    await generateAndSaveReply(mockRepos, {
+      tenantId: "tenant-1",
+      conversationId: "conv-1",
+    });
+
+    expect(mockRepos.audits.append).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: "tenant-1",
+        conversationId: "conv-1",
+        toolName: "requirement_normalizer",
+        outputPayload: { requirement: { role: "backend engineer", workMode: "remote" } },
+        status: "ok",
+      }),
+    );
+  });
+
+  it("does not write a requirement_normalizer audit entry when normalizedRequirement is absent", async () => {
+    await generateAndSaveReply(mockRepos, {
+      tenantId: "tenant-1",
+      conversationId: "conv-1",
+    });
+
+    expect(mockRepos.audits.append).not.toHaveBeenCalledWith(
+      expect.objectContaining({ toolName: "requirement_normalizer" }),
     );
   });
 });

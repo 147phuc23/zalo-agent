@@ -59,22 +59,33 @@ export async function generateAndSaveReply(
     targetMessage = messages.find((m) => m.id === input.targetMessageId);
   }
 
-  const knownFacts = await buildKnownFacts(repos, input.conversationId);
+  const knownFactsResult = await buildKnownFacts(repos, input.conversationId);
 
   const classification = await classifyIntent(
     routerMessages,
     classifierModel,
-    knownFacts,
+    knownFactsResult?.text,
+    knownFactsResult?.requirement,
   );
   console.log(
     `[core:reply] classification result for conversation ${input.conversationId}: ${classification.category} (reason: ${classification.reason})`,
   );
 
+  if (classification.normalizedRequirement && Object.keys(classification.normalizedRequirement).length > 0) {
+    await repos.audits.append({
+      tenantId: input.tenantId,
+      conversationId: input.conversationId,
+      toolName: "requirement_normalizer",
+      outputPayload: { requirement: classification.normalizedRequirement },
+      status: "ok",
+    });
+  }
+
   if (classification.category === "CHITCHAT") {
     const chitchatText = await generateChitchatReply(
       routerMessages,
       classifierModel,
-      knownFacts,
+      knownFactsResult?.text,
     );
     const responses = parseDraftResponses(chitchatText);
     const batchId = `draft:${input.tenantId}:${input.conversationId}:${Date.now()}`;
@@ -175,7 +186,7 @@ export async function generateAndSaveReply(
     mockLlm: false,
     skillMode: resolveHrSkillMode(process.env.HR_SKILL_MODE),
     systemPromptOverride,
-    knownFacts,
+    knownFacts: knownFactsResult?.text,
     onStepFinish: async (step: any) => {
       if (!step.toolCalls || step.toolCalls.length === 0) return;
       for (const call of step.toolCalls) {

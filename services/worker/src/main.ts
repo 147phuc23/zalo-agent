@@ -350,22 +350,33 @@ async function generateDraftReply(
     content: m.text ?? "",
   }));
 
-  const knownFacts = await buildKnownFacts(repos, conversationId);
+  const knownFactsResult = await buildKnownFacts(repos, conversationId);
 
   const classification = await classifyIntent(
     routerMessages,
     classifierModel,
-    knownFacts,
+    knownFactsResult?.text,
+    knownFactsResult?.requirement,
   );
   console.log(
     `[worker] classification result for conversation ${conversationId}: ${classification.category} (reason: ${classification.reason})`,
   );
 
+  if (classification.normalizedRequirement && Object.keys(classification.normalizedRequirement).length > 0) {
+    await repos.audits.append({
+      tenantId,
+      conversationId,
+      toolName: "requirement_normalizer",
+      outputPayload: { requirement: classification.normalizedRequirement },
+      status: "ok",
+    });
+  }
+
   if (classification.category === "CHITCHAT") {
     const chitchatText = await generateChitchatReply(
       routerMessages,
       classifierModel,
-      knownFacts,
+      knownFactsResult?.text,
     );
     const responses = parseDraftResponses(chitchatText);
     const batchId = `draft:${tenantId}:${conversationId}:${Date.now()}`;
@@ -563,7 +574,7 @@ async function generateDraftReply(
     mockLlm: false,
     skillMode: hrSkillMode,
     systemPromptOverride,
-    knownFacts,
+    knownFacts: knownFactsResult?.text,
     abortSignal,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     onStepFinish: async (step: any) => {
