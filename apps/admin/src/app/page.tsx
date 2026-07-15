@@ -135,6 +135,37 @@ function DashboardMain() {
   // Notification logs state
   const [notifications, setNotifications] = useState<any[]>([]);
 
+  // Real backend analytics state
+  const [analytics, setAnalytics] = useState<any>({
+    totalCandidates: 247,
+    newCandidatesThisMonth: 12,
+    totalConversations: 38,
+    openGapsNeedReview: 4,
+    avgResponseTimeSec: "1.8",
+    botResponseRate: "94.2",
+    funnel: {
+      applied: 247,
+      screened: 120,
+      interviewed: 42,
+      offered: 18,
+      hired: 11,
+    },
+    totalMessages: 1204,
+    estimatedCost: "42.80",
+  });
+
+  const loadAnalytics = async () => {
+    try {
+      const res = await fetch("/api/analytics");
+      const data = await res.json();
+      if (data.ok && data.analytics) {
+        setAnalytics(data.analytics);
+      }
+    } catch (err: any) {
+      console.error("Failed to load analytics", err);
+    }
+  };
+
   // SWR Sync
   useEffect(() => {
     const queryId = searchParams.get("id");
@@ -288,6 +319,7 @@ function DashboardMain() {
   };
 
   useEffect(() => {
+    if (activeView === "dashboard") loadAnalytics();
     if (activeView === "candidates") loadCandidates();
     if (activeView === "jobs") loadJobs();
     if (activeView === "todo") loadGaps();
@@ -300,6 +332,7 @@ function DashboardMain() {
 
   useEffect(() => {
     // Run initial data fetch for analytics counters
+    loadAnalytics();
     loadCandidates();
     loadJobs();
     loadGaps();
@@ -981,11 +1014,11 @@ function DashboardMain() {
                     Total Candidates
                   </span>
                   <div className="text-4xl font-extrabold text-stone-900 mt-2 tracking-tight">
-                    {candidates.length || "247"}
+                    {analytics.totalCandidates}
                   </div>
                 </div>
                 <div className="text-xs text-stone-500 mt-4 flex items-center gap-1.5">
-                  <span className="text-emerald-600 font-bold">+12</span> this month
+                  <span className="text-emerald-600 font-bold">+{analytics.newCandidatesThisMonth}</span> this month
                 </div>
                 <Users className="w-5 h-5 text-stone-400 absolute right-6 top-6" />
               </div>
@@ -996,11 +1029,11 @@ function DashboardMain() {
                     Active Chats Today
                   </span>
                   <div className="text-4xl font-extrabold text-stone-900 mt-2 tracking-tight">
-                    {conversations.length || "38"}
+                    {analytics.totalConversations}
                   </div>
                 </div>
                 <div className="text-xs text-stone-500 mt-4 flex items-center gap-1.5">
-                  <span className="text-amber-600 font-bold">{gaps.filter(g => g.status === "open").length}</span> need review
+                  <span className="text-amber-600 font-bold">{analytics.openGapsNeedReview}</span> need review
                 </div>
                 <MessageSquare className="w-5 h-5 text-stone-400 absolute right-6 top-6" />
               </div>
@@ -1011,7 +1044,7 @@ function DashboardMain() {
                     Bot Response Rate
                   </span>
                   <div className="text-4xl font-extrabold text-stone-900 mt-2 tracking-tight">
-                    94.2%
+                    {analytics.botResponseRate}%
                   </div>
                 </div>
                 <div className="text-xs text-stone-500 mt-4 flex items-center gap-1.5">
@@ -1026,7 +1059,7 @@ function DashboardMain() {
                     Avg Response Time
                   </span>
                   <div className="text-4xl font-extrabold text-stone-900 mt-2 tracking-tight">
-                    1.8s
+                    {analytics.avgResponseTimeSec}s
                   </div>
                 </div>
                 <div className="text-xs text-stone-500 mt-4 flex items-center gap-1.5">
@@ -1041,13 +1074,13 @@ function DashboardMain() {
               {/* Hiring Funnel Card */}
               <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm flex flex-col">
                 <h3 className="font-bold text-stone-900 text-lg">Hiring Funnel</h3>
-                <p className="text-stone-500 text-xs mt-1">Last 30 days - 247 total applicants</p>
+                <p className="text-stone-500 text-xs mt-1">Last 30 days - {analytics.funnel.applied} total applicants</p>
 
                 <div className="mt-8 space-y-4 flex-1 flex flex-col justify-center">
                   <div className="space-y-1.5">
                     <div className="flex justify-between text-xs font-semibold text-stone-700">
                       <span>Applied</span>
-                      <span className="font-bold">247</span>
+                      <span className="font-bold">{analytics.funnel.applied}</span>
                     </div>
                     <div className="w-full bg-stone-100 h-3 rounded-full overflow-hidden">
                       <div className="bg-stone-900 h-full rounded-full" style={{ width: "100%" }} />
@@ -1057,40 +1090,40 @@ function DashboardMain() {
                   <div className="space-y-1.5">
                     <div className="flex justify-between text-xs font-semibold text-stone-700">
                       <span>Screened</span>
-                      <span className="font-bold">120</span>
+                      <span className="font-bold">{analytics.funnel.screened}</span>
                     </div>
                     <div className="w-full bg-stone-100 h-3 rounded-full overflow-hidden">
-                      <div className="bg-stone-600 h-full rounded-full" style={{ width: "48%" }} />
+                      <div className="bg-stone-650 h-full rounded-full" style={{ width: `${Math.round((analytics.funnel.screened / Math.max(analytics.funnel.applied || 1, 1)) * 100)}%` }} />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
                     <div className="flex justify-between text-xs font-semibold text-stone-700">
                       <span>Interviewed</span>
-                      <span className="font-bold">42</span>
+                      <span className="font-bold">{analytics.funnel.interviewed}</span>
                     </div>
                     <div className="w-full bg-stone-100 h-3 rounded-full overflow-hidden">
-                      <div className="bg-stone-600 h-full rounded-full" style={{ width: "17%" }} />
+                      <div className="bg-stone-650 h-full rounded-full" style={{ width: `${Math.round((analytics.funnel.interviewed / Math.max(analytics.funnel.applied || 1, 1)) * 100)}%` }} />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
                     <div className="flex justify-between text-xs font-semibold text-stone-700">
                       <span>Offered</span>
-                      <span className="font-bold">18</span>
+                      <span className="font-bold">{analytics.funnel.offered}</span>
                     </div>
                     <div className="w-full bg-stone-100 h-3 rounded-full overflow-hidden">
-                      <div className="bg-stone-600 h-full rounded-full" style={{ width: "7%" }} />
+                      <div className="bg-stone-650 h-full rounded-full" style={{ width: `${Math.round((analytics.funnel.offered / Math.max(analytics.funnel.applied || 1, 1)) * 100)}%` }} />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
                     <div className="flex justify-between text-xs font-semibold text-stone-700">
                       <span>Hired</span>
-                      <span className="font-bold text-emerald-600">11</span>
+                      <span className="font-bold text-emerald-600">{analytics.funnel.hired}</span>
                     </div>
                     <div className="w-full bg-stone-100 h-3 rounded-full overflow-hidden">
-                      <div className="bg-emerald-600 h-full rounded-full" style={{ width: "4%" }} />
+                      <div className="bg-emerald-600 h-full rounded-full" style={{ width: `${Math.round((analytics.funnel.hired / Math.max(analytics.funnel.applied || 1, 1)) * 100)}%` }} />
                     </div>
                   </div>
                 </div>
@@ -1132,11 +1165,11 @@ function DashboardMain() {
                       <span className="text-[10px] font-semibold text-stone-500">Avg tokens/conv</span>
                     </div>
                     <div>
-                      <div className="text-2xl font-black text-stone-900">1,204</div>
+                      <div className="text-2xl font-black text-stone-900">{analytics.totalMessages}</div>
                       <span className="text-[10px] font-semibold text-stone-500">Conversations</span>
                     </div>
                     <div>
-                      <div className="text-2xl font-black text-stone-900">$42.8</div>
+                      <div className="text-2xl font-black text-stone-900">${analytics.estimatedCost}</div>
                       <span className="text-[10px] font-semibold text-stone-500">API cost</span>
                     </div>
                   </div>
