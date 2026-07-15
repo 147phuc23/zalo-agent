@@ -19,6 +19,7 @@ export {
   createGuestAccessRepository,
   createCompanyRepository,
   createDocumentRepository,
+  createCandidateProfileRepository,
 } from "./repositories.js";
 
 export type {
@@ -38,6 +39,8 @@ export type {
   GuestAccessRow,
   CompanyRow,
   DocumentRow,
+  CandidateProfileRow,
+  CandidateProfilePatch,
 } from "./repositories.js";
 
 export type DatabaseClient = pg.Pool;
