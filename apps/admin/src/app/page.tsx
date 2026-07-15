@@ -135,7 +135,6 @@ function Dashboard() {
     }
   }, [selectedId]);
 
-  // Actions
   const handleManualReactClick = async (messageId: string, reactionCode: string) => {
     if (!selectedId) return;
     setActiveReactionPickerMessageId(null);
@@ -150,7 +149,14 @@ function Dashboard() {
       if (!data.ok) {
         throw new Error(data.error || "Failed to react");
       }
-      mutateMessages();
+      if (data.message) {
+        mutateMessages(
+          (current) => (current ? current.map((msg) => (msg.id === messageId ? data.message : msg)) : []),
+          { revalidate: false }
+        );
+      } else {
+        mutateMessages();
+      }
     } catch (err: any) {
       showToast(err.message || "Error applying reaction", "error");
     } finally {
@@ -170,7 +176,14 @@ function Dashboard() {
       if (!data.ok) {
         throw new Error(data.error || "Failed to trigger AI reaction");
       }
-      mutateMessages();
+      if (data.message) {
+        mutateMessages(
+          (current) => (current ? current.map((msg) => (msg.id === messageId ? data.message : msg)) : []),
+          { revalidate: false }
+        );
+      } else {
+        mutateMessages();
+      }
     } catch (err: any) {
       showToast(err.message || "Error triggering AI reaction", "error");
     } finally {
@@ -189,7 +202,14 @@ function Dashboard() {
       if (!data.ok) {
         throw new Error(data.error || "Failed to trigger AI reply");
       }
-      mutateMessages();
+      if (Array.isArray(data.drafts)) {
+        mutateMessages(
+          (current) => (current ? [...current, ...data.drafts] : data.drafts),
+          { revalidate: false }
+        );
+      } else {
+        mutateMessages();
+      }
     } catch (err: any) {
       showToast(err.message || "Error triggering AI reply", "error");
     } finally {
