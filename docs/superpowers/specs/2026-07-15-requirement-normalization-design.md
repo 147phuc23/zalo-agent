@@ -14,6 +14,8 @@ Separately, `jobs_search`/`twenty_searchJobs` score candidates against jobs via 
 
 Confirmed out of scope for this design (from discussion): job-posting ingestion (`services/worker/scripts/twenty/parse-jobs-to-sql.ts`) already uses an LLM and is a separate pipeline — left for a follow-up spec.
 
+**Prior art note:** an earlier document, `docs/prompting_system_upgrade_plan.md`, already designed the `tool_call_audits` → `known-facts.ts` durable-memory mechanism this spec builds on, and at the time explicitly decided to *keep* `hr_gatherRequirement` because "their audited outputs are precisely the durable memory we replay." This spec doesn't reverse that goal — §5 below preserves the exact same durable-memory property by having `reply.ts` write an equivalent audit entry directly from the classifier's output, so `known-facts.ts` keeps working unchanged in spirit. What changes is *how* the audited requirement gets produced (a folded-in LLM call instead of a regex-driven agent tool), not the memory architecture itself.
+
 ## Goals
 
 - Replace the regex-only extraction with an LLM-based normalization pass that maps free text onto a canonical, lowercase taxonomy for `role`, `skills`, `availability`, and `language`.
