@@ -9,7 +9,9 @@ export function useMessages(conversationId: string | null) {
     const cachedState = cache.get(url);
     const existingMessages: Message[] = cachedState?.data || [];
     
-    const lastMsg = existingMessages[existingMessages.length - 1];
+    // Ignore optimistic messages when determining the last message timestamp for the 'after' filter
+    const realMessages = existingMessages.filter((m) => !m.id.startsWith("optimistic-"));
+    const lastMsg = realMessages[realMessages.length - 1];
     const after = lastMsg ? lastMsg.createdAt : "";
 
     const fetchUrl = after 
@@ -25,9 +27,25 @@ export function useMessages(conversationId: string | null) {
     if (after) {
       // Return the merged messages list. SWR will cache this new merged array.
       // Filter out duplicates in case of timing/clock race conditions.
-      const existingIds = new Set(existingMessages.map((m) => m.id));
-      const filteredNew = newMessages.filter((m) => !existingIds.has(m.id));
-      return [...existingMessages, ...filteredNew];
+      const updatedMessages = [...existingMessages];
+      const filteredNew = newMessages.filter((newMsg) => {
+        // Skip if ID already exists
+        if (existingMessages.some((m) => m.id === newMsg.id)) {
+          return false;
+        }
+        // If it matches an optimistic message by idempotencyKey, replace it in-place
+        if (newMsg.idempotencyKey) {
+          const idx = updatedMessages.findIndex(
+            (m) => m.idempotencyKey === newMsg.idempotencyKey && m.id.startsWith("optimistic-")
+          );
+          if (idx !== -1) {
+            updatedMessages[idx] = newMsg;
+            return false;
+          }
+        }
+        return true;
+      });
+      return [...updatedMessages, ...filteredNew];
     }
     return newMessages;
   };
