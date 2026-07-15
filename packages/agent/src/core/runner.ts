@@ -19,6 +19,7 @@ import { createTwentyRecruitingClientFromEnv } from "../twenty/recruiting-client
 import {
   createDatabaseClient,
   createJobPostingRepository,
+  createCompanyRepository,
   type JobPostingRow,
 } from "@platform/database";
 import type {
@@ -42,11 +43,25 @@ function getJobsRepo() {
   return jobsRepoSingleton;
 }
 
+let companyRepoSingleton: ReturnType<typeof createCompanyRepository> | null = null;
+function getCompanyRepo() {
+  if (companyRepoSingleton) return companyRepoSingleton;
+  const url = process.env.PLATFORM_DB_URL;
+  if (!url) return null;
+  companyRepoSingleton = createCompanyRepository(
+    createDatabaseClient({ PLATFORM_DB_URL: url }),
+  );
+  return companyRepoSingleton;
+}
+
 function jobRowToPosting(row: JobPostingRow): JobPosting {
   return {
     id: row.external_id ?? row.id,
     title: row.title,
     company: row.company,
+    companyIntro: row.company_introduction ?? undefined,
+    companyBenefits: row.company_benefits ?? undefined,
+    companyWorkStyle: row.company_work_style ?? undefined,
     locationSlugs: row.location_slugs ?? [],
     workMode: row.work_mode,
     salaryMinVnd: Number(row.salary_min_vnd),
@@ -123,6 +138,7 @@ export async function runHrAgentScenario(
   });
 
   const jobsRepo = getJobsRepo();
+  const companyRepo = getCompanyRepo();
   const tools =
     options.skillMode === "twenty"
       ? createTwentyAgentTools(skillCache.skills)
@@ -134,6 +150,23 @@ export async function runHrAgentScenario(
                     tenantId: options.scenario.tenantId,
                   });
                   return rows.map(jobRowToPosting);
+                },
+              }
+            : undefined,
+          queryCompany: companyRepo
+            ? {
+                getCompany: async (name: string) => {
+                  const row = await companyRepo.findByName({
+                    tenantId: options.scenario.tenantId,
+                    name,
+                  });
+                  if (!row) return null;
+                  return {
+                    name: row.name,
+                    introduction: row.introduction,
+                    benefits: row.benefits,
+                    workStyle: row.work_style,
+                  };
                 },
               }
             : undefined,

@@ -14,6 +14,8 @@ export {
   createPromptTemplateRepository,
   createJobPostingRepository,
   createGuestAccessRepository,
+  createCompanyRepository,
+  createDocumentRepository,
 } from "./repositories.js";
 
 export type {
@@ -31,6 +33,8 @@ export type {
   PromptTemplateRow,
   JobPostingRow,
   GuestAccessRow,
+  CompanyRow,
+  DocumentRow,
 } from "./repositories.js";
 
 export type DatabaseClient = pg.Pool;

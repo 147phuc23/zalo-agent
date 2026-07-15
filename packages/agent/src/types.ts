@@ -54,6 +54,9 @@ export type JobPosting = {
   id: string;
   title: string;
   company: string;
+  companyIntro?: string;
+  companyBenefits?: string;
+  companyWorkStyle?: string;
   locationSlugs: string[];
   workMode: "remote" | "hybrid" | "onsite";
   salaryMinVnd: number;

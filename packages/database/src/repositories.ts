@@ -569,12 +569,61 @@ export function createPromptTemplateRepository(client: DatabaseClient) {
   };
 }
 
+export interface CompanyRow {
+  id: string;
+  tenant_id: string;
+  name: string;
+  introduction: string;
+  benefits: string;
+  work_style: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export function createCompanyRepository(client: DatabaseClient) {
+  return {
+    async findByName(input: { tenantId: string; name: string }) {
+      const res = await client.query(
+        `SELECT * FROM companies WHERE tenant_id = $1 AND name = $2`,
+        [input.tenantId, input.name]
+      );
+      return (res.rows[0] as CompanyRow) || null;
+    },
+    async ensureExists(input: {
+      tenantId: string;
+      name: string;
+      introduction?: string;
+      benefits?: string;
+      workStyle?: string;
+    }) {
+      const res = await client.query(
+        `INSERT INTO companies (tenant_id, name, introduction, benefits, work_style)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (tenant_id, name) DO UPDATE SET name = EXCLUDED.name
+         RETURNING id`,
+        [
+          input.tenantId,
+          input.name,
+          input.introduction ?? `Introduction to ${input.name}`,
+          input.benefits ?? `Benefits at ${input.name}`,
+          input.workStyle ?? `Work style at ${input.name}`
+        ]
+      );
+      return res.rows[0]?.id as string;
+    }
+  };
+}
+
 export interface JobPostingRow {
   id: string;
   tenant_id: string;
   external_id: string | null;
   title: string;
-  company: string;
+  company_id: string;
+  company: string; // from JOIN
+  company_introduction?: string; // from JOIN
+  company_benefits?: string; // from JOIN
+  company_work_style?: string; // from JOIN
   location_slugs: string[];
   work_mode: "remote" | "hybrid" | "onsite";
   salary_min_vnd: number;
@@ -594,9 +643,11 @@ export function createJobPostingRepository(client: DatabaseClient) {
   return {
     async listActive(input: { tenantId: string; limit?: number }) {
       const res = await client.query(
-        `SELECT * FROM job_postings
-         WHERE tenant_id = $1 AND is_active = true
-         ORDER BY created_at DESC
+        `SELECT jp.*, c.name AS company, c.introduction AS company_introduction, c.benefits AS company_benefits, c.work_style AS company_work_style
+         FROM job_postings jp
+         LEFT JOIN companies c ON jp.company_id = c.id
+         WHERE jp.tenant_id = $1 AND jp.is_active = true
+         ORDER BY jp.created_at DESC
          LIMIT $2`,
         [input.tenantId, input.limit ?? 500],
       );
@@ -630,15 +681,31 @@ export function createJobPostingRepository(client: DatabaseClient) {
     }) {
       let inserted = 0;
       for (const j of input.jobs) {
+        // Ensure company exists
+        const companyRes = await client.query(
+          `INSERT INTO companies (tenant_id, name, introduction, benefits, work_style)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (tenant_id, name) DO UPDATE SET name = EXCLUDED.name
+           RETURNING id`,
+          [
+            input.tenantId,
+            j.company,
+            `Introduction to ${j.company}`,
+            j.benefits ?? `Benefits at ${j.company}`,
+            `Work style at ${j.company}`
+          ]
+        );
+        const companyId = companyRes.rows[0].id;
+
         await client.query(
           `INSERT INTO job_postings
-             (tenant_id, external_id, title, company, location_slugs, work_mode,
+             (tenant_id, external_id, title, company_id, location_slugs, work_mode,
               salary_min_vnd, salary_max_vnd, seniority, required_skills, description,
               job_type, experience_required_years, benefits, education_required)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
            ON CONFLICT (tenant_id, external_id) WHERE external_id IS NOT NULL
            DO UPDATE SET
-             title = EXCLUDED.title, company = EXCLUDED.company,
+             title = EXCLUDED.title, company_id = EXCLUDED.company_id,
              location_slugs = EXCLUDED.location_slugs,
              work_mode = EXCLUDED.work_mode, salary_min_vnd = EXCLUDED.salary_min_vnd,
              salary_max_vnd = EXCLUDED.salary_max_vnd, seniority = EXCLUDED.seniority,
@@ -650,7 +717,7 @@ export function createJobPostingRepository(client: DatabaseClient) {
             input.tenantId,
             j.externalId ?? null,
             j.title,
-            j.company,
+            companyId,
             j.locationSlugs,
             j.workMode,
             j.salaryMinVnd,
@@ -793,6 +860,111 @@ export function createGuestAccessRepository(client: DatabaseClient) {
   };
 }
 
+export interface DocumentRow {
+  id: string;
+  tenant_id: string;
+  kind: "cv" | "jd";
+  storage_key: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: string | null;
+  status: "uploaded" | "processing" | "processed" | "failed";
+  parse_method: string | null;
+  raw_text: string | null;
+  error: string | null;
+  contact_id: string | null;
+  guest_access_id: string | null;
+  conversation_id: string | null;
+  company_id: string | null;
+  uploaded_by: "admin" | "guest" | "zalo";
+  created_at: string;
+  updated_at: string;
+}
+
+export function createDocumentRepository(client: DatabaseClient) {
+  return {
+    async create(input: {
+      tenantId: string;
+      kind: "cv" | "jd";
+      storageKey: string;
+      fileName: string;
+      mimeType?: string;
+      sizeBytes?: number;
+      contactId?: string;
+      guestAccessId?: string;
+      conversationId?: string;
+      companyId?: string;
+      uploadedBy?: "admin" | "guest" | "zalo";
+    }) {
+      const res = await client.query(
+        `INSERT INTO public.documents (
+          tenant_id, kind, storage_key, file_name, mime_type, size_bytes,
+          contact_id, guest_access_id, conversation_id, company_id, uploaded_by
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         RETURNING *`,
+        [
+          input.tenantId,
+          input.kind,
+          input.storageKey,
+          input.fileName,
+          input.mimeType ?? "application/octet-stream",
+          input.sizeBytes ?? null,
+          input.contactId ?? null,
+          input.guestAccessId ?? null,
+          input.conversationId ?? null,
+          input.companyId ?? null,
+          input.uploadedBy ?? "admin",
+        ]
+      );
+      return res.rows[0] as DocumentRow;
+    },
+    async findById(id: string) {
+      const res = await client.query(
+        `SELECT * FROM public.documents WHERE id = $1 LIMIT 1`,
+        [id]
+      );
+      return (res.rows[0] as DocumentRow) || null;
+    },
+    async markProcessing(id: string) {
+      await client.query(
+        `UPDATE public.documents 
+         SET status = 'processing', updated_at = now() 
+         WHERE id = $1`,
+        [id]
+      );
+    },
+    async markProcessed(input: { id: string; rawText: string; parseMethod: string }) {
+      await client.query(
+        `UPDATE public.documents 
+         SET status = 'processed', raw_text = $2, parse_method = $3, error = null, updated_at = now() 
+         WHERE id = $1`,
+        [input.id, input.rawText, input.parseMethod]
+      );
+    },
+    async markFailed(input: { id: string; error: string }) {
+      await client.query(
+        `UPDATE public.documents 
+         SET status = 'failed', error = $2, updated_at = now() 
+         WHERE id = $1`,
+        [input.id, input.error]
+      );
+    },
+    async listByTenant(input: { tenantId: string; kind?: "cv" | "jd"; limit?: number }) {
+      let query = `SELECT * FROM public.documents WHERE tenant_id = $1`;
+      const params: any[] = [input.tenantId];
+      if (input.kind) {
+        query += ` AND kind = $2`;
+        params.push(input.kind);
+      }
+      query += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
+      params.push(input.limit ?? 100);
+
+      const res = await client.query(query, params);
+      return res.rows as DocumentRow[];
+    }
+  };
+}
+
 export function createRepositorySet(client: DatabaseClient) {
   return {
     tenants: createTenantRepository(client),
@@ -805,6 +977,8 @@ export function createRepositorySet(client: DatabaseClient) {
     audits: createAuditRepository(client),
     prompts: createPromptTemplateRepository(client),
     jobs: createJobPostingRepository(client),
+    companies: createCompanyRepository(client),
     guestAccess: createGuestAccessRepository(client),
+    documents: createDocumentRepository(client),
   };
 }

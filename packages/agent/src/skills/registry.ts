@@ -9,10 +9,12 @@ import { createLoadJobsTool, type LoadJobsContext } from "./load-jobs/handler.js
 import { createSaveInteractionIntentTool } from "./save-interaction-intent/handler.js";
 import { createLoadJobFiltersTool, type LoadJobFiltersContext } from "./load-job-filters/handler.js";
 import { createNormalizeRequirementTool } from "./normalize-requirement/handler.js";
+import { createQueryCompanyTool, type QueryCompanyContext } from "./query-company/handler.js";
 
 export interface AgentToolsContext {
   loadJobs?: LoadJobsContext;
   loadJobFilters?: LoadJobFiltersContext;
+  queryCompany?: QueryCompanyContext;
 }
 
 export function createAgentTools(skills: SkillDefinition[], ctx?: AgentToolsContext) {
@@ -27,6 +29,7 @@ export function createAgentTools(skills: SkillDefinition[], ctx?: AgentToolsCont
     memory_saveInteractionIntent: createSaveInteractionIntentTool(),
     jobs_search: createLoadJobsTool(ctx?.loadJobs),
     jobs_getJobFilters: createLoadJobFiltersTool(ctx?.loadJobFilters),
+    jobs_queryCompany: createQueryCompanyTool(ctx?.queryCompany),
   };
 }
 

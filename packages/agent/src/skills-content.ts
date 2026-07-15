@@ -40,6 +40,13 @@ export const DEFAULT_SKILLS: SkillDefinition[] = [
     "filePath": "src/skills/load-jobs/SKILL.md"
   },
   {
+    "id": "query-company",
+    "name": "Query Company",
+    "description": "Query detailed company profile information including introduction, benefits, and work style.",
+    "content": "# Query Company\nDescription: Query detailed company profile information including introduction, benefits, and work style.\n\nUse this skill when the candidate asks for details about a specific hiring company (such as introduction, work style, benefits, etc.) or when you need to provide context about a company before proposing an interview.\n\nInput contract:\n- `name`: exact or partial name of the company to query.\n\nOutput contract:\n- Company details including: name, introduction, benefits, work style.",
+    "filePath": "src/skills/query-company/SKILL.md"
+  },
+  {
     "id": "save-interaction-intent",
     "name": "Save Interaction Intent",
     "description": "Save the current candidate intent and merged requirement state in memory.",
