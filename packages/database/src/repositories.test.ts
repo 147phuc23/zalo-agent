@@ -62,7 +62,7 @@ describe("JobPostingRepository integration tests", () => {
       id: draft.id,
       patch: {
         title: draft.title + " Updated",
-        salaryMaxVnd: 25000000,
+        salary_max_vnd: 25000000,
       }
     });
     expect(updated.title).toBe(draft.title + " Updated");

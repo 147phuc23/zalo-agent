@@ -183,7 +183,7 @@ export function startDocumentWorker(deps: DocumentProcessorDeps) {
         const buffer = await storage.getObject(doc.storage_key);
 
         if (doc.mime_type === "application/pdf" || doc.file_name.toLowerCase().endsWith(".pdf")) {
-          const extracted = await extractText(buffer, { mergePages: true });
+          const extracted = await extractText(new Uint8Array(buffer), { mergePages: true });
           rawText = typeof (extracted as any).text === "string" ? (extracted as any).text : (extracted as any).text.join("\n");
           const pageCount = extracted.totalPages || 1;
           parseMethod = "unpdf";
