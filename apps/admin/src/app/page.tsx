@@ -259,10 +259,29 @@ function Dashboard() {
       if (!data.ok) {
         throw new Error(data.error || "Failed to send");
       }
-      mutateMessages();
+      if (data.messageId) {
+        const realMsg: Message = {
+          ...optimisticMsg,
+          id: data.messageId,
+        };
+        const drafts: Message[] = Array.isArray(data.drafts) ? data.drafts : [];
+        mutateMessages(
+          (current) => {
+            if (!current) return [realMsg, ...drafts];
+            const filtered = current.filter((m) => m.id !== optimisticMsg.id && m.id !== data.messageId);
+            return [...filtered, realMsg, ...drafts];
+          },
+          { revalidate: false }
+        );
+      } else {
+        mutateMessages();
+      }
     } catch (err: any) {
       showToast(err.message || "Failed to send message", "error");
-      mutateMessages();
+      mutateMessages(
+        (prev) => (prev ? prev.filter((m) => m.id !== optimisticMsg.id) : []),
+        { revalidate: false }
+      );
     }
   };
 
@@ -312,13 +331,41 @@ function Dashboard() {
       if (!data.ok) {
         throw new Error(data.error || "Failed to upload file");
       }
-      // Refresh messages after brief delay
-      setTimeout(() => {
+      const eventResult = data.eventResult;
+      if (eventResult && eventResult.messageId) {
+        const realMsg: Message = {
+          ...optimisticMsg,
+          id: eventResult.messageId,
+          rawPayload: {
+            attachments: [
+              {
+                type: "file",
+                url: data.fileUrl || "",
+                name: data.fileName || file.name,
+                mimeType: file.type,
+                sizeBytes: file.size,
+              },
+            ],
+          },
+        };
+        const drafts: Message[] = Array.isArray(eventResult.drafts) ? eventResult.drafts : [];
+        mutateMessages(
+          (current) => {
+            if (!current) return [realMsg, ...drafts];
+            const filtered = current.filter((m) => m.id !== optimisticMsg.id && m.id !== eventResult.messageId);
+            return [...filtered, realMsg, ...drafts];
+          },
+          { revalidate: false }
+        );
+      } else {
         mutateMessages();
-      }, 1000);
+      }
     } catch (err: any) {
       showToast(err.message || "Failed to upload CV", "error");
-      mutateMessages();
+      mutateMessages(
+        (prev) => (prev ? prev.filter((m) => m.id !== optimisticMsg.id) : []),
+        { revalidate: false }
+      );
     } finally {
       setIsUploadingCv(false);
     }
