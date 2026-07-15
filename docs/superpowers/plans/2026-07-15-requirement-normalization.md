@@ -266,6 +266,7 @@ import type { CandidateRequirement } from "../types.js";
 import { extractLocationSlugs } from "./location-normalizer.js";
 import {
   ROLE_VALUES,
+  SKILL_VALUES,
   AVAILABILITY_VALUES,
   LANGUAGE_VALUES,
   isRoleValue,
@@ -301,7 +302,7 @@ Your goal is to classify the candidate's latest message and short conversation h
 
 You must ALSO extract and normalize any candidate job-search requirement information present in the conversation (from the current message or earlier ones), merged with any "Current Requirement" context provided in the prompt. Return it as "normalizedRequirement" with these optional fields:
 - role: MUST be exactly one of: ${ROLE_VALUES.join(", ")}. Omit if none match.
-- skills: array of lowercase skill names. Prefer these canonical spellings when they match: ${ROLE_VALUES.join(", ")}. If a mentioned skill isn't in this list, still include it in lowercase.
+- skills: array of lowercase skill names. Prefer these canonical spellings when they match: ${SKILL_VALUES.join(", ")}. If a mentioned skill isn't in this list, still include it in lowercase.
 - locationSlugs: array of city names mentioned (free text is fine, it gets re-derived internally).
 - workMode: one of "remote", "hybrid", "onsite".
 - salaryMinVnd: expected minimum salary in Vietnamese Dong (VND). IMPORTANT: if the candidate gives a salary in USD (e.g. "$2000", "2k usd", "2k đô"), convert it to VND by multiplying by 25,000 (e.g. 2000 USD -> 50000000 VND). Never return a raw USD number in this field.
