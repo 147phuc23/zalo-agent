@@ -1,0 +1,27 @@
+{
+  "name": "@platform/company-research",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@platform/ai-client": "workspace:*",
+    "@platform/database": "workspace:*",
+    "@mozilla/readability": "^0.5.0",
+    "playwright": "^1.49.1",
+    "jsdom": "^26.0.0",
+    "zod": "^3.23.8",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^21.1.7",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.4"
+  }
+}

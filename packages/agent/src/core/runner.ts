@@ -22,6 +22,9 @@ import {
   createCompanyRepository,
   createContactRepository,
   createCandidateProfileRepository,
+  createApplicationRepository,
+  createGuestAccessRepository,
+  createKnowledgeGapRepository,
   type JobPostingRow,
 } from "@platform/database";
 import type {
@@ -76,6 +79,39 @@ function getCandidateProfileRepo() {
     createDatabaseClient({ PLATFORM_DB_URL: url }),
   );
   return candidateProfileRepoSingleton;
+}
+
+let applicationsRepoSingleton: ReturnType<typeof createApplicationRepository> | null = null;
+function getApplicationsRepo() {
+  if (applicationsRepoSingleton) return applicationsRepoSingleton;
+  const url = process.env.PLATFORM_DB_URL;
+  if (!url) return null;
+  applicationsRepoSingleton = createApplicationRepository(
+    createDatabaseClient({ PLATFORM_DB_URL: url }),
+  );
+  return applicationsRepoSingleton;
+}
+
+let guestAccessRepoSingleton: ReturnType<typeof createGuestAccessRepository> | null = null;
+function getGuestAccessRepo() {
+  if (guestAccessRepoSingleton) return guestAccessRepoSingleton;
+  const url = process.env.PLATFORM_DB_URL;
+  if (!url) return null;
+  guestAccessRepoSingleton = createGuestAccessRepository(
+    createDatabaseClient({ PLATFORM_DB_URL: url }),
+  );
+  return guestAccessRepoSingleton;
+}
+
+let knowledgeGapsRepoSingleton: ReturnType<typeof createKnowledgeGapRepository> | null = null;
+function getKnowledgeGapsRepo() {
+  if (knowledgeGapsRepoSingleton) return knowledgeGapsRepoSingleton;
+  const url = process.env.PLATFORM_DB_URL;
+  if (!url) return null;
+  knowledgeGapsRepoSingleton = createKnowledgeGapRepository(
+    createDatabaseClient({ PLATFORM_DB_URL: url }),
+  );
+  return knowledgeGapsRepoSingleton;
 }
 
 function jobRowToPosting(row: JobPostingRow): JobPosting {
@@ -244,6 +280,28 @@ export async function runHrAgentScenario(
         });
       }
       const patch = input.patch;
+      const existingProfile = await candidateProfileRepo.findByContact({
+        tenantId: input.tenantId,
+        contactId: contact.id,
+      });
+
+      const changes: Record<string, { old: any; new: any }> = {};
+      if (existingProfile) {
+        const checkField = (field: string, oldVal: any, newVal: any) => {
+          if (newVal !== undefined && newVal !== oldVal) {
+            changes[field] = { old: oldVal, new: newVal };
+          }
+        };
+        checkField("fullName", existingProfile.full_name, patch.displayName);
+        checkField("email", existingProfile.email, patch.email);
+        checkField("phone", existingProfile.phone, patch.phone);
+        checkField("location", existingProfile.location, patch.location);
+        checkField("yearsOfExperience", existingProfile.years_of_experience ? Number(existingProfile.years_of_experience) : 0, patch.yearsOfExperience);
+        checkField("currentTitle", existingProfile.current_title, patch.currentTitle);
+        checkField("salaryExpectationVnd", existingProfile.salary_expectation_vnd ? Number(existingProfile.salary_expectation_vnd) : 0, patch.salaryExpectationVnd);
+        checkField("availability", existingProfile.availability, patch.availability);
+      }
+
       const profile = await candidateProfileRepo.upsert({
         tenantId: input.tenantId,
         contactId: contact.id,
@@ -260,6 +318,78 @@ export async function runHrAgentScenario(
           availability: patch.availability,
         }
       });
+
+      if (Object.keys(changes).length > 0) {
+        await candidateProfileRepo.logChange({
+          tenantId: input.tenantId,
+          candidateProfileId: profile.id,
+          changedFields: changes,
+          changedBy: "zalo-worker",
+        });
+
+        // Query database client for other logs to check rapid changes
+        const url = process.env.PLATFORM_DB_URL;
+        if (url) {
+          const client = createDatabaseClient({ PLATFORM_DB_URL: url });
+          try {
+            const recentLogs = await client.query(
+              `SELECT changed_fields FROM public.candidate_profile_change_logs
+               WHERE candidate_profile_id = $1 AND created_at > NOW() - INTERVAL '24 hours'`,
+              [profile.id]
+            );
+
+            let priorNameChange = false;
+            let priorEmailChange = false;
+            for (const r of recentLogs.rows) {
+              const f = r.changed_fields;
+              if (f.fullName) priorNameChange = true;
+              if (f.email) priorEmailChange = true;
+            }
+
+            if (changes.fullName && priorNameChange) {
+              await candidateProfileRepo.addRiskSignal({
+                tenantId: input.tenantId,
+                candidateProfileId: profile.id,
+                ruleName: "rapid_name_updates",
+                details: { reason: "Multiple name changes in 24 hours" },
+                severity: "medium",
+              });
+            }
+
+            if (changes.email && priorEmailChange) {
+              await candidateProfileRepo.addRiskSignal({
+                tenantId: input.tenantId,
+                candidateProfileId: profile.id,
+                ruleName: "rapid_email_updates",
+                details: { reason: "Multiple email changes in 24 hours" },
+                severity: "medium",
+              });
+            }
+
+            if (changes.phone) {
+              await candidateProfileRepo.addRiskSignal({
+                tenantId: input.tenantId,
+                candidateProfileId: profile.id,
+                ruleName: "phone_updated",
+                details: { oldPhone: changes.phone.old, newPhone: changes.phone.new },
+                severity: "low",
+              });
+            }
+
+            const assessment = await candidateProfileRepo.assessRisk({
+              tenantId: input.tenantId,
+              candidateProfileId: profile.id,
+            });
+
+            if (assessment.risk_score > 50) {
+              console.warn(`[fraud-detection] Candidate ${profile.id} has high risk score (${assessment.risk_score}). Flagged!`);
+            }
+          } finally {
+            await client.end();
+          }
+        }
+      }
+
       return {
         created: false,
         profile: {
@@ -362,11 +492,201 @@ export async function runHrAgentScenario(
                     introduction: row.introduction,
                     benefits: row.benefits,
                     workStyle: row.work_style,
+                    website: row.website,
+                    leadership: row.leadership,
+                    products: row.products,
+                    materials: row.materials,
+                    researchedAt: row.researched_at ? new Date(row.researched_at).toISOString() : null,
                   };
                 },
               }
             : undefined,
+          recordKnowledgeGap: getKnowledgeGapsRepo() && companyRepo
+            ? {
+                recordGap: async (input: {
+                  question: string;
+                  companyName?: string;
+                  topic?: "company" | "job" | "process" | "benefits" | "other";
+                }) => {
+                  const tenantId = options.scenario.tenantId;
+                  const conversationId = options.scenario.id;
+
+                  let companyId: string | null = null;
+                  if (input.companyName) {
+                    const company = await companyRepo.findByName({
+                      tenantId,
+                      name: input.companyName,
+                    });
+                    if (company) {
+                      companyId = company.id;
+                    }
+                  }
+
+                  const { id, duplicate } = await getKnowledgeGapsRepo()!.record({
+                    tenantId,
+                    conversationId,
+                    companyId,
+                    question: input.question,
+                    topic: input.topic,
+                  });
+
+                  return { id, duplicate };
+                },
+              }
+            : undefined,
           candidateProfile: candidateProfileCtx,
+          matchCandidate: (candidateProfileRepo && jobsRepo && contactsRepo)
+            ? {
+                getCandidateProfile: async () => {
+                  const tenantId = options.scenario.tenantId;
+                  const externalUserId = options.scenario.externalUserId;
+
+                  const contact = await contactsRepo.findByExternalUser({
+                    tenantId,
+                    channel: "zalo",
+                    externalUserId,
+                  });
+                  if (!contact) return null;
+
+                  const profile = await candidateProfileRepo.findByContact({
+                    tenantId,
+                    contactId: contact.id,
+                  });
+                  if (!profile) return null;
+
+                  return {
+                    fullName: profile.full_name ?? undefined,
+                    skills: profile.skills || [],
+                    summary: profile.summary ?? undefined,
+                  };
+                },
+                matchJobs: async (skills: string[], limit: number) => {
+                  const tenantId = options.scenario.tenantId;
+                  const rows = await jobsRepo.searchFts({
+                    tenantId,
+                    terms: skills,
+                    limit,
+                  });
+                  return rows.map((r) => ({
+                    id: r.id,
+                    title: r.title,
+                    company: r.company || "Công ty đối tác",
+                    locationSlugs: r.location_slugs || [],
+                    workMode: r.work_mode,
+                    requiredSkills: r.required_skills || [],
+                    description: r.description || "",
+                    fts_rank: r.fts_rank,
+                  }));
+                },
+              }
+            : undefined,
+          submitApplication: (jobsRepo && getApplicationsRepo() && contactsRepo && getGuestAccessRepo() && candidateProfileRepo)
+            ? {
+                submit: async (input: { jobId: string; note?: string }) => {
+                  const tenantId = options.scenario.tenantId;
+                  const externalUserId = options.scenario.externalUserId;
+
+                  const job = await jobsRepo.findByIdOrExternalId({ tenantId, idOrExternalId: input.jobId });
+                  if (!job) {
+                    throw new Error(`Job posting with ID/Slug "${input.jobId}" was not found.`);
+                  }
+
+                  let contactId: string | null = null;
+                  let guestAccessId: string | null = null;
+                  let candidateProfileId: string | null = null;
+
+                  const contact = await contactsRepo.findByExternalUser({
+                    tenantId,
+                    channel: "zalo",
+                    externalUserId,
+                  });
+                  if (!contact) {
+                    throw new Error(`Contact not found for user.`);
+                  }
+                  contactId = contact.id;
+
+                  if (externalUserId.startsWith("guest-")) {
+                    const inviteCode = externalUserId.substring("guest-".length);
+                    const guestAccessRepo = getGuestAccessRepo()!;
+                    const guest = await guestAccessRepo.findByInviteCode(inviteCode);
+                    if (guest) {
+                      guestAccessId = guest.id;
+                    }
+                  }
+
+                  const profile = await candidateProfileRepo.findByContact({
+                    tenantId,
+                    contactId,
+                  });
+                  if (profile) {
+                    candidateProfileId = profile.id;
+                  }
+
+                  const { application, created } = await getApplicationsRepo()!.submit({
+                    tenantId,
+                    jobPostingId: job.id,
+                    contactId,
+                    guestAccessId,
+                    candidateProfileId,
+                    appliedVia: "chat",
+                    actorType: "candidate",
+                    actorId: externalUserId,
+                    note: input.note,
+                  });
+
+                  return {
+                    applicationId: application.id,
+                    created,
+                    jobTitle: job.title,
+                    companyName: job.company,
+                  };
+                },
+              }
+            : undefined,
+          getApplicationStatus: (getApplicationsRepo() && contactsRepo && getGuestAccessRepo())
+            ? {
+                getStatus: async () => {
+                  const tenantId = options.scenario.tenantId;
+                  const externalUserId = options.scenario.externalUserId;
+
+                  let contactId: string | null = null;
+                  let guestAccessId: string | null = null;
+
+                  const contact = await contactsRepo.findByExternalUser({
+                    tenantId,
+                    channel: "zalo",
+                    externalUserId,
+                  });
+                  if (contact) {
+                    contactId = contact.id;
+                  }
+
+                  if (externalUserId.startsWith("guest-")) {
+                    const inviteCode = externalUserId.substring("guest-".length);
+                    const guestAccessRepo = getGuestAccessRepo()!;
+                    const guest = await guestAccessRepo.findByInviteCode(inviteCode);
+                    if (guest) {
+                      guestAccessId = guest.id;
+                    }
+                  }
+
+                  const apps = await getApplicationsRepo()!.listByCandidate({
+                    tenantId,
+                    contactId,
+                    guestAccessId,
+                  });
+
+                  return apps.map((app) => ({
+                    jobTitle: app.job_title,
+                    companyName: app.company_name,
+                    stage: app.stage,
+                    status: app.status,
+                    updatedAt: app.updated_at,
+                    lastNote: app.note,
+                  }));
+                },
+              }
+            : undefined,
         });
 
   const result = await generateText({

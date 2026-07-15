@@ -10,6 +10,10 @@ import { createSaveInteractionIntentTool } from "./save-interaction-intent/handl
 import { createLoadJobFiltersTool, type LoadJobFiltersContext } from "./load-job-filters/handler.js";
 import { createNormalizeRequirementTool } from "./normalize-requirement/handler.js";
 import { createQueryCompanyTool, type QueryCompanyContext } from "./query-company/handler.js";
+import { createSubmitApplicationTool, type SubmitApplicationContext } from "./submit-application/handler.js";
+import { createGetApplicationStatusTool, type GetApplicationStatusContext } from "./get-application-status/handler.js";
+import { createRecordKnowledgeGapTool, type RecordKnowledgeGapContext } from "./record-knowledge-gap/handler.js";
+import { createMatchCandidateTool, type MatchCandidateContext } from "./match-candidate/handler.js";
 
 import { type CandidateProfileContext } from "./crm-get-candidate-profile/handler.js";
 
@@ -18,6 +22,10 @@ export interface AgentToolsContext {
   loadJobs?: LoadJobsContext;
   loadJobFilters?: LoadJobFiltersContext;
   queryCompany?: QueryCompanyContext;
+  submitApplication?: SubmitApplicationContext;
+  getApplicationStatus?: GetApplicationStatusContext;
+  recordKnowledgeGap?: RecordKnowledgeGapContext;
+  matchCandidate?: MatchCandidateContext;
 }
 
 export function createAgentTools(skills: SkillDefinition[], ctx?: AgentToolsContext) {
@@ -33,6 +41,10 @@ export function createAgentTools(skills: SkillDefinition[], ctx?: AgentToolsCont
     jobs_search: createLoadJobsTool(ctx?.loadJobs),
     jobs_getJobFilters: createLoadJobFiltersTool(ctx?.loadJobFilters),
     jobs_queryCompany: createQueryCompanyTool(ctx?.queryCompany),
+    applications_submit: createSubmitApplicationTool(ctx?.submitApplication),
+    applications_getStatus: createGetApplicationStatusTool(ctx?.getApplicationStatus),
+    knowledge_recordGap: createRecordKnowledgeGapTool(ctx?.recordKnowledgeGap),
+    jobs_matchCandidate: createMatchCandidateTool(ctx?.matchCandidate),
   };
 }
 

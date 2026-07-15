@@ -33,6 +33,13 @@ export const DEFAULT_SKILLS: SkillDefinition[] = [
     "filePath": "src/skills/gather-requirement/SKILL.md"
   },
   {
+    "id": "get-application-status",
+    "name": "Get Application Status",
+    "description": "Retrieve the status and timeline of the candidate's active job applications.",
+    "content": "# Get Application Status\nDescription: Retrieve the status and timeline of the candidate's active job applications.\n\nUse this skill when the candidate asks about the progress or status of their submitted job applications (\"hồ sơ em tới đâu rồi?\", \"kết quả ứng tuyển thế nào?\", etc.).\n\nInput contract:\n- None (parameters: `{}`)\n\nOutput contract:\n- An array of candidate's applications, each containing:\n  - `jobTitle`: Title of the job posting.\n  - `companyName`: Name of the hiring company.\n  - `stage`: Current stage of the application pipeline (`submitted`, `screening`, `interviewing`, `offer`).\n  - `status`: Outcome status (`active`, `hired`, `rejected`, `withdrawn`).\n  - `updatedAt`: ISO timestamp of the last status update.\n  - `lastNote`: Optional note from the last transition.",
+    "filePath": "src/skills/get-application-status/SKILL.md"
+  },
+  {
     "id": "load-jobs",
     "name": "Load Jobs",
     "description": "Query and filter mocked job postings for HR recruiter conversations.",
@@ -40,11 +47,25 @@ export const DEFAULT_SKILLS: SkillDefinition[] = [
     "filePath": "src/skills/load-jobs/SKILL.md"
   },
   {
+    "id": "match-candidate",
+    "name": "Match Candidate",
+    "description": "Match the candidate's profile to available active jobs, scoring them based on skills and search terms.",
+    "content": "# Match Candidate\nDescription: Match the candidate's profile to available active jobs, scoring them based on skills and search terms.\n\nCall this skill to find the best job matches for the candidate based on their profile (skills, summary, experience).\nIt computes a match score out of 1.0 using full-text search relevance and skill overlap.\n\nInput contract:\n- `limit`: Optional max number of jobs to return (default: 5).\n\nOutput contract:\n- Returns an array of matched jobs, including title, company name, match score, required skills, work mode, location, and a description.\n- Salary fields are redacted/redacted as \"competitive\" or general terms in the output to prevent displaying raw numbers to candidates.",
+    "filePath": "src/skills/match-candidate/SKILL.md"
+  },
+  {
     "id": "query-company",
     "name": "Query Company",
-    "description": "Query detailed company profile information including introduction, benefits, and work style.",
-    "content": "# Query Company\nDescription: Query detailed company profile information including introduction, benefits, and work style.\n\nUse this skill when the candidate asks for details about a specific hiring company (such as introduction, work style, benefits, etc.) or when you need to provide context about a company before proposing an interview.\n\nInput contract:\n- `name`: exact or partial name of the company to query.\n\nOutput contract:\n- Company details including: name, introduction, benefits, work style.",
+    "description": "Query detailed company profile information including introduction, benefits, work style, leadership, products, and materials.",
+    "content": "# Query Company\nDescription: Query detailed company profile information including introduction, benefits, work style, leadership, products, and materials.\n\nUse this skill when the candidate asks for details about a specific hiring company (such as introduction, work style, benefits, etc.) or when you need to provide context about a company before proposing an interview.\n\nInput contract:\n- `name`: exact or partial name of the company to query.\n\nOutput contract:\n- Company details including: name, introduction, benefits, work style, website, leadership, products, materials, researchedAt.\n- If a requested field is empty or researchedAt is null, answer with what exists and call `knowledge_recordGap`.",
     "filePath": "src/skills/query-company/SKILL.md"
+  },
+  {
+    "id": "record-knowledge-gap",
+    "name": "Record Knowledge Gap",
+    "description": "Record candidate questions that the agent cannot answer due to missing company or job details.",
+    "content": "# Record Knowledge Gap\nDescription: Record candidate questions that the agent cannot answer due to missing company or job details.\n\nCall this skill when the candidate asks a factual question about a company, job, benefits, process, or other recruitment facts that you cannot answer because the data does not exist or researchedAt is null.\nDo not fabricate information. Instead, record the knowledge gap and tell the candidate in Vietnamese that the question is noted and the team will look into it.\n\nInput contract:\n- `question`: The candidate's question that could not be answered.\n- `companyName`: Name of the company the question is about.\n- `topic`: Classification of the question topic (`company`, `job`, `process`, `benefits`, `other`).",
+    "filePath": "src/skills/record-knowledge-gap/SKILL.md"
   },
   {
     "id": "save-interaction-intent",
@@ -52,6 +73,13 @@ export const DEFAULT_SKILLS: SkillDefinition[] = [
     "description": "Save the current candidate intent and merged requirement state in memory.",
     "content": "# Save Interaction Intent\nDescription: Save the current candidate intent and merged requirement state in memory.\n\nUse this skill after requirement gathering or job matching changes what the agent believes the candidate wants.\n\nInput contract:\n- `tenantId`: tenant id.\n- `threadId`: Zalo thread id.\n- `intent`: short stable intent label.\n- `requirement`: candidate requirement snapshot.\n\nOutput contract:\n- Saved intent record with update timestamp.",
     "filePath": "src/skills/save-interaction-intent/SKILL.md"
+  },
+  {
+    "id": "submit-application",
+    "name": "Submit Application",
+    "description": "Submit a job application for the candidate to a specific job posting.",
+    "content": "# Submit Application\nDescription: Submit a job application for the candidate to a specific job posting.\n\nUse this skill only after the candidate clearly confirms they want to apply to a specific job posting surfaced in this conversation.\nDo not invoke this tool if the job posting is not identified or if the candidate has not given explicit confirmation to apply.\n\nInput contract:\n- `jobId`: The database ID or external ID of the job posting to apply to.\n- `note`: Optional cover note or comment from the candidate.\n\nOutput contract:\n- `applicationId`: Unique ID of the created or existing application.\n- `created`: Boolean indicating if a new application record was created (`true`) or if they had already applied (`false`).\n- `jobTitle`: Title of the job posting.\n- `companyName`: Name of the hiring company.",
+    "filePath": "src/skills/submit-application/SKILL.md"
   }
 ];
 

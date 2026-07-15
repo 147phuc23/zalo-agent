@@ -375,10 +375,20 @@ export function startDocumentWorker(deps: DocumentProcessorDeps) {
             const displayName = extractedProfile.fullName || "bạn";
             let replyText = `Chào ${displayName}! Mình đã nhận được CV và cập nhật thông tin của bạn vào hệ thống CRM thành công. 🎉\n\n`;
 
+            const censorCompany = (name: string) => {
+              if (!name) return "Công ty đối tác";
+              const parts = name.split(" ");
+              return parts.map(p => {
+                if (p.length <= 2) return p;
+                return p[0] + "*".repeat(p.length - 2) + p[p.length - 1];
+              }).join(" ");
+            };
+
             if (topMatches.length > 0) {
               replyText += `Dựa vào kỹ năng của bạn (${(extractedProfile.skills || []).slice(0, 4).join(", ")}), mình xin đề xuất một số công việc phù hợp nhất:\n`;
               for (const match of topMatches) {
-                replyText += `- **${match.job?.title}** tại ${match.job?.company} (Độ phù hợp: ${match.score}/10)\n`;
+                const comp = match.job?.company ? censorCompany(match.job.company) : "Công ty đối tác";
+                replyText += `- **${match.job?.title}** tại ${comp} (Độ phù hợp: ${match.score}/10)\n`;
               }
               replyText += `\nBạn có muốn biết thêm chi tiết về vị trí nào ở trên không? 😊`;
             } else {

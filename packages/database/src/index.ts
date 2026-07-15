@@ -20,6 +20,9 @@ export {
   createCompanyRepository,
   createDocumentRepository,
   createCandidateProfileRepository,
+  createApplicationRepository,
+  createCompanySourceRepository,
+  createKnowledgeGapRepository,
 } from "./repositories.js";
 
 export type {
@@ -41,6 +44,10 @@ export type {
   DocumentRow,
   CandidateProfileRow,
   CandidateProfilePatch,
+  ApplicationRow,
+  ApplicationEventRow,
+  CompanySourceRow,
+  KnowledgeGapRow,
 } from "./repositories.js";
 
 export type DatabaseClient = pg.Pool;

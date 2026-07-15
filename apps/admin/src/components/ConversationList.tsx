@@ -54,6 +54,9 @@ export function ConversationList({
         <a href="/jobs" className="flex-1 text-center py-1.5 text-xs font-semibold rounded-lg hover:bg-white hover:border-gray-200 text-slate-500 hover:text-slate-800 hover:shadow-xs transition">
           Tin tuyển dụng
         </a>
+        <a href="/applications" className="flex-1 text-center py-1.5 text-xs font-semibold rounded-lg hover:bg-white hover:border-gray-200 text-slate-500 hover:text-slate-800 hover:shadow-xs transition">
+          Ứng tuyển
+        </a>
       </div>
 
       {/* Search */}

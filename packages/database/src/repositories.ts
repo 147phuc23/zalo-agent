@@ -586,6 +586,12 @@ export interface CompanyRow {
   introduction: string;
   benefits: string;
   work_style: string;
+  website: string | null;
+  leadership: unknown[];
+  products: unknown[];
+  materials: unknown[];
+  research: Record<string, unknown>;
+  researched_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -600,6 +606,13 @@ export function createCompanyRepository(client: DatabaseClient) {
       return (res.rows[0] as CompanyRow) || null;
     },
     async listAll(input: { tenantId: string }) {
+      const res = await client.query(
+        `SELECT * FROM companies WHERE tenant_id = $1 ORDER BY name ASC`,
+        [input.tenantId]
+      );
+      return res.rows as CompanyRow[];
+    },
+    async listByTenant(input: { tenantId: string }): Promise<CompanyRow[]> {
       const res = await client.query(
         `SELECT * FROM companies WHERE tenant_id = $1 ORDER BY name ASC`,
         [input.tenantId]
@@ -634,6 +647,49 @@ export function createCompanyRepository(client: DatabaseClient) {
         ]
       );
       return res.rows[0]?.id as string;
+    },
+    async updateResearch(input: {
+      tenantId: string;
+      name: string;
+      website?: string | null;
+      introduction?: string;
+      benefits?: string;
+      workStyle?: string;
+      leadership?: unknown[];
+      products?: unknown[];
+      materials?: unknown[];
+      research?: Record<string, unknown>;
+    }): Promise<CompanyRow> {
+      const res = await client.query(
+        `INSERT INTO companies (
+          tenant_id, name, website, introduction, benefits, work_style, leadership, products, materials, research, researched_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+         ON CONFLICT (tenant_id, name) DO UPDATE SET
+           website = COALESCE(EXCLUDED.website, companies.website),
+           introduction = COALESCE(EXCLUDED.introduction, companies.introduction),
+           benefits = COALESCE(EXCLUDED.benefits, companies.benefits),
+           work_style = COALESCE(EXCLUDED.work_style, companies.work_style),
+           leadership = COALESCE(EXCLUDED.leadership, companies.leadership),
+           products = COALESCE(EXCLUDED.products, companies.products),
+           materials = COALESCE(EXCLUDED.materials, companies.materials),
+           research = COALESCE(EXCLUDED.research, companies.research),
+           researched_at = now(),
+           updated_at = now()
+         RETURNING *`,
+        [
+          input.tenantId,
+          input.name,
+          input.website ?? null,
+          input.introduction ?? `Introduction to ${input.name}`,
+          input.benefits ?? `Benefits at ${input.name}`,
+          input.workStyle ?? `Work style at ${input.name}`,
+          input.leadership ? JSON.stringify(input.leadership) : '[]',
+          input.products ? JSON.stringify(input.products) : '[]',
+          input.materials ? JSON.stringify(input.materials) : '[]',
+          input.research ? JSON.stringify(input.research) : '{}',
+        ]
+      );
+      return res.rows[0] as CompanyRow;
     }
   };
 }
@@ -894,6 +950,31 @@ export function createJobPostingRepository(client: DatabaseClient) {
         [input.tenantId, input.limit ?? 500],
       );
       return res.rows as JobPostingRow[];
+    },
+    async searchFts(input: { tenantId: string; terms: string[]; limit?: number }): Promise<Array<JobPostingRow & { fts_rank: number }>> {
+      const sanitized = input.terms
+        .map((t) => t.replace(/[^a-zA-Z0-9+#.-]+/g, ""))
+        .filter(Boolean);
+      if (sanitized.length === 0) {
+        return [];
+      }
+      const queryStr = sanitized.join(" | ");
+      const res = await client.query(
+        `SELECT jp.*, c.name AS company, c.introduction AS company_introduction, c.benefits AS company_benefits, c.work_style AS company_work_style,
+                ts_rank(jp.search_tsv, to_tsquery('english', $2), 32) as fts_rank
+         FROM job_postings jp
+         LEFT JOIN companies c ON jp.company_id = c.id
+         WHERE jp.tenant_id = $1
+           AND jp.status = 'active'
+           AND jp.search_tsv @@ to_tsquery('english', $2)
+         ORDER BY fts_rank DESC
+         LIMIT $3`,
+        [input.tenantId, queryStr, input.limit ?? 20]
+      );
+      return res.rows.map(row => ({
+        ...row,
+        fts_rank: Number(row.fts_rank || 0),
+      }));
     },
     async count(input: { tenantId: string }) {
       const res = await client.query(
@@ -1237,6 +1318,8 @@ export interface CandidateProfileRow {
   languages: string[];
   summary: string;
   raw_extraction: Record<string, any>;
+  risk_score: number;
+  flagged_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1493,6 +1576,517 @@ export function createCandidateProfileRepository(client: DatabaseClient) {
 
       const res = await client.query(sql, params);
       return res.rows as CandidateProfileRow[];
+    },
+
+    async logChange(input: {
+      tenantId: string;
+      candidateProfileId: string;
+      changedFields: Record<string, { old: any; new: any }>;
+      changedBy: string;
+    }) {
+      const res = await client.query(
+        `INSERT INTO public.candidate_profile_change_logs (
+          tenant_id, candidate_profile_id, changed_fields, changed_by
+        ) VALUES ($1, $2, $3, $4)
+        RETURNING *`,
+        [input.tenantId, input.candidateProfileId, JSON.stringify(input.changedFields), input.changedBy]
+      );
+      return res.rows[0];
+    },
+
+    async addRiskSignal(input: {
+      tenantId: string;
+      candidateProfileId: string;
+      ruleName: string;
+      details?: any;
+      severity: "low" | "medium" | "high";
+    }) {
+      const res = await client.query(
+        `INSERT INTO public.risk_signals (
+          tenant_id, candidate_profile_id, rule_name, details, severity
+        ) VALUES ($1, $2, $3, $4, $5)
+        RETURNING *`,
+        [
+          input.tenantId,
+          input.candidateProfileId,
+          input.ruleName,
+          input.details ? JSON.stringify(input.details) : null,
+          input.severity,
+        ]
+      );
+      return res.rows[0];
+    },
+
+    async assessRisk(input: {
+      tenantId: string;
+      candidateProfileId: string;
+    }): Promise<{ risk_score: number; flagged_at: string | null }> {
+      const statsQuery = await client.query(
+        `WITH stats AS (
+          SELECT
+            (SELECT COALESCE(SUM(
+               CASE
+                 WHEN severity = 'high' THEN 30
+                 WHEN severity = 'medium' THEN 15
+                 ELSE 5
+               END
+             ), 0) FROM public.risk_signals WHERE candidate_profile_id = $1) AS signal_score,
+
+            (SELECT COUNT(*) * 10 FROM public.candidate_profile_change_logs
+             WHERE candidate_profile_id = $1 AND created_at > NOW() - INTERVAL '24 hours') AS change_score
+        )
+        SELECT (signal_score + change_score)::int AS calculated_score FROM stats`,
+        [input.candidateProfileId]
+      );
+
+      const calculatedScore = statsQuery.rows[0]?.calculated_score ?? 0;
+
+      const updateQuery = await client.query(
+        `UPDATE public.candidate_profiles
+         SET risk_score = $1,
+             flagged_at = CASE WHEN $1 > 50 AND flagged_at IS NULL THEN NOW() ELSE flagged_at END
+         WHERE id = $2 AND tenant_id = $3
+         RETURNING risk_score, flagged_at`,
+        [calculatedScore, input.candidateProfileId, input.tenantId]
+      );
+
+      const row = updateQuery.rows[0];
+      return {
+        risk_score: row?.risk_score ?? calculatedScore,
+        flagged_at: row?.flagged_at ? new Date(row.flagged_at).toISOString() : null,
+      };
+    }
+  };
+}
+
+export interface ApplicationRow {
+  id: string;
+  tenant_id: string;
+  job_posting_id: string;
+  contact_id: string | null;
+  guest_access_id: string | null;
+  candidate_profile_id: string | null;
+  stage: "submitted" | "screening" | "interviewing" | "offer";
+  status: "active" | "hired" | "rejected" | "withdrawn";
+  applied_via: "chat" | "admin";
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApplicationEventRow {
+  id: string;
+  tenant_id: string;
+  application_id: string;
+  from_stage: string | null;
+  to_stage: string;
+  from_status: string | null;
+  to_status: string;
+  actor_type: "agent" | "admin" | "candidate" | "system";
+  actor_id: string | null;
+  note: string | null;
+  created_at: string;
+}
+
+export function createApplicationRepository(client: DatabaseClient) {
+  return {
+    async submit(input: {
+      tenantId: string;
+      jobPostingId: string;
+      contactId?: string | null;
+      guestAccessId?: string | null;
+      candidateProfileId?: string | null;
+      appliedVia: "chat" | "admin";
+      actorType: "agent" | "admin" | "candidate" | "system";
+      actorId?: string | null;
+      note?: string | null;
+    }): Promise<{ application: ApplicationRow; created: boolean }> {
+      const conn = await client.connect();
+      try {
+        await conn.query("BEGIN");
+        
+        const insertSql = `
+          INSERT INTO public.applications (
+            tenant_id, job_posting_id, contact_id, guest_access_id, candidate_profile_id, applied_via, note
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `;
+        let conflictSql = "";
+        const params = [
+          input.tenantId,
+          input.jobPostingId,
+          input.contactId ?? null,
+          input.guestAccessId ?? null,
+          input.candidateProfileId ?? null,
+          input.appliedVia,
+          input.note ?? null,
+        ];
+
+        if (input.contactId) {
+          conflictSql = ` ON CONFLICT (tenant_id, job_posting_id, contact_id) WHERE contact_id IS NOT NULL DO NOTHING`;
+        } else if (input.guestAccessId) {
+          conflictSql = ` ON CONFLICT (tenant_id, job_posting_id, guest_access_id) WHERE guest_access_id IS NOT NULL DO NOTHING`;
+        }
+
+        const insertRes = await conn.query(insertSql + conflictSql + " RETURNING *", params);
+
+        if (insertRes.rowCount && insertRes.rowCount > 0) {
+          const application = insertRes.rows[0] as ApplicationRow;
+          await conn.query(
+            `INSERT INTO public.application_events (
+              tenant_id, application_id, from_stage, to_stage, from_status, to_status, actor_type, actor_id, note
+             ) VALUES ($1, $2, null, 'submitted', null, 'active', $3, $4, $5)`,
+            [
+              input.tenantId,
+              application.id,
+              input.actorType,
+              input.actorId ?? null,
+              input.note ?? null,
+            ]
+          );
+          await conn.query("COMMIT");
+          return { application, created: true };
+        } else {
+          let selectSql = `SELECT * FROM public.applications WHERE tenant_id = $1 AND job_posting_id = $2`;
+          const selectParams = [input.tenantId, input.jobPostingId];
+          if (input.contactId) {
+            selectSql += ` AND contact_id = $3`;
+            selectParams.push(input.contactId);
+          } else {
+            selectSql += ` AND guest_access_id = $3`;
+            selectParams.push(input.guestAccessId!);
+          }
+          const selectRes = await conn.query(selectSql, selectParams);
+          await conn.query("COMMIT");
+          return { application: selectRes.rows[0] as ApplicationRow, created: false };
+        }
+      } catch (err) {
+        await conn.query("ROLLBACK");
+        throw err;
+      } finally {
+        conn.release();
+      }
+    },
+
+    async findById(id: string): Promise<ApplicationRow | null> {
+      const res = await client.query(`SELECT * FROM public.applications WHERE id = $1 LIMIT 1`, [id]);
+      return (res.rows[0] as ApplicationRow) || null;
+    },
+
+    async listByCandidate(input: {
+      tenantId: string;
+      contactId?: string | null;
+      guestAccessId?: string | null;
+    }): Promise<Array<ApplicationRow & { job_title: string; company_name: string }>> {
+      let query = `
+        SELECT a.*, jp.title as job_title, c.name as company_name
+        FROM public.applications a
+        JOIN public.job_postings jp ON jp.id = a.job_posting_id
+        LEFT JOIN public.companies c ON c.id = jp.company_id
+        WHERE a.tenant_id = $1
+      `;
+      const params = [input.tenantId];
+      if (input.contactId) {
+        query += ` AND a.contact_id = $2`;
+        params.push(input.contactId);
+      } else if (input.guestAccessId) {
+        query += ` AND a.guest_access_id = $2`;
+        params.push(input.guestAccessId);
+      } else {
+        return [];
+      }
+      query += ` ORDER BY a.created_at DESC`;
+      const res = await client.query(query, params);
+      return res.rows;
+    },
+
+    async listByTenant(input: {
+      tenantId: string;
+      status?: string;
+      stage?: string;
+      limit?: number;
+    }): Promise<Array<ApplicationRow & { job_title: string; company_name: string; candidate_name: string | null }>> {
+      let query = `
+        SELECT a.*, jp.title as job_title, c.name as company_name,
+               COALESCE(cp.full_name, con.display_name, ga.display_name) as candidate_name
+        FROM public.applications a
+        JOIN public.job_postings jp ON jp.id = a.job_posting_id
+        LEFT JOIN public.companies c ON c.id = jp.company_id
+        LEFT JOIN public.candidate_profiles cp ON cp.id = a.candidate_profile_id
+        LEFT JOIN public.contacts con ON con.id = a.contact_id
+        LEFT JOIN public.guest_access ga ON ga.id = a.guest_access_id
+        WHERE a.tenant_id = $1
+      `;
+      const params: any[] = [input.tenantId];
+      if (input.status) {
+        query += ` AND a.status = $${params.length + 1}`;
+        params.push(input.status);
+      }
+      if (input.stage) {
+        query += ` AND a.stage = $${params.length + 1}`;
+        params.push(input.stage);
+      }
+      query += ` ORDER BY a.updated_at DESC LIMIT $${params.length + 1}`;
+      params.push(input.limit ?? 100);
+
+      const res = await client.query(query, params);
+      return res.rows;
+    },
+
+    async transition(input: {
+      applicationId: string;
+      toStage?: "submitted" | "screening" | "interviewing" | "offer";
+      toStatus?: "active" | "hired" | "rejected" | "withdrawn";
+      actorType: "agent" | "admin" | "candidate" | "system";
+      actorId?: string | null;
+      note?: string | null;
+    }): Promise<ApplicationRow> {
+      const conn = await client.connect();
+      try {
+        await conn.query("BEGIN");
+        
+        const selectRes = await conn.query(
+          `SELECT * FROM public.applications WHERE id = $1 FOR UPDATE`,
+          [input.applicationId]
+        );
+        const app = selectRes.rows[0] as ApplicationRow;
+        if (!app) {
+          throw new Error(`Application not found: ${input.applicationId}`);
+        }
+
+        if (app.status !== "active") {
+          throw new Error(`Application is in terminal state '${app.status}' and cannot be modified.`);
+        }
+
+        const nextStage = input.toStage ?? app.stage;
+        const nextStatus = input.toStatus ?? app.status;
+
+        const stages = ["submitted", "screening", "interviewing", "offer"];
+        const currentStageIndex = stages.indexOf(app.stage);
+        const nextStageIndex = stages.indexOf(nextStage);
+
+        if (nextStageIndex < currentStageIndex) {
+          throw new Error(`Cannot transition backward from stage '${app.stage}' to '${nextStage}'`);
+        }
+
+        const updateRes = await conn.query(
+          `UPDATE public.applications
+           SET stage = $2, status = $3, note = $4, updated_at = now()
+           WHERE id = $1
+           RETURNING *`,
+          [app.id, nextStage, nextStatus, input.note ?? app.note]
+        );
+
+        await conn.query(
+          `INSERT INTO public.application_events (
+            tenant_id, application_id, from_stage, to_stage, from_status, to_status, actor_type, actor_id, note
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [
+            app.tenant_id,
+            app.id,
+            app.stage,
+            nextStage,
+            app.status,
+            nextStatus,
+            input.actorType,
+            input.actorId ?? null,
+            input.note ?? null,
+          ]
+        );
+
+        await conn.query("COMMIT");
+        return updateRes.rows[0] as ApplicationRow;
+      } catch (err) {
+        await conn.query("ROLLBACK");
+        throw err;
+      } finally {
+        conn.release();
+      }
+    },
+
+    async listEvents(applicationId: string): Promise<ApplicationEventRow[]> {
+      const res = await client.query(
+        `SELECT * FROM public.application_events WHERE application_id = $1 ORDER BY created_at ASC`,
+        [applicationId]
+      );
+      return res.rows as ApplicationEventRow[];
+    }
+  };
+}
+
+export interface CompanySourceRow {
+  id: string;
+  tenant_id: string;
+  company_id: string;
+  url: string;
+  kind: "homepage" | "about" | "leadership" | "products" | "blog" | "careers" | "search_result" | "other";
+  title: string | null;
+  content_excerpt: string | null;
+  fetched_at: string | null;
+  created_at: string;
+}
+
+export function createCompanySourceRepository(client: DatabaseClient) {
+  return {
+    async replaceForCompany(input: {
+      tenantId: string;
+      companyId: string;
+      sources: Array<{
+        url: string;
+        kind: "homepage" | "about" | "leadership" | "products" | "blog" | "careers" | "search_result" | "other";
+        title?: string | null;
+        contentExcerpt?: string | null;
+        fetchedAt?: string | null;
+      }>;
+    }): Promise<{ inserted: number }> {
+      const conn = await client.connect();
+      try {
+        await conn.query("BEGIN");
+        await conn.query(
+          `DELETE FROM public.company_sources WHERE tenant_id = $1 AND company_id = $2`,
+          [input.tenantId, input.companyId]
+        );
+
+        let inserted = 0;
+        for (const s of input.sources) {
+          await conn.query(
+            `INSERT INTO public.company_sources (
+              tenant_id, company_id, url, kind, title, content_excerpt, fetched_at
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+             ON CONFLICT (company_id, url) DO NOTHING`,
+            [
+              input.tenantId,
+              input.companyId,
+              s.url,
+              s.kind,
+              s.title ?? null,
+              s.contentExcerpt ?? null,
+              s.fetchedAt ? new Date(s.fetchedAt) : null,
+            ]
+          );
+          inserted++;
+        }
+
+        await conn.query("COMMIT");
+        return { inserted };
+      } catch (err) {
+        await conn.query("ROLLBACK");
+        throw err;
+      } finally {
+        conn.release();
+      }
+    },
+
+    async listByCompany(input: { tenantId: string; companyId: string }): Promise<CompanySourceRow[]> {
+      const res = await client.query(
+        `SELECT * FROM public.company_sources WHERE tenant_id = $1 AND company_id = $2 ORDER BY created_at ASC`,
+        [input.tenantId, input.companyId]
+      );
+      return res.rows as CompanySourceRow[];
+    }
+  };
+}
+
+export interface KnowledgeGapRow {
+  id: string;
+  tenant_id: string;
+  conversation_id: string | null;
+  company_id: string | null;
+  question: string;
+  topic: "company" | "job" | "process" | "benefits" | "other";
+  status: "open" | "researching" | "answered" | "dismissed";
+  answer: string | null;
+  ask_count: number;
+  last_asked_at: string;
+  answered_at: string | null;
+  created_at: string;
+}
+
+export function createKnowledgeGapRepository(client: DatabaseClient) {
+  return {
+    async record(input: {
+      tenantId: string;
+      conversationId?: string | null;
+      companyId?: string | null;
+      question: string;
+      topic?: "company" | "job" | "process" | "benefits" | "other";
+    }): Promise<{ id: string; duplicate: boolean }> {
+      const topic = input.topic || "other";
+      const lowercaseQuestion = input.question.trim().toLowerCase();
+
+      const dupCheck = await client.query(
+        `SELECT id, ask_count FROM public.knowledge_gaps
+         WHERE tenant_id = $1 AND lower(question) = $2
+           AND (company_id = $3 OR (company_id IS NULL AND $3 IS NULL))
+           AND status = 'open'
+         LIMIT 1`,
+        [input.tenantId, lowercaseQuestion, input.companyId ?? null]
+      );
+
+      if (dupCheck.rowCount && dupCheck.rowCount > 0) {
+        const gap = dupCheck.rows[0];
+        const newCount = gap.ask_count + 1;
+        await client.query(
+          `UPDATE public.knowledge_gaps
+           SET ask_count = $2, last_asked_at = now()
+           WHERE id = $1`,
+          [gap.id, newCount]
+        );
+        return { id: gap.id, duplicate: true };
+      }
+
+      const insertRes = await client.query(
+        `INSERT INTO public.knowledge_gaps (
+          tenant_id, conversation_id, company_id, question, topic
+         ) VALUES ($1, $2, $3, $4, $5)
+         RETURNING id`,
+        [
+          input.tenantId,
+          input.conversationId ?? null,
+          input.companyId ?? null,
+          input.question.trim(),
+          topic,
+        ]
+      );
+      return { id: insertRes.rows[0].id, duplicate: false };
+    },
+
+    async listOpen(input: {
+      tenantId: string;
+      companyId?: string | null;
+      limit?: number;
+    }): Promise<KnowledgeGapRow[]> {
+      let query = `
+        SELECT * FROM public.knowledge_gaps
+        WHERE tenant_id = $1 AND status = 'open'
+      `;
+      const params: any[] = [input.tenantId];
+      if (input.companyId !== undefined) {
+        query += ` AND company_id = $2`;
+        params.push(input.companyId);
+      }
+      query += ` ORDER BY last_asked_at DESC LIMIT $${params.length + 1}`;
+      params.push(input.limit ?? 50);
+
+      const res = await client.query(query, params);
+      return res.rows as KnowledgeGapRow[];
+    },
+
+    async markAnswered(input: { id: string; answer: string }): Promise<void> {
+      await client.query(
+        `UPDATE public.knowledge_gaps
+         SET status = 'answered', answer = $2, answered_at = now()
+         WHERE id = $1`,
+        [input.id, input.answer]
+      );
+    },
+
+    async updateStatus(input: { id: string; status: "researching" | "dismissed" }): Promise<void> {
+      await client.query(
+        `UPDATE public.knowledge_gaps
+         SET status = $2
+         WHERE id = $1`,
+        [input.id, input.status]
+      );
     }
   };
 }
@@ -1513,5 +2107,8 @@ export function createRepositorySet(client: DatabaseClient) {
     guestAccess: createGuestAccessRepository(client),
     documents: createDocumentRepository(client),
     candidateProfiles: createCandidateProfileRepository(client),
+    applications: createApplicationRepository(client),
+    companySources: createCompanySourceRepository(client),
+    knowledgeGaps: createKnowledgeGapRepository(client),
   };
 }

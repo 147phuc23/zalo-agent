@@ -81,6 +81,49 @@ describe("JobPostingRepository integration tests", () => {
     // Cleanup
     await client.query("DELETE FROM job_postings WHERE id = $1", [draft.id]);
   });
+
+  it("should find active job postings using FTS", async () => {
+    // 1. Create dummy company
+    const companyId = await repos.companies.ensureExists({
+      tenantId,
+      name: "FTS Company Tech",
+    });
+
+    // 2. Create active job posting
+    const job = await repos.jobs.createDraft({
+      tenantId,
+      sourceDocumentId: null,
+      fields: {
+        title: "Senior Rust Developer",
+        company: "FTS Company Tech",
+        locationSlugs: ["remote"],
+        workMode: "remote",
+        salaryMinVnd: 40000000,
+        salaryMaxVnd: 70000000,
+        seniority: "senior",
+        requiredSkills: ["Rust", "Tokio", "Postgres"],
+        description: "Looking for an expert developer to scale systems using Rust.",
+      }
+    });
+
+    await repos.jobs.setStatus({ id: job.id, status: "active" });
+
+    // 3. Search for "rust"
+    const results = await repos.jobs.searchFts({
+      tenantId,
+      terms: ["rust", "developer"],
+    });
+
+    expect(results.length).toBeGreaterThan(0);
+    const match = results.find(r => r.id === job.id);
+    expect(match).toBeDefined();
+    expect(match?.title).toBe("Senior Rust Developer");
+    expect(match?.fts_rank).toBeGreaterThan(0);
+
+    // Cleanup
+    await client.query("DELETE FROM job_postings WHERE id = $1", [job.id]);
+    await client.query("DELETE FROM companies WHERE id = $1", [companyId]);
+  });
 });
 
 describe("Candidate Profile Repository", () => {
@@ -198,5 +241,309 @@ describe("Candidate Profile Repository", () => {
       skills: ["Python"],
     });
     expect(searchRes3.length).toBe(0);
+  });
+});
+
+describe("Application Repository integration tests", () => {
+  const url = process.env.PLATFORM_DB_URL;
+  if (!url) {
+    it.skip("Skip database integration tests because PLATFORM_DB_URL is not set", () => {});
+    return;
+  }
+
+  const client = createDatabaseClient({ PLATFORM_DB_URL: url });
+  const repos = createRepositorySet(client);
+  const tenantId = "b545a6ca-eabe-4bb8-852d-2c497edb8e38";
+
+  afterAll(async () => {
+    await client.end();
+  });
+
+  it("should handle application submission, idempotency, and transitions", async () => {
+    // Setup a dummy job
+    const job = await repos.jobs.createDraft({
+      tenantId,
+      sourceDocumentId: null,
+      fields: {
+        title: "Test Application Job",
+        company: "Test Applications Inc",
+        locationSlugs: ["onsite"],
+        workMode: "onsite",
+        salaryMinVnd: 5000000,
+        salaryMaxVnd: 10000000,
+        seniority: "junior",
+        requiredSkills: ["Git"],
+        description: "A job to test applications",
+      }
+    });
+    await repos.jobs.setStatus({ id: job.id, status: "active" });
+
+    // Setup a dummy contact
+    const contact = await repos.contacts.createShadow({
+      tenantId,
+      channel: "zalo",
+      externalUserId: "appl-contact-" + Date.now(),
+      displayName: "John Applicant",
+    });
+
+    // 1. Submit application
+    const { application, created } = await repos.applications.submit({
+      tenantId,
+      jobPostingId: job.id,
+      contactId: contact.id,
+      appliedVia: "chat",
+      actorType: "candidate",
+      note: "I am interested",
+    });
+
+    expect(created).toBe(true);
+    expect(application.stage).toBe("submitted");
+    expect(application.status).toBe("active");
+
+    // Verify initial event
+    const events = await repos.applications.listEvents(application.id);
+    expect(events.length).toBe(1);
+    expect(events[0].to_stage).toBe("submitted");
+    expect(events[0].to_status).toBe("active");
+
+    // 2. Submit again (idempotency check)
+    const { application: dupApp, created: dupCreated } = await repos.applications.submit({
+      tenantId,
+      jobPostingId: job.id,
+      contactId: contact.id,
+      appliedVia: "chat",
+      actorType: "candidate",
+    });
+
+    expect(dupCreated).toBe(false);
+    expect(dupApp.id).toBe(application.id);
+
+    // 3. Valid stage transition
+    const transitioned = await repos.applications.transition({
+      applicationId: application.id,
+      toStage: "screening",
+      actorType: "admin",
+      note: "Screening this candidate",
+    });
+
+    expect(transitioned.stage).toBe("screening");
+    expect(transitioned.status).toBe("active");
+
+    // Verify event appended
+    const eventsAfter = await repos.applications.listEvents(application.id);
+    expect(eventsAfter.length).toBe(2);
+    expect(eventsAfter[1].from_stage).toBe("submitted");
+    expect(eventsAfter[1].to_stage).toBe("screening");
+    expect(eventsAfter[1].note).toBe("Screening this candidate");
+
+    // 4. Invalid stage transition (backward)
+    await expect(
+      repos.applications.transition({
+        applicationId: application.id,
+        toStage: "submitted",
+        actorType: "admin",
+      })
+    ).rejects.toThrow();
+
+    // 5. Transition to terminal status
+    const rejected = await repos.applications.transition({
+      applicationId: application.id,
+      toStatus: "rejected",
+      actorType: "admin",
+      note: "Not a good fit",
+    });
+    expect(rejected.status).toBe("rejected");
+
+    // 6. Transition after terminal status should fail
+    await expect(
+      repos.applications.transition({
+        applicationId: application.id,
+        toStage: "interviewing",
+        actorType: "admin",
+      })
+    ).rejects.toThrow();
+
+    // Cleanup
+    await client.query("DELETE FROM application_events WHERE application_id = $1", [application.id]);
+    await client.query("DELETE FROM applications WHERE id = $1", [application.id]);
+    await client.query("DELETE FROM contacts WHERE id = $1", [contact.id]);
+    await client.query("DELETE FROM job_postings WHERE id = $1", [job.id]);
+  });
+});
+
+describe("Knowledge Gaps and Company Sources Repository integration tests", () => {
+  const url = process.env.PLATFORM_DB_URL;
+  if (!url) {
+    it.skip("Skip database integration tests because PLATFORM_DB_URL is not set", () => {});
+    return;
+  }
+
+  const client = createDatabaseClient({ PLATFORM_DB_URL: url });
+  const repos = createRepositorySet(client);
+  const tenantId = "b545a6ca-eabe-4bb8-852d-2c497edb8e38";
+
+  afterAll(async () => {
+    await client.end();
+  });
+
+  it("should record knowledge gaps with deduplication and update status", async () => {
+    const question = "What is the benefits at Company Test?";
+
+    // 1. Record gap 1
+    const res1 = await repos.knowledgeGaps.record({
+      tenantId,
+      question,
+      topic: "benefits",
+    });
+    expect(res1.duplicate).toBe(false);
+    expect(res1.id).toBeDefined();
+
+    // 2. Record same gap (deduplication check)
+    const res2 = await repos.knowledgeGaps.record({
+      tenantId,
+      question,
+      topic: "benefits",
+    });
+    expect(res2.duplicate).toBe(true);
+    expect(res2.id).toBe(res1.id);
+
+    // Verify database row
+    const openGaps = await repos.knowledgeGaps.listOpen({ tenantId });
+    const match = openGaps.find(g => g.id === res1.id);
+    expect(match).toBeDefined();
+    expect(match?.ask_count).toBe(2);
+
+    // 3. Mark answered
+    await repos.knowledgeGaps.markAnswered({
+      id: res1.id,
+      answer: "We offer full health insurance.",
+    });
+
+    const openGapsAfter = await repos.knowledgeGaps.listOpen({ tenantId });
+    expect(openGapsAfter.some(g => g.id === res1.id)).toBe(false);
+
+    // Cleanup
+    await client.query("DELETE FROM public.knowledge_gaps WHERE id = $1", [res1.id]);
+  });
+
+  it("should replace company sources", async () => {
+    // Setup a dummy company
+    const companyId = await repos.companies.ensureExists({
+      tenantId,
+      name: "Dummy Source Corp",
+    });
+
+    const sources = [
+      { url: "https://dummycorp.com/about", kind: "about" as const, title: "About Us" },
+      { url: "https://dummycorp.com/products", kind: "products" as const, title: "Our Products" },
+    ];
+
+    const { inserted } = await repos.companySources.replaceForCompany({
+      tenantId,
+      companyId,
+      sources,
+    });
+    expect(inserted).toBe(2);
+
+    const list = await repos.companySources.listByCompany({ tenantId, companyId });
+    expect(list.length).toBe(2);
+    expect(list[0].kind).toBe("about");
+    expect(list[1].kind).toBe("products");
+
+    // Cleanup
+    await client.query("DELETE FROM public.company_sources WHERE company_id = $1", [companyId]);
+    await client.query("DELETE FROM public.companies WHERE id = $1", [companyId]);
+  });
+});
+
+describe("Candidate Risk and Fraud Detection integration tests", () => {
+  const url = process.env.PLATFORM_DB_URL;
+  if (!url) {
+    it.skip("Skip database integration tests because PLATFORM_DB_URL is not set", () => {});
+    return;
+  }
+
+  const client = createDatabaseClient({ PLATFORM_DB_URL: url });
+  const repos = createRepositorySet(client);
+  const tenantId = "b545a6ca-eabe-4bb8-852d-2c497edb8e38";
+
+  afterAll(async () => {
+    await client.end();
+  });
+
+  it("should track change logs, risk signals, and compute risk score", async () => {
+    // 1. Create a candidate contact & profile
+    const contact = await repos.contacts.createShadow({
+      tenantId,
+      channel: "zalo",
+      externalUserId: "zalo-user-risk-123",
+      displayName: "John Risk",
+    });
+    const contactId = contact.id;
+
+    const profile = await repos.candidateProfiles.upsert({
+      tenantId,
+      contactId,
+      patch: {
+        fullName: "John Risk Original",
+        email: "john.risk@example.com",
+        skills: ["React"],
+      },
+    });
+
+    // Verify initial risk score is 0
+    expect(profile.risk_score).toBe(0);
+    expect(profile.flagged_at).toBeNull();
+
+    // 2. Log a profile change (worth 10 points)
+    await repos.candidateProfiles.logChange({
+      tenantId,
+      candidateProfileId: profile.id,
+      changedFields: {
+        fullName: { old: "John Risk Original", new: "John Risk Impostor" },
+      },
+      changedBy: "zalo-worker",
+    });
+
+    // 3. Add a medium severity risk signal (worth 15 points)
+    await repos.candidateProfiles.addRiskSignal({
+      tenantId,
+      candidateProfileId: profile.id,
+      ruleName: "rapid_name_updates",
+      details: { reason: "Changed name twice in 5 mins" },
+      severity: "medium",
+    });
+
+    // 4. Assess risk -> Score should be 10 (change) + 15 (signal) = 25
+    let assessment = await repos.candidateProfiles.assessRisk({
+      tenantId,
+      candidateProfileId: profile.id,
+    });
+
+    expect(assessment.risk_score).toBe(25);
+    expect(assessment.flagged_at).toBeNull();
+
+    // 5. Add a high severity risk signal (worth 30 points) -> Total 25 + 30 = 55 (> 50, triggers flagging)
+    await repos.candidateProfiles.addRiskSignal({
+      tenantId,
+      candidateProfileId: profile.id,
+      ruleName: "multi_contact_phone",
+      details: { phones: ["+84900000000", "+84911111111"] },
+      severity: "high",
+    });
+
+    assessment = await repos.candidateProfiles.assessRisk({
+      tenantId,
+      candidateProfileId: profile.id,
+    });
+
+    expect(assessment.risk_score).toBe(55);
+    expect(assessment.flagged_at).not.toBeNull();
+
+    // Cleanup
+    await client.query("DELETE FROM public.candidate_profile_change_logs WHERE candidate_profile_id = $1", [profile.id]);
+    await client.query("DELETE FROM public.risk_signals WHERE candidate_profile_id = $1", [profile.id]);
+    await client.query("DELETE FROM public.candidate_profiles WHERE id = $1", [profile.id]);
+    await client.query("DELETE FROM public.contacts WHERE id = $1", [contactId]);
   });
 });
