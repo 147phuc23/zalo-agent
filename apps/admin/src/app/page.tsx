@@ -66,11 +66,11 @@ function DashboardMain() {
   // Selected conversation state for chats view
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // SWR hooks
-  const { conversations, error: conversationsError, mutate: mutateConversations } = useConversations();
-  const { messages, error: messagesError, mutate: mutateMessages } = useMessages(selectedId);
-  const { audits, error: auditsError } = useAudits(selectedId);
-  const { promptVersions, error: promptsError, mutate: mutatePrompts } = usePrompts();
+  // React Query hooks
+  const { conversations, error: conversationsError, isLoading: isConversationsLoading, mutate: mutateConversations } = useConversations();
+  const { messages, error: messagesError, isLoading: isMessagesLoading, mutate: mutateMessages } = useMessages(selectedId);
+  const { audits, error: auditsError, isLoading: isAuditsLoading } = useAudits(selectedId);
+  const { promptVersions, error: promptsError, isLoading: isPromptsLoading, mutate: mutatePrompts } = usePrompts();
 
   // Local state for dropdown/prompt options and UI modal state
   const [availableModels, setAvailableModels] = useState(AVAILABLE_MODELS);
@@ -829,14 +829,14 @@ function DashboardMain() {
       {/* ------------------------------------------------------------- */}
       {/* 1. Global Navigation Sidebar (Styled exactly like shadcn)   */}
       {/* ------------------------------------------------------------- */}
-      <div className="w-64 border-r border-stone-200 bg-white flex flex-col h-full flex-shrink-0 select-none">
+      <div className="w-16 lg:w-56 border-r border-stone-200 bg-white flex flex-col h-full flex-shrink-0 select-none transition-all duration-300">
         {/* Workspace Swapper Header */}
-        <div className="p-4 border-b border-stone-200 flex items-center justify-between">
+        <div className="p-4 border-b border-stone-200 flex items-center justify-center lg:justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-stone-900 flex items-center justify-center text-white font-bold text-sm">
+            <div className="w-8 h-8 rounded-lg bg-stone-900 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
               Z
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 hidden lg:block">
               <div className="font-bold text-sm text-stone-850 truncate leading-tight">
                 Zalo HR Admin
               </div>
@@ -845,41 +845,44 @@ function DashboardMain() {
               </span>
             </div>
           </div>
-          <ChevronDown className="w-4 h-4 text-stone-400" />
+          <ChevronDown className="w-4 h-4 text-stone-400 hidden lg:block" />
         </div>
 
         {/* Menu Nav Links */}
         <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-          <span className="px-3 text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-2">
+          <span className="px-3 text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-2 hidden lg:block">
             Main Console
           </span>
 
           <button
             onClick={() => setActiveView("dashboard")}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${
+            className={`w-full flex items-center justify-center lg:justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${
               activeView === "dashboard"
                 ? "bg-stone-100 text-stone-900 shadow-sm"
                 : "text-stone-500 hover:bg-stone-50 hover:text-stone-800"
             }`}
           >
-            <LayoutDashboard className="w-4 h-4" />
-            <span>Dashboard</span>
+            <LayoutDashboard className="w-4 h-4 flex-shrink-0" />
+            <span className="hidden lg:block">Dashboard</span>
           </button>
 
           <button
             onClick={() => setActiveView("chats")}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition ${
+            className={`w-full flex items-center justify-center lg:justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition ${
               activeView === "chats"
                 ? "bg-stone-100 text-stone-900 shadow-sm"
                 : "text-stone-500 hover:bg-stone-50 hover:text-stone-800"
             }`}
           >
-            <div className="flex items-center gap-3">
-              <MessageSquare className="w-4 h-4" />
-              <span>Inbox / Chats</span>
+            <div className="flex items-center gap-3 relative">
+              <MessageSquare className="w-4 h-4 flex-shrink-0" />
+              {conversations.filter(c => c.status === "unread").length > 0 && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-indigo-600 rounded-full border-2 border-white lg:hidden" />
+              )}
+              <span className="hidden lg:block">Inbox / Chats</span>
             </div>
             {conversations.filter(c => c.status === "unread").length > 0 && (
-              <span className="bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+              <span className="bg-indigo-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full hidden lg:block">
                 {conversations.filter(c => c.status === "unread").length}
               </span>
             )}
@@ -887,54 +890,57 @@ function DashboardMain() {
 
           <button
             onClick={() => setActiveView("candidates")}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${
+            className={`w-full flex items-center justify-center lg:justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${
               activeView === "candidates"
                 ? "bg-stone-100 text-stone-900 shadow-sm"
                 : "text-stone-500 hover:bg-stone-50 hover:text-stone-800"
             }`}
           >
-            <Users className="w-4 h-4" />
-            <span>Candidates</span>
+            <Users className="w-4 h-4 flex-shrink-0" />
+            <span className="hidden lg:block">Candidates</span>
           </button>
 
           <button
             onClick={() => setActiveView("jobs")}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${
+            className={`w-full flex items-center justify-center lg:justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${
               activeView === "jobs"
                 ? "bg-stone-100 text-stone-900 shadow-sm"
                 : "text-stone-500 hover:bg-stone-50 hover:text-stone-800"
             }`}
           >
-            <Briefcase className="w-4 h-4" />
-            <span>Manage Jobs</span>
+            <Briefcase className="w-4 h-4 flex-shrink-0" />
+            <span className="hidden lg:block">Manage Jobs</span>
           </button>
 
           <button
             onClick={() => setActiveView("prompts")}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${
+            className={`w-full flex items-center justify-center lg:justify-start gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition ${
               activeView === "prompts"
                 ? "bg-stone-100 text-stone-900 shadow-sm"
                 : "text-stone-500 hover:bg-stone-50 hover:text-stone-800"
             }`}
           >
-            <FileCode className="w-4 h-4" />
-            <span>Agent Prompts</span>
+            <FileCode className="w-4 h-4 flex-shrink-0" />
+            <span className="hidden lg:block">Agent Prompts</span>
           </button>
 
           <button
             onClick={() => setActiveView("todo")}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition ${
+            className={`w-full flex items-center justify-center lg:justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition ${
               activeView === "todo"
                 ? "bg-stone-100 text-stone-900 shadow-sm"
                 : "text-stone-500 hover:bg-stone-50 hover:text-stone-800"
             }`}
           >
-            <div className="flex items-center gap-3">
-              <CheckSquare className="w-4 h-4" />
-              <span>Gaps Todo</span>
+            <div className="flex items-center gap-3 relative">
+              <CheckSquare className="w-4 h-4 flex-shrink-0" />
+              {gaps.filter(g => g.status === "open").length > 0 && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full border-2 border-white lg:hidden" />
+              )}
+              <span className="hidden lg:block">Gaps Todo</span>
             </div>
             {gaps.filter(g => g.status === "open").length > 0 && (
-              <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+              <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full hidden lg:block">
                 {gaps.filter(g => g.status === "open").length}
               </span>
             )}
@@ -942,34 +948,37 @@ function DashboardMain() {
 
           <button
             onClick={() => setActiveView("notifications")}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition ${
+            className={`w-full flex items-center justify-center lg:justify-between px-3 py-2.5 rounded-lg text-sm font-semibold transition ${
               activeView === "notifications"
                 ? "bg-stone-100 text-stone-900 shadow-sm"
                 : "text-stone-500 hover:bg-stone-50 hover:text-stone-800"
             }`}
           >
-            <div className="flex items-center gap-3">
-              <Bell className="w-4 h-4" />
-              <span>Notifications</span>
+            <div className="flex items-center gap-3 relative">
+              <Bell className="w-4 h-4 flex-shrink-0" />
+              {notifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-600 rounded-full border-2 border-white lg:hidden" />
+              )}
+              <span className="hidden lg:block">Notifications</span>
             </div>
             {notifications.length > 0 && (
-              <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse hidden lg:block" />
             )}
           </button>
         </div>
 
         {/* User Account Footer Profile (Shadcn pattern) */}
-        <div className="p-4 border-t border-stone-200 flex items-center justify-between bg-stone-50/50">
+        <div className="p-4 border-t border-stone-200 flex items-center justify-center lg:justify-between bg-stone-50/50">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-full bg-stone-200 border border-stone-300 flex-shrink-0 flex items-center justify-center font-bold text-stone-700">
               JD
             </div>
-            <div className="min-w-0 text-left">
+            <div className="min-w-0 text-left hidden lg:block">
               <div className="text-xs font-bold text-stone-800 truncate">Jon Doe</div>
               <div className="text-[10px] text-stone-500 truncate">joe@acmecorp.com</div>
             </div>
           </div>
-          <ChevronDown className="w-3.5 h-3.5 text-stone-400" />
+          <ChevronDown className="w-3.5 h-3.5 text-stone-400 hidden lg:block" />
         </div>
       </div>
 
@@ -1190,6 +1199,7 @@ function DashboardMain() {
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
               onNewChatOpen={() => setIsNewChatOpen(true)}
+              isLoading={isConversationsLoading}
             />
 
             {/* Middle: Chat Feed */}
@@ -1245,6 +1255,7 @@ function DashboardMain() {
                     onAiReactClick={handleAiReactClick}
                     onAiReplyClick={handleAiReplyClick}
                     onInspectAudit={setSelectedAuditForModal}
+                    isLoading={isMessagesLoading || isAuditsLoading}
                   />
 
                   <MessageComposer
@@ -1282,6 +1293,8 @@ function DashboardMain() {
               onSavePrompt={handleSavePrompt}
               onSelectPromptVersion={handleSelectPromptVersion}
               showToast={showToast}
+              isPromptsLoading={isPromptsLoading}
+              isAuditsLoading={isAuditsLoading}
             />
 
             {/* Mobile Inspector Backdrop */}

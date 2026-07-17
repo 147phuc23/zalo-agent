@@ -1,23 +1,24 @@
-import useSWR from "swr";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PromptVersion } from "@/lib/types";
 
-const fetcher = async (url: string) => {
-  const res = await fetch(url);
-  const data = await res.json();
-  if (!data.ok) throw new Error(data.error || "Failed to fetch prompts");
-  return data.versions as PromptVersion[];
-};
-
 export function usePrompts() {
-  const { data, error, isLoading, mutate } = useSWR<PromptVersion[]>(
-    "/api/prompts?listAll=true",
-    fetcher
-  );
+  const queryClient = useQueryClient();
+  const queryKey = ["prompts"];
+
+  const { data, error, isLoading } = useQuery<PromptVersion[]>({
+    queryKey,
+    queryFn: async () => {
+      const res = await fetch("/api/prompts?listAll=true");
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Failed to fetch prompts");
+      return data.versions as PromptVersion[];
+    },
+  });
 
   return {
     promptVersions: data || [],
-    error,
+    error: error as Error | null,
     isLoading,
-    mutate,
+    mutate: () => queryClient.invalidateQueries({ queryKey }),
   };
 }

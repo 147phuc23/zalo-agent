@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import useSWR from "swr";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MessageSquare,
   Send,
@@ -60,6 +60,26 @@ export default function GuestChatPage() {
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const verifySession = async (secret: string) => {
+    setIsVerifyingSession(true);
+    try {
+      const res = await fetch(`/api/guest/${code}/me`, {
+        headers: { Authorization: `Bearer ${secret}` },
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSessionSecret(secret);
+        setIsAuthenticated(true);
+      } else {
+        localStorage.removeItem(`guest:${code}`);
+      }
+    } catch (err) {
+      console.error("Session verification failed:", err);
+    } finally {
+      setIsVerifyingSession(false);
+    }
+  };
+
   // Check state & localStorage session on mount
   useEffect(() => {
     async function checkState() {
@@ -97,40 +117,37 @@ export default function GuestChatPage() {
     }
   }, [code]);
 
-  async function verifySession(secret: string) {
-    setIsVerifyingSession(true);
-    try {
-      const res = await fetch(`/api/guest/${code}/me`, {
-        headers: { Authorization: `Bearer ${secret}` },
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setSessionSecret(secret);
-        setIsAuthenticated(true);
-      } else {
-        localStorage.removeItem(`guest:${code}`);
-      }
-    } catch (err) {
-      console.error("Session verification failed:", err);
-    } finally {
-      setIsVerifyingSession(false);
-    }
-  }
-
-  // SWR Message Polling
-  const { data: messageData, mutate: mutateMessages } = useSWR<{ ok: boolean; messages: Message[] }>(
-    isAuthenticated && sessionSecret ? `/api/guest/${code}/messages` : null,
-    async (url: string) => {
-      const res = await fetch(url, {
+  // React Query Message Polling
+  const queryClient = useQueryClient();
+  const queryKey = ["guestMessages", code, sessionSecret];
+  const { data: messageData } = useQuery<{ ok: boolean; messages: Message[] }>({
+    queryKey,
+    queryFn: async () => {
+      const res = await fetch(`/api/guest/${code}/messages`, {
         headers: { Authorization: `Bearer ${sessionSecret}` },
       });
-      return res.json();
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "Failed to fetch messages");
+      return data;
     },
-    {
-      refreshInterval: 5000,
-      revalidateOnFocus: true,
+    enabled: !!(isAuthenticated && sessionSecret),
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+  });
+
+  const mutateMessages = (
+    updater?: { ok: boolean; messages: Message[] } | ((prev: { ok: boolean; messages: Message[] } | undefined) => { ok: boolean; messages: Message[] }),
+    options?: any
+  ) => {
+    if (typeof updater === "function") {
+      const current = queryClient.getQueryData<{ ok: boolean; messages: Message[] }>(queryKey);
+      queryClient.setQueryData(queryKey, updater(current));
+    } else if (updater !== undefined) {
+      queryClient.setQueryData(queryKey, updater);
+    } else {
+      queryClient.invalidateQueries({ queryKey });
     }
-  );
+  };
 
   const messages = messageData?.messages || [];
 

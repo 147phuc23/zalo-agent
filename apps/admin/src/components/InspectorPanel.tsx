@@ -20,6 +20,8 @@ interface InspectorPanelProps {
   onSavePrompt: () => void;
   onSelectPromptVersion: (version: PromptVersion) => void;
   showToast?: (msg: string, type: "success" | "error") => void;
+  isPromptsLoading?: boolean;
+  isAuditsLoading?: boolean;
 }
 
 export function InspectorPanel({
@@ -37,6 +39,8 @@ export function InspectorPanel({
   onSavePrompt,
   onSelectPromptVersion,
   showToast,
+  isPromptsLoading,
+  isAuditsLoading,
 }: InspectorPanelProps) {
   if (!showInspector) return null;
 
@@ -100,7 +104,7 @@ export function InspectorPanel({
               <h4 className="font-semibold text-xs tracking-wider uppercase text-slate-500">
                 Tool Calls & Audits
               </h4>
-              {selectedId && (
+              {selectedId && !isAuditsLoading && audits.length > 0 && (
                 <button
                   onClick={onExportSession}
                   className="text-xs text-blue-600 hover:text-blue-500 flex items-center gap-1 font-semibold"
@@ -113,62 +117,80 @@ export function InspectorPanel({
 
             {/* Collapsible Tool Audit list */}
             <div className="space-y-2.5">
-              {audits.map((a) => (
-                <div
-                  key={a.id}
-                  className={`rounded-xl border p-3 bg-gray-50 ${
-                    a.status === "ok" ? "border-gray-200" : "border-red-200"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <Sliders className="w-3.5 h-3.5 text-blue-600" />
-                      <span className="font-mono text-xs font-bold text-slate-800 font-semibold truncate block max-w-[200px]">
-                        {a.tool_name}
-                      </span>
+              {isAuditsLoading ? (
+                Array.from({ length: 3 }).map((_, i) => (
+                  <div
+                    key={`skeleton-audit-${i}`}
+                    className="rounded-xl border border-gray-200 p-3 bg-gray-50/70 animate-pulse space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="h-3.5 bg-gray-200 rounded w-1/3"></div>
+                      <div className="h-3.5 bg-gray-200 rounded w-12"></div>
                     </div>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                        a.status === "ok" ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-650"
+                    <div className="h-2.5 bg-gray-200 rounded w-1/4"></div>
+                    <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+                  </div>
+                ))
+              ) : (
+                <>
+                  {audits.map((a) => (
+                    <div
+                      key={a.id}
+                      className={`rounded-xl border p-3 bg-gray-50 ${
+                        a.status === "ok" ? "border-gray-200" : "border-red-200"
                       }`}
                     >
-                      {a.status}
-                    </span>
-                  </div>
-
-                  <div className="text-[10px] text-slate-400 flex items-center gap-1 mb-2">
-                    <Clock className="w-3 h-3" />
-                    {new Date(a.created_at).toLocaleTimeString()}
-                  </div>
-
-                  <details className="mt-2 text-xs group">
-                    <summary className="cursor-pointer text-[11px] text-slate-500 select-none hover:text-slate-700 font-semibold">
-                      View parameters / results
-                    </summary>
-                    <div className="mt-2 space-y-2">
-                      <div>
-                        <div className="text-[10px] text-slate-500 mb-1">Inputs:</div>
-                        <code className="block p-2 rounded bg-white text-[10px] text-slate-700 overflow-x-auto border border-gray-200 select-text">
-                          {JSON.stringify(a.input, null, 2)}
-                        </code>
-                      </div>
-                      {a.output && (
-                        <div>
-                          <div className="text-[10px] text-slate-500 mb-1">Outputs:</div>
-                          <code className="block p-2 rounded bg-white text-[10px] text-slate-700 overflow-x-auto border border-gray-200 select-text">
-                            {JSON.stringify(a.output, null, 2)}
-                          </code>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <Sliders className="w-3.5 h-3.5 text-blue-600" />
+                          <span className="font-mono text-xs font-bold text-slate-800 font-semibold truncate block max-w-[200px]">
+                            {a.tool_name}
+                          </span>
                         </div>
-                      )}
-                    </div>
-                  </details>
-                </div>
-              ))}
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                            a.status === "ok" ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-650"
+                          }`}
+                        >
+                          {a.status}
+                        </span>
+                      </div>
 
-              {audits.length === 0 && (
-                <div className="text-center p-6 text-xs text-slate-400 bg-gray-50 border border-gray-200 rounded-xl">
-                  No tool execution calls captured yet.
-                </div>
+                      <div className="text-[10px] text-slate-400 flex items-center gap-1 mb-2">
+                        <Clock className="w-3 h-3" />
+                        {new Date(a.created_at).toLocaleTimeString()}
+                      </div>
+
+                      <details className="mt-2 text-xs group">
+                        <summary className="cursor-pointer text-[11px] text-slate-500 select-none hover:text-slate-700 font-semibold">
+                          View parameters / results
+                        </summary>
+                        <div className="mt-2 space-y-2">
+                          <div>
+                            <div className="text-[10px] text-slate-500 mb-1">Inputs:</div>
+                            <code className="block p-2 rounded bg-white text-[10px] text-slate-700 overflow-x-auto border border-gray-200 select-text">
+                              {JSON.stringify(a.input, null, 2)}
+                            </code>
+                          </div>
+                          {a.output && (
+                            <div>
+                              <div className="text-[10px] text-slate-500 mb-1">Outputs:</div>
+                              <code className="block p-2 rounded bg-white text-[10px] text-slate-700 overflow-x-auto border border-gray-200 select-text">
+                                {JSON.stringify(a.output, null, 2)}
+                              </code>
+                            </div>
+                          )}
+                        </div>
+                      </details>
+                    </div>
+                  ))}
+
+                  {audits.length === 0 && (
+                    <div className="text-center p-6 text-xs text-slate-400 bg-gray-50 border border-gray-200 rounded-xl">
+                      No tool execution calls captured yet.
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -179,6 +201,7 @@ export function InspectorPanel({
             promptVersions={promptVersions}
             onSavePrompt={onSavePrompt}
             onSelectPromptVersion={onSelectPromptVersion}
+            isLoading={isPromptsLoading}
           />
         ) : (
           <GuestsManager showToast={showToast} />

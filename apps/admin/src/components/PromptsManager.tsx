@@ -8,6 +8,7 @@ interface PromptsManagerProps {
   promptVersions: PromptVersion[];
   onSavePrompt: () => void;
   onSelectPromptVersion: (version: PromptVersion) => void;
+  isLoading?: boolean;
 }
 
 export function PromptsManager({
@@ -16,6 +17,7 @@ export function PromptsManager({
   promptVersions,
   onSavePrompt,
   onSelectPromptVersion,
+  isLoading,
 }: PromptsManagerProps) {
   return (
     <div className="space-y-4">
@@ -46,34 +48,51 @@ export function PromptsManager({
           Version History
         </h5>
         <div className="space-y-2">
-          {promptVersions.map((v) => (
-            <button
-              key={v.id}
-              onClick={() => onSelectPromptVersion(v)}
-              className={`w-full text-left p-3 rounded-xl border text-xs flex items-center justify-between gap-3 transition ${
-                v.is_active
-                  ? "bg-blue-50 border-blue-200/50 text-blue-700 font-semibold"
-                  : "bg-gray-50 border border-gray-150 text-slate-500 hover:bg-gray-100 hover:text-slate-700"
-              }`}
-            >
-              <div className="min-w-0">
-                <div className="font-medium text-slate-800">
-                  Version {v.version} {v.is_active && "(Active)"}
+          {isLoading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={`skeleton-prompt-${i}`}
+                className="w-full p-3 rounded-xl border border-gray-200 bg-gray-50/70 animate-pulse flex items-center justify-between gap-3"
+              >
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-3.5 bg-gray-200 rounded w-1/4"></div>
+                  <div className="h-3 bg-gray-200 rounded w-5/6"></div>
                 </div>
-                <div className="text-[10px] text-slate-400 mt-1 truncate">
-                  {v.content.slice(0, 80)}...
-                </div>
+                <div className="h-3 bg-gray-200 rounded w-10 shrink-0"></div>
               </div>
-              <span className="text-[9px] text-slate-400 whitespace-nowrap">
-                {new Date(v.created_at).toLocaleDateString()}
-              </span>
-            </button>
-          ))}
+            ))
+          ) : (
+            <>
+              {promptVersions.map((v) => (
+                <button
+                  key={v.id}
+                  onClick={() => onSelectPromptVersion(v)}
+                  className={`w-full text-left p-3 rounded-xl border text-xs flex items-center justify-between gap-3 transition ${
+                    v.is_active
+                      ? "bg-blue-50 border-blue-200/50 text-blue-700 font-semibold"
+                      : "bg-gray-50 border border-gray-150 text-slate-500 hover:bg-gray-100 hover:text-slate-700"
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <div className="font-medium text-slate-800">
+                      Version {v.version} {v.is_active && "(Active)"}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-1 truncate">
+                      {v.content.slice(0, 80)}...
+                    </div>
+                  </div>
+                  <span className="text-[9px] text-slate-400 whitespace-nowrap">
+                    {new Date(v.created_at).toLocaleDateString()}
+                  </span>
+                </button>
+              ))}
 
-          {promptVersions.length === 0 && (
-            <div className="text-center p-6 text-xs text-slate-400 bg-gray-50 border border-gray-200 rounded-xl">
-              No prompt history logged.
-            </div>
+              {promptVersions.length === 0 && (
+                <div className="text-center p-6 text-xs text-slate-400 bg-gray-50 border border-gray-200 rounded-xl">
+                  No prompt history logged.
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
