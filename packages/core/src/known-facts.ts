@@ -1,4 +1,5 @@
 import type { createRepositorySet } from "@platform/database";
+import { stripTags } from "@platform/agent";
 
 type Repos = ReturnType<typeof createRepositorySet>;
 
@@ -102,8 +103,14 @@ export async function buildKnownFacts(
     return undefined;
   }
 
-  return [
+  const factsBlock = [
     "# Known Facts So Far (from earlier tool results - do not re-ask these)",
     ...lines,
   ].join("\n");
+
+  // Facts are derived from tool outputs that ultimately trace back to
+  // candidate-supplied text (profile fields, requirements); this block is
+  // rendered into the system prompt, so it must be sanitized like any other
+  // candidate-controlled content.
+  return stripTags(factsBlock);
 }

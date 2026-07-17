@@ -7,6 +7,7 @@ import type {
 } from "../types.js";
 import { CORE_HR_AGENT_INSTRUCTIONS } from "./core-instructions.js";
 import { CANONICAL_LOCATIONS } from "../core/location-normalizer.js";
+import { stripTags, wrapCandidateMessage } from "./sanitize-user-input.js";
 
 export type PromptCacheContext = {
   system: string;
@@ -115,7 +116,8 @@ function buildChatMessages(history: HrAgentState["history"]): CoreMessage[] {
   const recentHistory = history.slice(-60);
   return recentHistory.map((msg) => ({
     role: msg.role === "assistant" ? "assistant" as const : "user" as const,
-    content: msg.content,
+    content:
+      msg.role === "assistant" ? msg.content : wrapCandidateMessage(msg.content),
   }));
 }
 
@@ -135,7 +137,11 @@ function formatProfile(profile: CandidateProfile): string {
   for (const [key, value] of Object.entries(profile)) {
     if (value === null || value === undefined || value === "") continue;
     if (Array.isArray(value) && value.length === 0) continue;
-    lines.push(`- ${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
+    const rendered = typeof value === "object" ? JSON.stringify(value) : String(value);
+    // Profile values are candidate-controlled (saved via CRM update tools) and
+    // land directly in the system prompt, so they must be sanitized like any
+    // other candidate-supplied content.
+    lines.push(`- ${key}: ${stripTags(rendered)}`);
   }
   return lines.length > 0 ? lines.join("\n") : "No profile data available.";
 }

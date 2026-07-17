@@ -4,6 +4,8 @@ import {
   classifyIntent,
   generateChitchatReply,
   resolveHrSkillMode,
+  stripTags,
+  wrapCandidateMessage,
 } from "@platform/agent";
 import type { MockZaloPayload } from "@platform/agent";
 import { createOpenRouterChatModel } from "@platform/ai-client";
@@ -51,7 +53,10 @@ export async function generateAndSaveReply(
     (await resolveClassifierModel(repos, input.tenantId)) ?? "tencent/hy3:free";
   const routerMessages = messages.map((m) => ({
     role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
-    content: m.text ?? "",
+    content:
+      m.direction === "inbound"
+        ? wrapCandidateMessage(m.text ?? "")
+        : (m.text ?? ""),
   }));
 
   let targetMessage: MessageRow | undefined;
@@ -139,7 +144,7 @@ export async function generateAndSaveReply(
   if (targetMessage) {
     systemPromptOverride =
       (systemPromptOverride || "") +
-      `\n\nIMPORTANT: The candidate has sent a message that you are replying to: "${targetMessage.text}". Make sure your response specifically and directly replies to/quotes this message.`;
+      `\n\nIMPORTANT: The candidate has sent a message that you are replying to: "${stripTags(targetMessage.text ?? "")}". Make sure your response specifically and directly replies to/quotes this message.`;
   }
 
   // Format messages for the tool-calling agent runner

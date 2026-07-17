@@ -11,6 +11,8 @@ import {
   classifyIntent,
   generateChitchatReply,
   resolveHrSkillMode,
+  stripTags,
+  wrapCandidateMessage,
 } from "@platform/agent";
 import { startCvWorker } from "@platform/agent/cv-extractor";
 import { startDocumentWorker } from "@platform/agent/document-processor";
@@ -361,7 +363,10 @@ async function generateDraftReply(
   const classifierModel = (await resolveClassifierModel(tenantId)) ?? "tencent/hy3:free";
   const routerMessages = messages.map((m) => ({
     role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
-    content: m.text ?? "",
+    content:
+      m.direction === "inbound"
+        ? wrapCandidateMessage(m.text ?? "")
+        : (m.text ?? ""),
   }));
 
   const knownFacts = await buildKnownFacts(repos, conversationId);
@@ -541,7 +546,7 @@ async function generateDraftReply(
   if (targetMessage) {
     systemPromptOverride =
       (systemPromptOverride || "") +
-      `\n\nIMPORTANT: The candidate has sent a message that you are replying to: "${targetMessage.text}". Make sure your response specifically and directly replies to/quotes this message.`;
+      `\n\nIMPORTANT: The candidate has sent a message that you are replying to: "${stripTags(targetMessage.text ?? "")}". Make sure your response specifically and directly replies to/quotes this message.`;
   }
 
   // Format messages for the tool-calling agent runner
