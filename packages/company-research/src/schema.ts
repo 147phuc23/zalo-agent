@@ -29,6 +29,13 @@ export const CompanyResearchJsonSchema = z.object({
       description: z.string().optional(),
     })
   ).default([]),
+  interviewProcess: z.array(
+    z.object({
+      round: z.number(),
+      name: z.string(),
+      description: z.string(),
+    })
+  ).default([]),
   research: z.record(z.unknown()).default({}),
 });
 

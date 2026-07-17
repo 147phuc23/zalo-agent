@@ -426,6 +426,30 @@ describe("Knowledge Gaps and Company Sources Repository integration tests", () =
     await client.query("DELETE FROM public.knowledge_gaps WHERE id = $1", [res1.id]);
   });
 
+  it("should create company research with interview process", async () => {
+    const company = await repos.companies.updateResearch({
+      tenantId,
+      name: "Interview Test Corp",
+      website: "https://interviewtest.com",
+      introduction: "We test interviews",
+      benefits: "Perks",
+      workStyle: "Work hard",
+      interviewProcess: [
+        { round: 1, name: "Screening", description: "Review CV" },
+        { round: 2, name: "Coding Test", description: "Codility" }
+      ]
+    });
+
+    expect(company.name).toBe("Interview Test Corp");
+    expect(company.interview_process).toBeDefined();
+    expect(Array.isArray(company.interview_process)).toBe(true);
+    expect(company.interview_process.length).toBe(2);
+    expect((company.interview_process as any)[0].name).toBe("Screening");
+
+    // Cleanup
+    await client.query("DELETE FROM public.companies WHERE id = $1", [company.id]);
+  });
+
   it("should replace company sources", async () => {
     // Setup a dummy company
     const companyId = await repos.companies.ensureExists({

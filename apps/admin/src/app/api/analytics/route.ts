@@ -3,7 +3,7 @@ import { createDatabaseClient } from "@platform/database";
 
 export const runtime = "nodejs";
 
-export async function GET() {
+export async function GET(req: Request) {
   const tenantId = process.env.TENANT_ID;
   const dbUrl = process.env.PLATFORM_DB_URL;
   if (!tenantId || !dbUrl) {
@@ -13,19 +13,35 @@ export async function GET() {
     );
   }
 
+  const { searchParams } = new URL(req.url);
+  const range = searchParams.get("range") || "month";
+
+  let interval = "30 days";
+  let rangeLabel = "this month";
+  let prevRangeLabel = "last month";
+  if (range === "week") {
+    interval = "7 days";
+    rangeLabel = "this week";
+    prevRangeLabel = "last week";
+  } else if (range === "quarter") {
+    interval = "90 days";
+    rangeLabel = "this quarter";
+    prevRangeLabel = "last quarter";
+  }
+
   const client = createDatabaseClient({ PLATFORM_DB_URL: dbUrl });
   try {
-    // 1. Total Candidates count + new this month (created in last 30 days)
+    // 1. Total Candidates count + new in the selected range
     const candidatesCountRes = await client.query(
       `SELECT 
          COUNT(*) as total,
-         COUNT(CASE WHEN created_at >= NOW() - INTERVAL '30 days' THEN 1 END) as new_this_month
+         COUNT(CASE WHEN created_at >= NOW() - INTERVAL '${interval}' THEN 1 END) as new_in_range
        FROM public.candidate_profiles
        WHERE tenant_id = $1`,
       [tenantId]
     );
     const totalCandidates = parseInt(candidatesCountRes.rows[0].total) || 0;
-    const newCandidatesThisMonth = parseInt(candidatesCountRes.rows[0].new_this_month) || 0;
+    const newCandidatesThisMonth = parseInt(candidatesCountRes.rows[0].new_in_range) || 0;
 
     // 2. Active Chats Today (conversations count) + open gaps needing review
     const conversationsCountRes = await client.query(
@@ -39,7 +55,7 @@ export async function GET() {
     const totalConversations = parseInt(conversationsCountRes.rows[0].total) || 0;
     const openGapsNeedReview = parseInt(gapsCountRes.rows[0].total) || 0;
 
-    // 3. Applications Funnel Stages counts
+    // 3. Applications Funnel Stages counts (filtered by activity in range)
     const funnelRes = await client.query(
       `SELECT 
          COUNT(CASE WHEN stage = 'submitted' THEN 1 END) as submitted,
@@ -48,7 +64,7 @@ export async function GET() {
          COUNT(CASE WHEN stage = 'offer' THEN 1 END) as offer,
          COUNT(CASE WHEN status = 'hired' THEN 1 END) as hired
        FROM public.applications
-       WHERE tenant_id = $1`,
+       WHERE tenant_id = $1 AND updated_at >= NOW() - INTERVAL '${interval}'`,
       [tenantId]
     );
     const funnel = {
@@ -59,8 +75,7 @@ export async function GET() {
       hired: parseInt(funnelRes.rows[0].hired) || 0,
     };
 
-    // 4. Bot performance calculations
-    // Calculate average response time: delay between inbound and first subsequent outbound message
+    // 4. Bot performance calculations (filtered by range)
     const msgTimesRes = await client.query(
       `WITH msg_pairs AS (
          SELECT 
@@ -69,7 +84,10 @@ export async function GET() {
            MIN(m2.created_at) as outbound_time
          FROM public.messages m1
          JOIN public.messages m2 ON m1.conversation_id = m2.conversation_id
-         WHERE m1.direction = 'inbound' AND m2.direction = 'outbound' AND m2.created_at > m1.created_at
+         WHERE m1.direction = 'inbound' 
+           AND m2.direction = 'outbound' 
+           AND m2.created_at > m1.created_at
+           AND m1.created_at >= NOW() - INTERVAL '${interval}'
          GROUP BY m1.conversation_id, m1.created_at
        )
        SELECT AVG(EXTRACT(EPOCH FROM (outbound_time - inbound_time))) as avg_delay_seconds
@@ -77,27 +95,25 @@ export async function GET() {
     );
     const avgResponseTimeSec = parseFloat(msgTimesRes.rows[0].avg_delay_seconds) || 1.8;
 
-    // Calculate response rate: % of inbound messages with at least one reply
     const responseRateRes = await client.query(
       `SELECT 
          COUNT(DISTINCT conversation_id) as total_convs,
          COUNT(DISTINCT CASE WHEN direction = 'outbound' THEN conversation_id END) as replied_convs
        FROM public.messages
-       WHERE tenant_id = $1`,
+       WHERE tenant_id = $1 AND created_at >= NOW() - INTERVAL '${interval}'`,
       [tenantId]
     );
     const totalConvs = parseInt(responseRateRes.rows[0].total_convs) || 0;
     const repliedConvs = parseInt(responseRateRes.rows[0].replied_convs) || 0;
     const botResponseRate = totalConvs > 0 ? (repliedConvs / totalConvs) * 100 : 94.2;
 
-    // Usage this month
+    // Messages usage in this range
     const totalMessagesRes = await client.query(
-      `SELECT COUNT(*) as total FROM public.messages WHERE tenant_id = $1`,
+      `SELECT COUNT(*) as total FROM public.messages WHERE tenant_id = $1 AND created_at >= NOW() - INTERVAL '${interval}'`,
       [tenantId]
     );
     const totalMessages = parseInt(totalMessagesRes.rows[0].total) || 0;
 
-    // Calculate mock API cost based on token assumptions
     const estimatedCost = (totalMessages * 0.002).toFixed(2);
 
     return NextResponse.json({
@@ -112,6 +128,8 @@ export async function GET() {
         funnel,
         totalMessages,
         estimatedCost,
+        rangeLabel,
+        prevRangeLabel,
       },
     });
   } catch (err: any) {

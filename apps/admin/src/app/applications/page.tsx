@@ -19,6 +19,7 @@ interface Application {
   job_title: string;
   company_name: string;
   candidate_name: string | null;
+  company_interview_process?: Array<{ round: number; name: string; description: string }>;
 }
 
 interface ApplicationEvent {
@@ -296,6 +297,26 @@ export default function ApplicationsPage() {
                 </div>
               </div>
 
+              {/* Company Interview Process */}
+              {selectedApp.company_interview_process && selectedApp.company_interview_process.length > 0 && (
+                <div className="border-t border-stone-150 pt-5">
+                  <h4 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">Hiring Process & Rounds</h4>
+                  <div className="space-y-3.5">
+                    {selectedApp.company_interview_process.map((round) => (
+                      <div key={round.round} className="flex gap-3">
+                        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-bold text-indigo-600 border border-indigo-200">
+                          {round.round}
+                        </div>
+                        <div className="text-xs">
+                          <span className="font-semibold text-stone-800 block">{round.name}</span>
+                          <span className="text-stone-450 mt-0.5 block leading-relaxed">{round.description}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Transition Form */}
               {selectedApp.status === "active" ? (
                 <form onSubmit={handleTransition} className="space-y-4 border-t border-stone-200 pt-6">
@@ -380,8 +401,18 @@ export default function ApplicationsPage() {
                       {/* Event Details */}
                       <div className="flex-1 text-xs">
                         <div className="flex justify-between items-start">
-                          <span className="font-semibold text-stone-800">
-                            {ev.from_stage ? `${ev.from_stage} → ${ev.to_stage}` : `Applied: ${ev.to_stage}`}
+                          <span className="font-semibold text-stone-850 flex flex-wrap items-center gap-1.5">
+                            <span>{ev.from_stage ? `${ev.from_stage} → ${ev.to_stage}` : `Applied: ${ev.to_stage}`}</span>
+                            {index > 0 && (
+                              <span className="text-[10px] text-indigo-500 font-normal bg-indigo-50 px-1.5 py-0.5 rounded flex items-center gap-0.5" title="Duration in previous stage">
+                                ⏱️ {(() => {
+                                  const diffMs = new Date(ev.created_at).getTime() - new Date(events[index - 1].created_at).getTime();
+                                  const diffHours = diffMs / (1000 * 60 * 60);
+                                  if (diffHours < 24) return `${diffHours.toFixed(1)}h`;
+                                  return `${(diffHours / 24).toFixed(1)}d`;
+                                })()}
+                              </span>
+                            )}
                           </span>
                           <span className="text-stone-400">{new Date(ev.created_at).toLocaleDateString()}</span>
                         </div>

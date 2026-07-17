@@ -496,6 +496,7 @@ export async function runHrAgentScenario(
                     leadership: row.leadership,
                     products: row.products,
                     materials: row.materials,
+                    interviewProcess: row.interview_process as any,
                     researchedAt: row.researched_at ? new Date(row.researched_at).toISOString() : null,
                   };
                 },
@@ -670,20 +671,36 @@ export async function runHrAgentScenario(
                     }
                   }
 
-                  const apps = await getApplicationsRepo()!.listByCandidate({
+                  const repo = getApplicationsRepo()!;
+                  const apps = await repo.listByCandidate({
                     tenantId,
                     contactId,
                     guestAccessId,
                   });
 
-                  return apps.map((app) => ({
-                    jobTitle: app.job_title,
-                    companyName: app.company_name,
-                    stage: app.stage,
-                    status: app.status,
-                    updatedAt: app.updated_at,
-                    lastNote: app.note,
-                  }));
+                  const results = [];
+                  for (const app of apps) {
+                    const events = await repo.listEvents(app.id);
+                    results.push({
+                      jobTitle: app.job_title,
+                      companyName: app.company_name,
+                      stage: app.stage,
+                      status: app.status,
+                      updatedAt: app.updated_at,
+                      lastNote: app.note,
+                      interviewProcess: (app as any).company_interview_process || [],
+                      timelineEvents: events.map((e) => ({
+                        fromStage: e.from_stage,
+                        toStage: e.to_stage,
+                        fromStatus: e.from_status,
+                        toStatus: e.to_status,
+                        actorType: e.actor_type,
+                        note: e.note,
+                        createdAt: e.created_at,
+                      })),
+                    });
+                  }
+                  return results;
                 },
               }
             : undefined,

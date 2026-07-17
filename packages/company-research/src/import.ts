@@ -31,6 +31,7 @@ export async function importCompanyResearch(input: {
       products: data.products,
       materials: data.materials,
       research: data.research,
+      interviewProcess: data.interviewProcess,
     });
 
     console.log(`[import] Saved company details (ID: ${company.id})`);

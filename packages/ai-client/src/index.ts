@@ -8,6 +8,8 @@ const OpenRouterEnvSchema = z.object({
 const unsupportedJsonModels = new Set<string>([
   "tencent/hy3:free",
   "tencent/hy3",
+  "nvidia/nemotron-3-ultra-550b-a55b:free",
+  "poolside/laguna-m.1:free",
 ]);
 
 export type GenerateInput = {

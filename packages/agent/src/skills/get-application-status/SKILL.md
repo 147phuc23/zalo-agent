@@ -14,3 +14,5 @@ Output contract:
   - `status`: Outcome status (`active`, `hired`, `rejected`, `withdrawn`).
   - `updatedAt`: ISO timestamp of the last status update.
   - `lastNote`: Optional note from the last transition.
+  - `interviewProcess`: Optional array of standard interview rounds for this company, each containing `round` (number), `name` (string), and `description` (string).
+  - `timelineEvents`: Optional array of actual historical events for this candidate's application, each containing `fromStage`, `toStage`, `fromStatus`, `toStatus`, `note` (optional), and `createdAt` (ISO timestamp). Use this timeline to calculate and report duration/telemetry (e.g. how long the candidate has been in the current stage!).

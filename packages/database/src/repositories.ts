@@ -591,6 +591,7 @@ export interface CompanyRow {
   products: unknown[];
   materials: unknown[];
   research: Record<string, unknown>;
+  interview_process: unknown[];
   researched_at: string | null;
   created_at: string;
   updated_at: string;
@@ -659,11 +660,12 @@ export function createCompanyRepository(client: DatabaseClient) {
       products?: unknown[];
       materials?: unknown[];
       research?: Record<string, unknown>;
+      interviewProcess?: unknown[];
     }): Promise<CompanyRow> {
       const res = await client.query(
         `INSERT INTO companies (
-          tenant_id, name, website, introduction, benefits, work_style, leadership, products, materials, research, researched_at
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, now())
+          tenant_id, name, website, introduction, benefits, work_style, leadership, products, materials, research, interview_process, researched_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())
          ON CONFLICT (tenant_id, name) DO UPDATE SET
            website = COALESCE(EXCLUDED.website, companies.website),
            introduction = COALESCE(EXCLUDED.introduction, companies.introduction),
@@ -673,6 +675,7 @@ export function createCompanyRepository(client: DatabaseClient) {
            products = COALESCE(EXCLUDED.products, companies.products),
            materials = COALESCE(EXCLUDED.materials, companies.materials),
            research = COALESCE(EXCLUDED.research, companies.research),
+           interview_process = COALESCE(EXCLUDED.interview_process, companies.interview_process),
            researched_at = now(),
            updated_at = now()
          RETURNING *`,
@@ -687,6 +690,7 @@ export function createCompanyRepository(client: DatabaseClient) {
           input.products ? JSON.stringify(input.products) : '[]',
           input.materials ? JSON.stringify(input.materials) : '[]',
           input.research ? JSON.stringify(input.research) : '{}',
+          input.interviewProcess ? JSON.stringify(input.interviewProcess) : '[]',
         ]
       );
       return res.rows[0] as CompanyRow;
@@ -1776,9 +1780,9 @@ export function createApplicationRepository(client: DatabaseClient) {
       tenantId: string;
       contactId?: string | null;
       guestAccessId?: string | null;
-    }): Promise<Array<ApplicationRow & { job_title: string; company_name: string }>> {
+    }): Promise<Array<ApplicationRow & { job_title: string; company_name: string; company_interview_process?: unknown[] }>> {
       let query = `
-        SELECT a.*, jp.title as job_title, c.name as company_name
+        SELECT a.*, jp.title as job_title, c.name as company_name, c.interview_process as company_interview_process
         FROM public.applications a
         JOIN public.job_postings jp ON jp.id = a.job_posting_id
         LEFT JOIN public.companies c ON c.id = jp.company_id
@@ -1804,9 +1808,9 @@ export function createApplicationRepository(client: DatabaseClient) {
       status?: string;
       stage?: string;
       limit?: number;
-    }): Promise<Array<ApplicationRow & { job_title: string; company_name: string; candidate_name: string | null }>> {
+    }): Promise<Array<ApplicationRow & { job_title: string; company_name: string; candidate_name: string | null; company_interview_process?: unknown[] }>> {
       let query = `
-        SELECT a.*, jp.title as job_title, c.name as company_name,
+        SELECT a.*, jp.title as job_title, c.name as company_name, c.interview_process as company_interview_process,
                COALESCE(cp.full_name, con.display_name, ga.display_name) as candidate_name
         FROM public.applications a
         JOIN public.job_postings jp ON jp.id = a.job_posting_id

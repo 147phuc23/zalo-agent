@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { createRepositorySet, GuestAccessRow } from "@platform/database";
 import { ingestInboundMessage } from "./ingest.js";
 import { generateAndSaveReply } from "./reply.js";
+import { mapMessagesWithResponseTime } from "./inbox.js";
 
 type Repos = ReturnType<typeof createRepositorySet>;
 
@@ -227,20 +228,7 @@ export async function listGuestMessages(
     after: input.after,
   });
 
-  return messages.map((m) => ({
-    id: m.id,
-    tenantId: m.tenant_id,
-    conversationId: m.conversation_id,
-    direction: m.direction,
-    messageType: m.message_type,
-    text: m.text,
-    externalMessageId: m.external_message_id,
-    idempotencyKey: m.idempotency_key,
-    rawPayload: m.raw_payload,
-    isRead: m.is_read,
-    readAt: m.read_at,
-    createdAt: m.created_at,
-  }));
+  return mapMessagesWithResponseTime(messages);
 }
 
 export async function sendGuestMessage(

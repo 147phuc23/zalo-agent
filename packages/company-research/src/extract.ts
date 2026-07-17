@@ -58,6 +58,9 @@ You MUST output a valid JSON object matching this schema:
   "materials": [
     { "type": "book|blog|video|press|other", "title": "Material title", "url": "URL of material", "description": "Optional desc" }
   ],
+  "interviewProcess": [
+    { "round": 1, "name": "Stage/Round Name", "description": "Short description of what happens in this round" }
+  ],
   "research": {} // freeform metadata like crawl count, model, notes
 }
 Ensure all URLs are absolute and valid.`;

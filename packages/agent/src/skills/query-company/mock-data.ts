@@ -7,6 +7,7 @@ export interface CompanyDetail {
   leadership?: unknown[];
   products?: unknown[];
   materials?: unknown[];
+  interviewProcess?: Array<{ round: number; name: string; description: string }>;
   researchedAt?: string | null;
 }
 
@@ -20,6 +21,12 @@ export const mockCompanies: CompanyDetail[] = [
     leadership: [{ name: "Alex Rivera", title: "CEO", bio: "Co-founded Atlas", source_url: "https://atlasstudio.com/team" }],
     products: [{ name: "Atlas Tracker", description: "Project tracking tool", url: "https://atlasstudio.com/tracker" }],
     materials: [{ type: "blog", title: "Building SaaS", url: "https://atlasstudio.com/blog", description: "Our engineering playbook" }],
+    interviewProcess: [
+      { round: 1, name: "Resume Screening", description: "HR reviews candidate background." },
+      { round: 2, name: "Technical Interview", description: "Focussed coding session." },
+      { round: 3, name: "System Design", description: "Architecural mapping." },
+      { round: 4, name: "Culture Fit & Offer", description: "Leadership talk." }
+    ],
     researchedAt: "2026-01-01T00:00:00Z",
   },
   {

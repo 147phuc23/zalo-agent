@@ -31,22 +31,42 @@ export async function listConversations(repos: Repos, input: { tenantId: string;
   }));
 }
 
+export function mapMessagesWithResponseTime(messages: any[]) {
+  return messages.map((m, idx) => {
+    let responseTimeMs: number | null = null;
+    if (m.direction === "outbound") {
+      // Find latest previous inbound message
+      for (let j = idx - 1; j >= 0; j--) {
+        if (messages[j].direction === "inbound") {
+          responseTimeMs = Math.max(
+            0,
+            new Date(m.created_at).getTime() - new Date(messages[j].created_at).getTime()
+          );
+          break;
+        }
+      }
+    }
+    return {
+      id: m.id,
+      tenantId: m.tenant_id,
+      conversationId: m.conversation_id,
+      direction: m.direction,
+      messageType: m.message_type,
+      text: m.text,
+      externalMessageId: m.external_message_id,
+      idempotencyKey: m.idempotency_key,
+      rawPayload: m.raw_payload,
+      isRead: m.is_read,
+      readAt: m.read_at,
+      createdAt: m.created_at,
+      responseTimeMs,
+    };
+  });
+}
+
 export async function listMessages(repos: Repos, input: { conversationId: string; limit: number; after?: string | Date }) {
   const messages = await repos.messages.listByConversation(input);
-  return messages.map((m) => ({
-    id: m.id,
-    tenantId: m.tenant_id,
-    conversationId: m.conversation_id,
-    direction: m.direction,
-    messageType: m.message_type,
-    text: m.text,
-    externalMessageId: m.external_message_id,
-    idempotencyKey: m.idempotency_key,
-    rawPayload: m.raw_payload,
-    isRead: m.is_read,
-    readAt: m.read_at,
-    createdAt: m.created_at,
-  }));
+  return mapMessagesWithResponseTime(messages);
 }
 
 export async function createConversation(

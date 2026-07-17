@@ -188,6 +188,11 @@ export const MessageBubble = React.memo(function MessageBubble({
             isInbound ? "text-gray-400" : "text-blue-100"
           }`}
         >
+          {m.responseTimeMs !== undefined && m.responseTimeMs !== null && (
+            <span className="font-semibold mr-1.5 flex items-center gap-0.5" title="AI Response Latency">
+              ⏱️ {(m.responseTimeMs / 1000).toFixed(1)}s
+            </span>
+          )}
           <span>
             {new Date(m.createdAt).toLocaleTimeString([], {
               hour: "2-digit",

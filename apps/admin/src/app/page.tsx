@@ -49,11 +49,67 @@ import { Toast } from "@/components/Toast";
 
 // Static models fallback
 const AVAILABLE_MODELS = [
-  { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash" },
-  { id: "google/gemini-2.5-pro", name: "Gemini 2.5 Pro" },
-  { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet" },
   { id: "tencent/hy3:free", name: "OpenRouter Owl Alpha (Default)" },
+  { id: "nvidia/nemotron-3-ultra-550b-a55b:free", name: "Nvidia Nemotron 3 Ultra 550B (Free)" },
+  { id: "poolside/laguna-m.1:free", name: "Poolside Laguna M.1 (Free)" },
 ];
+
+const StatsCardSkeleton = () => (
+  <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm relative flex flex-col justify-between animate-pulse">
+    <div>
+      <div className="h-3 bg-stone-200 rounded w-24 mb-3"></div>
+      <div className="h-8 bg-stone-200 rounded w-16 mb-2"></div>
+    </div>
+    <div className="h-3 bg-stone-200 rounded w-28 mt-4"></div>
+    <div className="w-5 h-5 bg-stone-200 rounded-full absolute right-6 top-6"></div>
+  </div>
+);
+
+const FunnelSkeleton = () => (
+  <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm flex flex-col animate-pulse">
+    <div className="h-5 bg-stone-200 rounded w-32 mb-2"></div>
+    <div className="h-3 bg-stone-200 rounded w-48 mb-8"></div>
+    <div className="space-y-5">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="space-y-2">
+          <div className="flex justify-between">
+            <div className="h-3 bg-stone-200 rounded w-16"></div>
+            <div className="h-3 bg-stone-200 rounded w-8"></div>
+          </div>
+          <div className="w-full bg-stone-100 h-3 rounded-full"></div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const BotPerformanceSkeleton = () => (
+  <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm flex flex-col justify-between animate-pulse">
+    <div>
+      <div className="h-5 bg-stone-200 rounded w-36 mb-2"></div>
+      <div className="h-3 bg-stone-200 rounded w-24 mb-6"></div>
+      <div className="space-y-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex justify-between py-2 border-b border-stone-100">
+            <div className="h-3 bg-stone-200 rounded w-32"></div>
+            <div className="h-3 bg-stone-200 rounded w-8"></div>
+          </div>
+        ))}
+      </div>
+    </div>
+    <div className="border-t border-stone-100 pt-6 mt-6">
+      <div className="h-3 bg-stone-200 rounded w-28 mb-3"></div>
+      <div className="flex justify-between gap-6">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex-1 space-y-2">
+            <div className="h-6 bg-stone-200 rounded w-12"></div>
+            <div className="h-3 bg-stone-200 rounded w-16"></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
 
 function DashboardMain() {
   const searchParams = useSearchParams();
@@ -114,13 +170,13 @@ function DashboardMain() {
   // Dynamic candidate list state
   const [candidates, setCandidates] = useState<any[]>([]);
   const [selectedCandidate, setSelectedCandidate] = useState<any | null>(null);
-  const [isCandidatesLoading, setIsCandidatesLoading] = useState(false);
+  const [isCandidatesLoading, setIsCandidatesLoading] = useState(true);
   const [candidateSearch, setCandidateSearch] = useState("");
 
   // Dynamic jobs list state
   const [activeJobs, setActiveJobs] = useState<any[]>([]);
   const [draftJobs, setDraftJobs] = useState<any[]>([]);
-  const [isJobsLoading, setIsJobsLoading] = useState(false);
+  const [isJobsLoading, setIsJobsLoading] = useState(true);
   const [newJobTitle, setNewJobTitle] = useState("");
   const [newJobCompany, setNewJobCompany] = useState("");
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
@@ -130,10 +186,14 @@ function DashboardMain() {
   // Dynamic knowledge gaps state
   const [gaps, setGaps] = useState<any[]>([]);
   const [gapAnswers, setGapAnswers] = useState<Record<string, string>>({});
-  const [isGapsLoading, setIsGapsLoading] = useState(false);
+  const [isGapsLoading, setIsGapsLoading] = useState(true);
+  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true);
 
   // Notification logs state
   const [notifications, setNotifications] = useState<any[]>([]);
+
+  // Analytics date range filter state
+  const [analyticsRange, setAnalyticsRange] = useState<"week" | "month" | "quarter">("month");
 
   // Real backend analytics state
   const [analytics, setAnalytics] = useState<any>({
@@ -152,19 +212,30 @@ function DashboardMain() {
     },
     totalMessages: 1204,
     estimatedCost: "42.80",
+    rangeLabel: "this month",
+    prevRangeLabel: "last month",
   });
 
-  const loadAnalytics = async () => {
+  const loadAnalytics = async (range = analyticsRange) => {
+    setIsAnalyticsLoading(true);
     try {
-      const res = await fetch("/api/analytics");
+      const res = await fetch(`/api/analytics?range=${range}`);
       const data = await res.json();
       if (data.ok && data.analytics) {
         setAnalytics(data.analytics);
       }
     } catch (err: any) {
       console.error("Failed to load analytics", err);
+    } finally {
+      setIsAnalyticsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (activeView === "dashboard") {
+      loadAnalytics(analyticsRange);
+    }
+  }, [activeView, analyticsRange]);
 
   // SWR Sync
   useEffect(() => {
@@ -1003,188 +1074,230 @@ function DashboardMain() {
                 </p>
               </div>
               <div className="bg-stone-200/60 p-1.5 rounded-xl flex gap-1.5 text-xs font-bold text-stone-600 self-start">
-                <button className="px-3.5 py-1.5 rounded-lg hover:bg-white hover:text-stone-950 transition">
+                <button
+                  onClick={() => setAnalyticsRange("week")}
+                  className={`px-3.5 py-1.5 rounded-lg transition ${
+                    analyticsRange === "week"
+                      ? "bg-white text-stone-950 shadow-sm"
+                      : "hover:bg-white/45 hover:text-stone-900"
+                  }`}
+                >
                   This Week
                 </button>
-                <button className="px-3.5 py-1.5 rounded-lg bg-white text-stone-950 shadow-sm transition">
+                <button
+                  onClick={() => setAnalyticsRange("month")}
+                  className={`px-3.5 py-1.5 rounded-lg transition ${
+                    analyticsRange === "month"
+                      ? "bg-white text-stone-950 shadow-sm"
+                      : "hover:bg-white/45 hover:text-stone-900"
+                  }`}
+                >
                   This Month
                 </button>
-                <button className="px-3.5 py-1.5 rounded-lg hover:bg-white hover:text-stone-950 transition">
+                <button
+                  onClick={() => setAnalyticsRange("quarter")}
+                  className={`px-3.5 py-1.5 rounded-lg transition ${
+                    analyticsRange === "quarter"
+                      ? "bg-white text-stone-950 shadow-sm"
+                      : "hover:bg-white/45 hover:text-stone-900"
+                  }`}
+                >
                   This Quarter
                 </button>
               </div>
             </div>
 
-            {/* Quick Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm relative flex flex-col justify-between">
-                <div>
-                  <span className="text-xs font-bold text-stone-400 uppercase tracking-wider block">
-                    Total Candidates
-                  </span>
-                  <div className="text-4xl font-extrabold text-stone-900 mt-2 tracking-tight">
-                    {analytics.totalCandidates}
-                  </div>
+            {isAnalyticsLoading ? (
+              <>
+                {/* Skeletons for Quick Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <StatsCardSkeleton />
+                  <StatsCardSkeleton />
+                  <StatsCardSkeleton />
+                  <StatsCardSkeleton />
                 </div>
-                <div className="text-xs text-stone-500 mt-4 flex items-center gap-1.5">
-                  <span className="text-emerald-600 font-bold">+{analytics.newCandidatesThisMonth}</span> this month
+                {/* Skeletons for Split rows */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <FunnelSkeleton />
+                  <BotPerformanceSkeleton />
                 </div>
-                <Users className="w-5 h-5 text-stone-400 absolute right-6 top-6" />
-              </div>
-
-              <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm relative flex flex-col justify-between">
-                <div>
-                  <span className="text-xs font-bold text-stone-400 uppercase tracking-wider block">
-                    Active Chats Today
-                  </span>
-                  <div className="text-4xl font-extrabold text-stone-900 mt-2 tracking-tight">
-                    {analytics.totalConversations}
-                  </div>
-                </div>
-                <div className="text-xs text-stone-500 mt-4 flex items-center gap-1.5">
-                  <span className="text-amber-600 font-bold">{analytics.openGapsNeedReview}</span> need review
-                </div>
-                <MessageSquare className="w-5 h-5 text-stone-400 absolute right-6 top-6" />
-              </div>
-
-              <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm relative flex flex-col justify-between">
-                <div>
-                  <span className="text-xs font-bold text-stone-400 uppercase tracking-wider block">
-                    Bot Response Rate
-                  </span>
-                  <div className="text-4xl font-extrabold text-stone-900 mt-2 tracking-tight">
-                    {analytics.botResponseRate}%
-                  </div>
-                </div>
-                <div className="text-xs text-stone-500 mt-4 flex items-center gap-1.5">
-                  <span className="text-emerald-600 font-bold">+1.3%</span> vs last month
-                </div>
-                <Sparkles className="w-5 h-5 text-stone-400 absolute right-6 top-6" />
-              </div>
-
-              <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm relative flex flex-col justify-between">
-                <div>
-                  <span className="text-xs font-bold text-stone-400 uppercase tracking-wider block">
-                    Avg Response Time
-                  </span>
-                  <div className="text-4xl font-extrabold text-stone-900 mt-2 tracking-tight">
-                    {analytics.avgResponseTimeSec}s
-                  </div>
-                </div>
-                <div className="text-xs text-stone-500 mt-4 flex items-center gap-1.5">
-                  Target &lt; 2s
-                </div>
-                <Clock className="w-5 h-5 text-stone-400 absolute right-6 top-6" />
-              </div>
-            </div>
-
-            {/* Split cards row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Hiring Funnel Card */}
-              <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm flex flex-col">
-                <h3 className="font-bold text-stone-900 text-lg">Hiring Funnel</h3>
-                <p className="text-stone-500 text-xs mt-1">Last 30 days - {analytics.funnel.applied} total applicants</p>
-
-                <div className="mt-8 space-y-4 flex-1 flex flex-col justify-center">
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-semibold text-stone-700">
-                      <span>Applied</span>
-                      <span className="font-bold">{analytics.funnel.applied}</span>
-                    </div>
-                    <div className="w-full bg-stone-100 h-3 rounded-full overflow-hidden">
-                      <div className="bg-stone-900 h-full rounded-full" style={{ width: "100%" }} />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-semibold text-stone-700">
-                      <span>Screened</span>
-                      <span className="font-bold">{analytics.funnel.screened}</span>
-                    </div>
-                    <div className="w-full bg-stone-100 h-3 rounded-full overflow-hidden">
-                      <div className="bg-stone-650 h-full rounded-full" style={{ width: `${Math.round((analytics.funnel.screened / Math.max(analytics.funnel.applied || 1, 1)) * 100)}%` }} />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-semibold text-stone-700">
-                      <span>Interviewed</span>
-                      <span className="font-bold">{analytics.funnel.interviewed}</span>
-                    </div>
-                    <div className="w-full bg-stone-100 h-3 rounded-full overflow-hidden">
-                      <div className="bg-stone-650 h-full rounded-full" style={{ width: `${Math.round((analytics.funnel.interviewed / Math.max(analytics.funnel.applied || 1, 1)) * 100)}%` }} />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-semibold text-stone-700">
-                      <span>Offered</span>
-                      <span className="font-bold">{analytics.funnel.offered}</span>
-                    </div>
-                    <div className="w-full bg-stone-100 h-3 rounded-full overflow-hidden">
-                      <div className="bg-stone-650 h-full rounded-full" style={{ width: `${Math.round((analytics.funnel.offered / Math.max(analytics.funnel.applied || 1, 1)) * 100)}%` }} />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-semibold text-stone-700">
-                      <span>Hired</span>
-                      <span className="font-bold text-emerald-600">{analytics.funnel.hired}</span>
-                    </div>
-                    <div className="w-full bg-stone-100 h-3 rounded-full overflow-hidden">
-                      <div className="bg-emerald-600 h-full rounded-full" style={{ width: `${Math.round((analytics.funnel.hired / Math.max(analytics.funnel.applied || 1, 1)) * 100)}%` }} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bot Performance Card */}
-              <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm flex flex-col justify-between">
-                <div>
-                  <h3 className="font-bold text-stone-900 text-lg">Bot Performance</h3>
-                  <p className="text-stone-500 text-xs mt-1">AI agent quality metrics</p>
-
-                  <div className="mt-6 space-y-4">
-                    <div className="flex items-center justify-between text-sm py-1.5 border-b border-stone-100">
-                      <span className="font-semibold text-stone-600">CV Parsing Accuracy</span>
-                      <span className="font-bold text-stone-900">94%</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm py-1.5 border-b border-stone-100">
-                      <span className="font-semibold text-stone-600">Job Match Success Rate</span>
-                      <span className="font-bold text-stone-900">78%</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm py-1.5 border-b border-stone-100">
-                      <span className="font-semibold text-stone-600">Candidate Onboarding</span>
-                      <span className="font-bold text-stone-900">87%</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm py-1.5 border-b border-stone-100">
-                      <span className="font-semibold text-stone-600">Bot Satisfaction Score</span>
-                      <span className="font-bold text-stone-900">92%</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-stone-100 pt-6 mt-6">
-                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-3">
-                    Usage This Month
-                  </span>
-                  <div className="flex justify-between items-center gap-6">
+              </>
+            ) : (
+              <>
+                {/* Quick Cards Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm relative flex flex-col justify-between">
                     <div>
-                      <div className="text-2xl font-black text-stone-900">2,847</div>
-                      <span className="text-[10px] font-semibold text-stone-500">Avg tokens/conv</span>
+                      <span className="text-xs font-bold text-stone-400 uppercase tracking-wider block">
+                        Total Candidates
+                      </span>
+                      <div className="text-4xl font-extrabold text-stone-900 mt-2 tracking-tight">
+                        {analytics.totalCandidates}
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-2xl font-black text-stone-900">{analytics.totalMessages}</div>
-                      <span className="text-[10px] font-semibold text-stone-500">Conversations</span>
+                    <div className="text-xs text-stone-500 mt-4 flex items-center gap-1.5">
+                      <span className="text-emerald-600 font-bold">+{analytics.newCandidatesThisMonth}</span> {analytics.rangeLabel || "this month"}
                     </div>
+                    <Users className="w-5 h-5 text-stone-400 absolute right-6 top-6" />
+                  </div>
+
+                  <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm relative flex flex-col justify-between">
                     <div>
-                      <div className="text-2xl font-black text-stone-900">${analytics.estimatedCost}</div>
-                      <span className="text-[10px] font-semibold text-stone-500">API cost</span>
+                      <span className="text-xs font-bold text-stone-400 uppercase tracking-wider block">
+                        Active Chats Today
+                      </span>
+                      <div className="text-4xl font-extrabold text-stone-900 mt-2 tracking-tight">
+                        {analytics.totalConversations}
+                      </div>
+                    </div>
+                    <div className="text-xs text-stone-500 mt-4 flex items-center gap-1.5">
+                      <span className="text-amber-600 font-bold">{analytics.openGapsNeedReview}</span> need review
+                    </div>
+                    <MessageSquare className="w-5 h-5 text-stone-400 absolute right-6 top-6" />
+                  </div>
+
+                  <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm relative flex flex-col justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-stone-400 uppercase tracking-wider block">
+                        Bot Response Rate
+                      </span>
+                      <div className="text-4xl font-extrabold text-stone-900 mt-2 tracking-tight">
+                        {analytics.botResponseRate}%
+                      </div>
+                    </div>
+                    <div className="text-xs text-stone-500 mt-4 flex items-center gap-1.5">
+                      <span className="text-emerald-600 font-bold">+1.3%</span> vs {analytics.prevRangeLabel || "last month"}
+                    </div>
+                    <Sparkles className="w-5 h-5 text-stone-400 absolute right-6 top-6" />
+                  </div>
+
+                  <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm relative flex flex-col justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-stone-400 uppercase tracking-wider block">
+                        Avg Response Time
+                      </span>
+                      <div className="text-4xl font-extrabold text-stone-900 mt-2 tracking-tight">
+                        {analytics.avgResponseTimeSec}s
+                      </div>
+                    </div>
+                    <div className="text-xs text-stone-500 mt-4 flex items-center gap-1.5">
+                      Target &lt; 2s
+                    </div>
+                    <Clock className="w-5 h-5 text-stone-400 absolute right-6 top-6" />
+                  </div>
+                </div>
+
+                {/* Split cards row */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Hiring Funnel Card */}
+                  <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm flex flex-col">
+                    <h3 className="font-bold text-stone-900 text-lg">Hiring Funnel</h3>
+                    <p className="text-stone-500 text-xs mt-1">
+                      {analyticsRange === "week" ? "Last 7 days" : analyticsRange === "quarter" ? "Last 90 days" : "Last 30 days"} - {analytics.funnel.applied} total applicants
+                    </p>
+
+                    <div className="mt-8 space-y-4 flex-1 flex flex-col justify-center">
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs font-semibold text-stone-700">
+                          <span>Applied</span>
+                          <span className="font-bold">{analytics.funnel.applied}</span>
+                        </div>
+                        <div className="w-full bg-stone-100 h-3 rounded-full overflow-hidden">
+                          <div className="bg-stone-900 h-full rounded-full" style={{ width: "100%" }} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs font-semibold text-stone-700">
+                          <span>Screened</span>
+                          <span className="font-bold">{analytics.funnel.screened}</span>
+                        </div>
+                        <div className="w-full bg-stone-100 h-3 rounded-full overflow-hidden">
+                          <div className="bg-stone-650 h-full rounded-full" style={{ width: `${Math.round((analytics.funnel.screened / Math.max(analytics.funnel.applied || 1, 1)) * 100)}%` }} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs font-semibold text-stone-700">
+                          <span>Interviewed</span>
+                          <span className="font-bold">{analytics.funnel.interviewed}</span>
+                        </div>
+                        <div className="w-full bg-stone-100 h-3 rounded-full overflow-hidden">
+                          <div className="bg-stone-650 h-full rounded-full" style={{ width: `${Math.round((analytics.funnel.interviewed / Math.max(analytics.funnel.applied || 1, 1)) * 100)}%` }} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs font-semibold text-stone-700">
+                          <span>Offered</span>
+                          <span className="font-bold">{analytics.funnel.offered}</span>
+                        </div>
+                        <div className="w-full bg-stone-100 h-3 rounded-full overflow-hidden">
+                          <div className="bg-stone-650 h-full rounded-full" style={{ width: `${Math.round((analytics.funnel.offered / Math.max(analytics.funnel.applied || 1, 1)) * 100)}%` }} />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs font-semibold text-stone-700">
+                          <span>Hired</span>
+                          <span className="font-bold text-emerald-600">{analytics.funnel.hired}</span>
+                        </div>
+                        <div className="w-full bg-stone-100 h-3 rounded-full overflow-hidden">
+                          <div className="bg-emerald-600 h-full rounded-full" style={{ width: `${Math.round((analytics.funnel.hired / Math.max(analytics.funnel.applied || 1, 1)) * 100)}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bot Performance Card */}
+                  <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm flex flex-col justify-between">
+                    <div>
+                      <h3 className="font-bold text-stone-900 text-lg">Bot Performance</h3>
+                      <p className="text-stone-500 text-xs mt-1">AI agent quality metrics</p>
+
+                      <div className="mt-6 space-y-4">
+                        <div className="flex items-center justify-between text-sm py-1.5 border-b border-stone-100">
+                          <span className="font-semibold text-stone-600">CV Parsing Accuracy</span>
+                          <span className="font-bold text-stone-900">94%</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm py-1.5 border-b border-stone-100">
+                          <span className="font-semibold text-stone-600">Job Match Success Rate</span>
+                          <span className="font-bold text-stone-900">78%</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm py-1.5 border-b border-stone-100">
+                          <span className="font-semibold text-stone-600">Candidate Onboarding</span>
+                          <span className="font-bold text-stone-900">87%</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm py-1.5 border-b border-stone-100">
+                          <span className="font-semibold text-stone-600">Bot Satisfaction Score</span>
+                          <span className="font-bold text-stone-900">92%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-stone-100 pt-6 mt-6">
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-3">
+                        Usage This Month
+                      </span>
+                      <div className="flex justify-between items-center gap-6">
+                        <div>
+                          <div className="text-2xl font-black text-stone-900">2,847</div>
+                          <span className="text-[10px] font-semibold text-stone-500">Avg tokens/conv</span>
+                        </div>
+                        <div>
+                          <div className="text-2xl font-black text-stone-900">{analytics.totalMessages}</div>
+                          <span className="text-[10px] font-semibold text-stone-500">Conversations</span>
+                        </div>
+                        <div>
+                          <div className="text-2xl font-black text-stone-900">${analytics.estimatedCost}</div>
+                          <span className="text-[10px] font-semibold text-stone-500">API cost</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         )}
 
@@ -1324,54 +1437,103 @@ function DashboardMain() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                {filteredCandidates.map((cand) => {
-                  const isSelected = selectedCandidate?.id === cand.id;
-                  const isHighRisk = cand.risk_score > 50;
-
-                  return (
-                    <button
-                      key={cand.id}
-                      onClick={() => setSelectedCandidate(cand)}
-                      className={`w-full text-left p-3.5 rounded-xl border transition flex flex-col gap-1.5 ${
-                        isSelected
-                          ? "bg-stone-100 border-stone-300 text-stone-900 shadow-xs"
-                          : "bg-transparent border-transparent text-stone-600 hover:bg-stone-50"
-                      }`}
+                {isCandidatesLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div
+                      key={`cand-skeleton-${i}`}
+                      className="p-3.5 rounded-xl border border-transparent flex flex-col gap-2.5 animate-pulse bg-stone-50/70"
                     >
-                      <div className="flex justify-between items-start w-full">
-                        <div className="font-bold text-xs text-stone-800 truncate">
-                          {cand.full_name || cand.display_name || "Anonymous Candidate"}
-                        </div>
-                        {isHighRisk && (
-                          <span className="bg-red-100 text-red-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-red-200 uppercase tracking-wider">
-                            Risk
-                          </span>
-                        )}
+                      <div className="flex justify-between items-center">
+                        <div className="h-3.5 bg-stone-200 rounded w-2/3"></div>
+                        <div className="h-3 bg-stone-200 rounded w-10"></div>
                       </div>
-                      <div className="text-[10px] text-stone-450 truncate">
-                        {cand.email || "No email"} • {cand.phone || cand.contact_phone || "No phone"}
+                      <div className="h-3 bg-stone-200 rounded w-1/2"></div>
+                      <div className="flex gap-1 mt-1">
+                        <div className="h-4 bg-stone-200 rounded w-12"></div>
+                        <div className="h-4 bg-stone-200 rounded w-10"></div>
+                        <div className="h-4 bg-stone-200 rounded w-14"></div>
                       </div>
-                      {cand.skills?.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {cand.skills.slice(0, 3).map((s: string) => (
-                            <span
-                              key={s}
-                              className="text-[9px] bg-stone-100 border border-stone-200/60 text-stone-600 px-1.5 py-0.2 rounded"
-                            >
-                              {s}
+                    </div>
+                  ))
+                ) : filteredCandidates.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-stone-500">No candidates found.</div>
+                ) : (
+                  filteredCandidates.map((cand) => {
+                    const isSelected = selectedCandidate?.id === cand.id;
+                    const isHighRisk = cand.risk_score > 50;
+
+                    return (
+                      <button
+                        key={cand.id}
+                        onClick={() => setSelectedCandidate(cand)}
+                        className={`w-full text-left p-3.5 rounded-xl border transition flex flex-col gap-1.5 ${
+                          isSelected
+                            ? "bg-stone-100 border-stone-300 text-stone-900 shadow-xs"
+                            : "bg-transparent border-transparent text-stone-600 hover:bg-stone-50"
+                        }`}
+                      >
+                        <div className="flex justify-between items-start w-full">
+                          <div className="font-bold text-xs text-stone-850 truncate">
+                            {cand.full_name || cand.display_name || "Anonymous Candidate"}
+                          </div>
+                          {isHighRisk && (
+                            <span className="bg-red-100 text-red-700 text-[9px] font-bold px-1.5 py-0.5 rounded border border-red-200 uppercase tracking-wider">
+                              Risk
                             </span>
-                          ))}
+                          )}
                         </div>
-                      )}
-                    </button>
-                  );
-                })}
+                        <div className="text-[10px] text-stone-450 truncate">
+                          {cand.email || "No email"} • {cand.phone || cand.contact_phone || "No phone"}
+                        </div>
+                        {cand.skills?.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {cand.skills.slice(0, 3).map((s: string) => (
+                              <span
+                                key={s}
+                                className="text-[9px] bg-stone-100 border border-stone-200/60 text-stone-600 px-1.5 py-0.2 rounded"
+                              >
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
               </div>
             </div>
 
             {/* Candidate details panel */}
             <div className="flex-1 overflow-y-auto p-6 bg-stone-50">
-              {selectedCandidate ? (
+              {isCandidatesLoading ? (
+                <div className="space-y-6 animate-pulse">
+                  <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm flex justify-between items-start">
+                    <div className="space-y-3 flex-1">
+                      <div className="h-6 bg-stone-200 rounded w-1/3"></div>
+                      <div className="h-3.5 bg-stone-200 rounded w-1/2"></div>
+                      <div className="h-3 bg-stone-200 rounded w-1/4"></div>
+                    </div>
+                    <div className="h-10 bg-stone-200 rounded w-24"></div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm space-y-4">
+                      <div className="h-4 bg-stone-200 rounded w-1/4"></div>
+                      <div className="space-y-2">
+                        <div className="h-3 bg-stone-200 rounded w-full"></div>
+                        <div className="h-3 bg-stone-200 rounded w-5/6"></div>
+                      </div>
+                    </div>
+                    <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm space-y-4">
+                      <div className="h-4 bg-stone-200 rounded w-1/4"></div>
+                      <div className="space-y-2">
+                        <div className="h-3 bg-stone-200 rounded w-full"></div>
+                        <div className="h-3 bg-stone-200 rounded w-5/6"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : selectedCandidate ? (
                 <div className="space-y-6">
                   {/* Warning Header if Flagged */}
                   {selectedCandidate.risk_score > 50 && (
@@ -1631,32 +1793,21 @@ function DashboardMain() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-2 space-y-3">
-                {/* Active section */}
-                {activeJobs.map((j) => (
-                  <button
-                    key={j.id}
-                    onClick={() => setSelectedJob(j)}
-                    className={`w-full text-left p-3.5 rounded-xl border transition flex flex-col gap-1 ${
-                      selectedJob?.id === j.id
-                        ? "bg-stone-100 border-stone-300 text-stone-900 shadow-xs"
-                        : "bg-transparent border-transparent text-stone-600 hover:bg-stone-50"
-                    }`}
-                  >
-                    <div className="font-bold text-xs text-stone-850 truncate">{j.title}</div>
-                    <div className="text-[10px] text-stone-450">{j.company}</div>
-                    <span className="bg-emerald-50 text-emerald-600 text-[8px] font-bold px-1.5 py-0.5 rounded border border-emerald-150 uppercase tracking-wider block w-fit mt-1">
-                      Active
-                    </span>
-                  </button>
-                ))}
-
-                {/* Draft section */}
-                {draftJobs.length > 0 && (
-                  <div className="pt-2 border-t border-stone-100">
-                    <span className="px-3 text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-2">
-                      Draft Postings
-                    </span>
-                    {draftJobs.map((j) => (
+                {isJobsLoading ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <div
+                      key={`job-skeleton-${i}`}
+                      className="p-3.5 rounded-xl border border-transparent flex flex-col gap-2.5 animate-pulse bg-stone-50/70"
+                    >
+                      <div className="h-3.5 bg-stone-200 rounded w-2/3"></div>
+                      <div className="h-3 bg-stone-200 rounded w-1/3"></div>
+                      <div className="h-4 bg-stone-200 rounded w-10"></div>
+                    </div>
+                  ))
+                ) : (
+                  <>
+                    {/* Active section */}
+                    {activeJobs.map((j) => (
                       <button
                         key={j.id}
                         onClick={() => setSelectedJob(j)}
@@ -1668,12 +1819,38 @@ function DashboardMain() {
                       >
                         <div className="font-bold text-xs text-stone-850 truncate">{j.title}</div>
                         <div className="text-[10px] text-stone-450">{j.company}</div>
-                        <span className="bg-stone-100 text-stone-500 text-[8px] font-bold px-1.5 py-0.5 rounded border border-stone-200 uppercase tracking-wider block w-fit mt-1">
-                          Draft
+                        <span className="bg-emerald-50 text-emerald-600 text-[8px] font-bold px-1.5 py-0.5 rounded border border-emerald-150 uppercase tracking-wider block w-fit mt-1">
+                          Active
                         </span>
                       </button>
                     ))}
-                  </div>
+
+                    {/* Draft section */}
+                    {draftJobs.length > 0 && (
+                      <div className="pt-2 border-t border-stone-100">
+                        <span className="px-3 text-[10px] font-bold text-stone-400 uppercase tracking-wider block mb-2">
+                          Draft Postings
+                        </span>
+                        {draftJobs.map((j) => (
+                          <button
+                            key={j.id}
+                            onClick={() => setSelectedJob(j)}
+                            className={`w-full text-left p-3.5 rounded-xl border transition flex flex-col gap-1 ${
+                              selectedJob?.id === j.id
+                                ? "bg-stone-100 border-stone-300 text-stone-900 shadow-xs"
+                                : "bg-transparent border-transparent text-stone-600 hover:bg-stone-50"
+                            }`}
+                          >
+                            <div className="font-bold text-xs text-stone-850 truncate">{j.title}</div>
+                            <div className="text-[10px] text-stone-450">{j.company}</div>
+                            <span className="bg-stone-100 text-stone-500 text-[8px] font-bold px-1.5 py-0.5 rounded border border-stone-200 uppercase tracking-wider block w-fit mt-1">
+                              Draft
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -1747,7 +1924,24 @@ function DashboardMain() {
               </div>
 
               {/* Selected Job details block */}
-              {selectedJob ? (
+              {isJobsLoading ? (
+                <div className="bg-white border border-stone-200 p-6 rounded-2xl shadow-sm space-y-4 animate-pulse">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-2 flex-1">
+                      <div className="h-5 bg-stone-200 rounded w-1/3"></div>
+                      <div className="h-3.5 bg-stone-200 rounded w-1/4"></div>
+                    </div>
+                    <div className="h-8 bg-stone-200 rounded w-20"></div>
+                  </div>
+                  <div className="h-px bg-stone-100 my-4"></div>
+                  <div className="space-y-3">
+                    <div className="h-4 bg-stone-200 rounded w-1/4 mb-2"></div>
+                    <div className="h-3 bg-stone-200 rounded w-full"></div>
+                    <div className="h-3 bg-stone-200 rounded w-5/6"></div>
+                    <div className="h-3 bg-stone-200 rounded w-4/5"></div>
+                  </div>
+                </div>
+              ) : selectedJob ? (
                 <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-sm relative">
                   <div className="flex justify-between items-start gap-4">
                     <div>

@@ -25,6 +25,7 @@ export type Message = {
   readAt: string | null;
   createdAt: string;
   rawPayload?: any;
+  responseTimeMs?: number | null;
 };
 
 export type Audit = {
