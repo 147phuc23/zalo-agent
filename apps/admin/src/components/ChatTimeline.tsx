@@ -64,9 +64,12 @@ export function ChatTimeline({
   // Scroll to bottom on load or new message
   useEffect(() => {
     if (!isLoading) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      const timer = setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+      return () => clearTimeout(timer);
     }
-  }, [messages.length, isLoading]);
+  }, [messages, isLoading]);
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
