@@ -116,7 +116,7 @@ describe("buildPromptCacheContext", () => {
     expect(context.messages).toHaveLength(1);
     expect(context.messages[0].role).toBe("user");
     expect(context.messages[0].content).toBe(
-      "<candidate_msg>\nhello world\n</candidate_msg>"
+      "<candidate_msg>\nhello world\n</candidate_msg>\n\n[SYSTEM DIRECTIVE: If the candidate's message requires action (e.g. searching jobs, updating CRM profile, checking application status), you MUST call the corresponding tool/function now in this step. Do NOT write a message saying you will search/check/update without actually invoking the tool in this step. You must get the results before finalizing your response.]"
     );
   });
 

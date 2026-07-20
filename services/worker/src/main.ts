@@ -522,11 +522,7 @@ async function generateDraftReply(
   }
 
   let systemPromptOverride: string | undefined;
-  const useDbPrompt =
-    process.env.USE_DB_PROMPT === "true" ||
-    (process.env.USE_DB_PROMPT !== undefined &&
-      process.env.USE_DB_PROMPT !== "false" &&
-      process.env.USE_DB_PROMPT !== "");
+  const useDbPrompt = process.env.USE_DB_PROMPT === "true";
 
   if (useDbPrompt) {
     const dbPrompt = await repos.prompts.findActive({ tenantId, key: "assistant" });

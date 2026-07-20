@@ -117,11 +117,11 @@ export async function generateAndSaveReply(
   }
 
   let systemPromptOverride: string | undefined;
-  const useDbPrompt =
-    process.env.USE_DB_PROMPT === "true" ||
-    (process.env.USE_DB_PROMPT !== undefined &&
-      process.env.USE_DB_PROMPT !== "false" &&
-      process.env.USE_DB_PROMPT !== "");
+  const useDbPrompt = process.env.USE_DB_PROMPT === "true";
+
+  console.log(
+    `[core:reply] Prompt configuration: useDbPrompt=${useDbPrompt} (env.USE_DB_PROMPT=${process.env.USE_DB_PROMPT})`
+  );
 
   if (useDbPrompt) {
     const dbPrompt = await repos.prompts.findActive({

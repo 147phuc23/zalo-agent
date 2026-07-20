@@ -114,11 +114,17 @@ export function buildPromptCacheContext(input: {
 function buildChatMessages(history: HrAgentState["history"]): CoreMessage[] {
   // Safe trim to avoid context bloup, keeping the last 60 turns
   const recentHistory = history.slice(-60);
-  return recentHistory.map((msg) => ({
-    role: msg.role === "assistant" ? "assistant" as const : "user" as const,
-    content:
-      msg.role === "assistant" ? msg.content : wrapCandidateMessage(msg.content),
-  }));
+  return recentHistory.map((msg, index) => {
+    if (msg.role === "assistant") {
+      return { role: "assistant" as const, content: msg.content };
+    }
+    
+    let content = wrapCandidateMessage(msg.content);
+    if (index === recentHistory.length - 1) {
+      content += "\n\n[SYSTEM DIRECTIVE: If the candidate's message requires action (e.g. searching jobs, updating CRM profile, checking application status), you MUST call the corresponding tool/function now in this step. Do NOT write a message saying you will search/check/update without actually invoking the tool in this step. You must get the results before finalizing your response.]";
+    }
+    return { role: "user" as const, content };
+  });
 }
 
 function buildLoadedSkillsBlock(skills: SkillDefinition[]) {
