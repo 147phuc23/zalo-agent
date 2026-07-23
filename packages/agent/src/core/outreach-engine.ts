@@ -24,7 +24,7 @@ Reply in Vietnamese with friendly emojis.`;
 export async function generateFollowUpMessage(
   candidateName: string,
   roleName: string,
-  model: string = "tencent/hy3:free",
+  model: string = "cohere/north-mini-code:free",
 ): Promise<string> {
   const client = new OpenRouterAiClient();
   const response = await client.generate({
@@ -40,7 +40,7 @@ export async function generateJobOutreachMessage(
   candidateName: string,
   jobTitle: string,
   company: string,
-  model: string = "tencent/hy3:free",
+  model: string = "cohere/north-mini-code:free",
 ): Promise<string> {
   const client = new OpenRouterAiClient();
   const response = await client.generate({
@@ -56,7 +56,7 @@ export async function generateUrgentOutreachMessage(
   candidateName: string,
   jobTitle: string,
   company: string,
-  model: string = "tencent/hy3:free",
+  model: string = "cohere/north-mini-code:free",
 ): Promise<string> {
   const client = new OpenRouterAiClient();
   const response = await client.generate({

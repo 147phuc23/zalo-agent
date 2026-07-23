@@ -59,7 +59,7 @@ describe("CV Extractor & Worker", () => {
           skills: ["Java", "SQL"],
           preferredRoles: ["Java Developer"],
         }),
-        model: "tencent/hy3:free",
+        model: "cohere/north-mini-code:free",
       });
 
       const result = await extractCvData("cv_general.pdf", "http://example.com/file");

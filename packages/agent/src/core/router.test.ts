@@ -23,7 +23,7 @@ describe("Router & Classifier Agent", () => {
         category: "CHITCHAT",
         reason: "User said hello",
       }),
-      model: "tencent/hy3:free",
+      model: "cohere/north-mini-code:free",
     });
 
     const result = await classifyIntent([{ role: "user", content: "Chào bạn!" }]);
@@ -39,7 +39,7 @@ describe("Router & Classifier Agent", () => {
         category: "HR_SPECIALIST",
         reason: "User wants to find a backend React job",
       }),
-      model: "tencent/hy3:free",
+      model: "cohere/north-mini-code:free",
     });
 
     const result = await classifyIntent([
@@ -53,7 +53,7 @@ describe("Router & Classifier Agent", () => {
   it("falls back to HR_SPECIALIST if classifier JSON is invalid", async () => {
     mockGenerate.mockResolvedValue({
       text: "This is not valid JSON",
-      model: "tencent/hy3:free",
+      model: "cohere/north-mini-code:free",
     });
 
     const result = await classifyIntent([{ role: "user", content: "Chào" }]);
@@ -65,7 +65,7 @@ describe("Router & Classifier Agent", () => {
   it("generates a friendly chitchat reply", async () => {
     mockGenerate.mockResolvedValue({
       text: "Chào bạn! Mình có thể giúp gì cho bạn hôm nay? 😊",
-      model: "tencent/hy3:free",
+      model: "cohere/north-mini-code:free",
     });
 
     const result = await generateChitchatReply([{ role: "user", content: "Chào bạn" }]);
@@ -77,7 +77,7 @@ describe("Router & Classifier Agent", () => {
   it("includes the shared persona examples in the chitchat system prompt", async () => {
     mockGenerate.mockResolvedValue({
       text: "Chào bạn!",
-      model: "tencent/hy3:free",
+      model: "cohere/north-mini-code:free",
     });
 
     await generateChitchatReply([{ role: "user", content: "Chào bạn" }]);

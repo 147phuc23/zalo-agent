@@ -33,7 +33,7 @@ export function createNormalizeRequirementTool() {
     }),
     execute: async ({ rawText, availableOptions }) => {
       const client = new OpenRouterAiClient();
-      const model = "tencent/hy3:free"; // default fallback free model
+      const model = "cohere/north-mini-code:free"; // default fallback free model
       
       let prompt = `Normalize this candidate input: "${rawText}"`;
       if (availableOptions) {

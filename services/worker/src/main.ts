@@ -357,10 +357,10 @@ async function generateDraftReply(
   const externalUserId = contact?.external_user_id ?? "unknown";
 
   const overrideModel = conversation.override_model;
-  const defaultModel = (await resolveDefaultModel(tenantId)) ?? "tencent/hy3:free";
+  const defaultModel = (await resolveDefaultModel(tenantId)) ?? "cohere/north-mini-code:free";
   const model = overrideModel || defaultModel;
 
-  const classifierModel = (await resolveClassifierModel(tenantId)) ?? "tencent/hy3:free";
+  const classifierModel = (await resolveClassifierModel(tenantId)) ?? "cohere/north-mini-code:free";
   const routerMessages = messages.map((m) => ({
     role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
     content:

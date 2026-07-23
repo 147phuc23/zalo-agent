@@ -1,7 +1,7 @@
 import { OpenRouterAiClient } from "@platform/ai-client";
 import { CompanyResearchJsonSchema, type CompanyResearchJson } from "./schema.js";
 
-const DEFAULT_MODEL = process.env.OPENROUTER_MODEL || "tencent/hy3:free";
+const DEFAULT_MODEL = process.env.OPENROUTER_MODEL || "cohere/north-mini-code:free";
 
 export async function pickRelevantLinks(
   homepageUrl: string,

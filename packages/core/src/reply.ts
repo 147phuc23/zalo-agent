@@ -46,11 +46,11 @@ export async function generateAndSaveReply(
 
   const overrideModel = conversation.override_model;
   const defaultModel =
-    (await resolveDefaultModel(repos, input.tenantId)) ?? "tencent/hy3:free";
+    (await resolveDefaultModel(repos, input.tenantId)) ?? "cohere/north-mini-code:free";
   const model = overrideModel || defaultModel;
 
   const classifierModel =
-    (await resolveClassifierModel(repos, input.tenantId)) ?? "tencent/hy3:free";
+    (await resolveClassifierModel(repos, input.tenantId)) ?? "cohere/north-mini-code:free";
   const routerMessages = messages.map((m) => ({
     role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
     content:

@@ -28,7 +28,7 @@ describe("normalize-requirement", () => {
         availability: "immediate",
         language: "english",
       }),
-      model: "tencent/hy3:free",
+      model: "cohere/north-mini-code:free",
     });
 
     const toolInstance = createNormalizeRequirementTool();

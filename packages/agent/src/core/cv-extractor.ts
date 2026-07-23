@@ -35,7 +35,7 @@ Only respond with the JSON object. Do not include markdown blocks or other text.
 export async function extractCvData(
   fileName: string,
   fileUrl: string,
-  model: string = "tencent/hy3:free",
+  model: string = "cohere/north-mini-code:free",
 ): Promise<Partial<CandidateProfile>> {
   // Mock fallback for typical files in development/testing
   if (fileName.toLowerCase().includes("frontend") || fileUrl.includes("frontend")) {

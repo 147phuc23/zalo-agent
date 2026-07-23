@@ -57,7 +57,7 @@ ${PERSONA_EXAMPLES}`;
 
 export async function classifyIntent(
   messages: RouterMessage[],
-  model: string = "tencent/hy3:free",
+  model: string = "cohere/north-mini-code:free",
   knownFacts?: string,
 ): Promise<ClassificationResult> {
   const client = new OpenRouterAiClient();
@@ -105,7 +105,7 @@ export async function classifyIntent(
 
 export async function generateChitchatReply(
   messages: RouterMessage[],
-  model: string = "tencent/hy3:free",
+  model: string = "cohere/north-mini-code:free",
   knownFacts?: string,
 ): Promise<string> {
   const client = new OpenRouterAiClient();

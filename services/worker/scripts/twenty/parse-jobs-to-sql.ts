@@ -11,7 +11,7 @@ const { repoRoot } = loadRepoEnvLocal();
 const JOBS_DIR = path.join(repoRoot, "jobs_txt");
 const OUTPUT_SQL_PATH = path.join(repoRoot, "jobs_insert.sql");
 const TENANT_ID = process.env.TENANT_ID || "b545a6ca-eabe-4bb8-852d-2c497edb8e38";
-const MODEL = process.env.HR_AGENT_MODEL || "tencent/hy3:free";
+const MODEL = process.env.HR_AGENT_MODEL || "cohere/north-mini-code:free";
 
 const SYSTEM_PROMPT = `You are an expert system that extracts structured job postings from raw text files.
 You MUST output a valid JSON object matching the following structure:
